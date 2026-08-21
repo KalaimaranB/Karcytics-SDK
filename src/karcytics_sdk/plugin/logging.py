@@ -8,6 +8,16 @@ import logging
 import logging.handlers
 from pathlib import Path
 
+# Third-party libraries whose own DEBUG-level logging is compiler/rendering
+# internals, not anything a plugin author would ever want to see. Since
+# configure_plugin_logging() sets the *root* logger to DEBUG (so a plugin's
+# own unqualified logging.debug() calls reach the log file), any of these
+# libraries left at their default (unset) level would inherit DEBUG too and
+# flood the log — e.g. numba dumps full bytecode-flow/SSA analysis for every
+# function it JIT-compiles. Pinning them back to WARNING here keeps root at
+# DEBUG for plugin code while silencing dependency-internal noise.
+_NOISY_THIRD_PARTY_LOGGERS = ("numba", "llvmlite", "matplotlib")
+
 
 class PluginLoggerAdapter(logging.LoggerAdapter):
     """Logger adapter that injects plugin_id into every log record."""
@@ -90,6 +100,8 @@ def configure_plugin_logging(plugin_id: str, log_dir: Path | None = None) -> Pat
     stream_handler.setFormatter(logging.Formatter("%(levelname)s %(name)s: %(message)s"))
 
     root.setLevel(logging.DEBUG)
+    for noisy_logger_name in _NOISY_THIRD_PARTY_LOGGERS:
+        logging.getLogger(noisy_logger_name).setLevel(logging.WARNING)
     root.addHandler(file_handler)
     root.addHandler(stream_handler)
     root._karcytics_plugin_logging_configured = True  # type: ignore[attr-defined]
