@@ -140,40 +140,44 @@ class TestRasterizeToImageTask:
             runner.join(timeout=2)
 
 
+def _make_fake_scheduler():
+    """A synchronous fake ITaskScheduler: submit() runs the analyzer immediately
+    and returns a MagicMock standing in for the AnalysisWorker, with
+    `finished`/`error` signals pre-wired as simple callback registries.
+    """
+
+    class _FakeWorker:
+        def __init__(self):
+            self._finished_cbs = []
+            self._error_cbs = []
+            self.finished = MagicMock()
+            self.finished.connect = self._finished_cbs.append
+            self.error = MagicMock()
+            self.error.connect = self._error_cbs.append
+
+        def emit_finished(self, results):
+            for cb in self._finished_cbs:
+                cb(results)
+
+        def emit_error(self, message):
+            for cb in self._error_cbs:
+                cb(message)
+
+    scheduler = MagicMock()
+    workers = []
+
+    def _submit(analyzer, state=None):
+        worker = _FakeWorker()
+        workers.append((analyzer, state, worker))
+        return worker
+
+    scheduler.submit.side_effect = _submit
+    return scheduler, workers
+
+
 class TestRenderPipelineController:
     def _make_scheduler(self):
-        """A synchronous fake ITaskScheduler: submit() runs the analyzer immediately
-        and returns a MagicMock standing in for the AnalysisWorker, with
-        `finished`/`error` signals pre-wired as simple callback registries.
-        """
-
-        class _FakeWorker:
-            def __init__(self):
-                self._finished_cbs = []
-                self._error_cbs = []
-                self.finished = MagicMock()
-                self.finished.connect = self._finished_cbs.append
-                self.error = MagicMock()
-                self.error.connect = self._error_cbs.append
-
-            def emit_finished(self, results):
-                for cb in self._finished_cbs:
-                    cb(results)
-
-            def emit_error(self, message):
-                for cb in self._error_cbs:
-                    cb(message)
-
-        scheduler = MagicMock()
-        workers = []
-
-        def _submit(analyzer, state=None):
-            worker = _FakeWorker()
-            workers.append((analyzer, state, worker))
-            return worker
-
-        scheduler.submit.side_effect = _submit
-        return scheduler, workers
+        return _make_fake_scheduler()
 
     def test_request_submits_compute_stage_and_applies_result_on_finish(self, qapp):
         scheduler, workers = self._make_scheduler()
@@ -275,3 +279,96 @@ class TestRenderPipelineController:
         first_worker.emit_error("stale failure")
 
         assert failures == []
+
+
+class TestRenderPipelineControllerCrashReporting:
+    def test_no_crash_reporter_by_default_rasterize_failure_still_just_logs(self, qapp):
+        scheduler, workers = _make_fake_scheduler()
+
+        class _FailingRasterizeStage(RasterizeStage):
+            def rasterize(self, target, data):
+                raise ValueError("rasterize boom")
+
+        controller = RenderPipelineController(
+            compute_stage=_FakeComputeStage(),
+            rasterize_stage=_FailingRasterizeStage(),
+            raster_lock=RasterLock("test"),
+            task_scheduler=scheduler,
+            target_factory=lambda: object(),
+        )
+        results = []
+        controller.result_ready.connect(results.append)
+
+        controller.request(state=None)
+        _, _, worker = workers[0]
+        worker.emit_finished({"render_data": _FakeRenderData(value=1)})  # must not raise
+
+        assert results == []  # rasterize failed, so no result was ever applied
+
+    def test_reports_to_crash_reporter_when_rasterize_fails(self, qapp):
+        scheduler, workers = _make_fake_scheduler()
+        reporter = MagicMock()
+
+        class _FailingRasterizeStage(RasterizeStage):
+            def rasterize(self, target, data):
+                raise ValueError("rasterize boom")
+
+        controller = RenderPipelineController(
+            compute_stage=_FakeComputeStage(plugin_id="flow_cytometry"),
+            rasterize_stage=_FailingRasterizeStage(),
+            raster_lock=RasterLock("test"),
+            task_scheduler=scheduler,
+            target_factory=lambda: object(),
+            crash_reporter=reporter,
+        )
+
+        controller.request(state=None)
+        _, _, worker = workers[0]
+        worker.emit_finished({"render_data": _FakeRenderData(value=1)})
+
+        reporter.report_error.assert_called_once()
+        args, kwargs = reporter.report_error.call_args
+        assert "Render pipeline rasterize failed" in args[0]
+        assert isinstance(kwargs["exception"], ValueError)
+        assert kwargs["plugin_id"] == "flow_cytometry"
+        assert kwargs["fatal"] is False
+
+    def test_reports_to_crash_reporter_when_compute_fails(self, qapp):
+        scheduler, workers = _make_fake_scheduler()
+        reporter = MagicMock()
+
+        controller = RenderPipelineController(
+            compute_stage=_FailingComputeStage("flow_cytometry"),
+            rasterize_stage=_FakeRasterizeStage(),
+            raster_lock=RasterLock("test"),
+            task_scheduler=scheduler,
+            target_factory=lambda: object(),
+            crash_reporter=reporter,
+            plugin_id="flow_cytometry",
+        )
+
+        controller.request(state=None)
+        _, _, worker = workers[0]
+        worker.emit_error("boom")
+
+        reporter.report_error.assert_called_once_with(
+            "Render pipeline compute failed: boom",
+            exception=None,
+            plugin_id="flow_cytometry",
+            fatal=False,
+        )
+
+    def test_plugin_id_defaults_to_the_compute_stages_plugin_id(self, qapp):
+        scheduler, _workers = _make_fake_scheduler()
+        reporter = MagicMock()
+
+        controller = RenderPipelineController(
+            compute_stage=_FakeComputeStage(plugin_id="flow_cytometry"),
+            rasterize_stage=_FakeRasterizeStage(),
+            raster_lock=RasterLock("test"),
+            task_scheduler=scheduler,
+            target_factory=lambda: object(),
+            crash_reporter=reporter,
+        )
+
+        assert controller._plugin_id == "flow_cytometry"

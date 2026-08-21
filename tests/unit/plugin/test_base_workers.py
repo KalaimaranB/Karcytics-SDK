@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from unittest.mock import MagicMock
 
 from karcytics_sdk.plugin.analysis import AnalysisBase, AnalysisWorker
-from karcytics_sdk.plugin.base import PluginBase
+from karcytics_sdk.plugin.base import _IN_PROCESS, PluginBase
 from karcytics_sdk.plugin.rendering.pipeline import RasterizeStage, RenderComputeStage, RenderData
 from karcytics_sdk.plugin.state import PluginState
 
@@ -192,3 +192,42 @@ class TestCreateRenderPipeline:
         )
 
         assert controller._task_scheduler is default_task_scheduler
+
+    def test_passes_the_plugins_crash_reporter_and_plugin_id_through(self, qapp):
+        plugin = _DummyPlugin()
+        scheduler, _workers = _synchronous_fake_scheduler()
+
+        controller = plugin.create_render_pipeline(
+            compute_stage=_DummyComputeStage("test_plugin"),
+            rasterize_stage=_DummyRasterizeStage(),
+            target_factory=lambda: object(),
+            task_scheduler=scheduler,
+        )
+
+        assert controller._crash_reporter is plugin.crash_reporter
+        assert controller._plugin_id == "test_plugin"
+
+
+class TestCrashReporter:
+    """Verifies PluginBase resolves self.crash_reporter per the in-process-vs-isolated
+    split: `None` for in-process plugins (they already reach Sentry for free via
+    logger.exception() + the Hub's AutoReportHandler), the isolated
+    DiagnosticsForwarder otherwise (their only route back to the Hub at all).
+
+    This SDK's own test environment never has `karcytics.ui.theme` importable
+    (that package lives in the Hub, not the SDK), so `_IN_PROCESS` is always
+    False here — the same condition a real isolated flow-cytometry plugin
+    process runs under. Assertions branch on `_IN_PROCESS` so this test keeps
+    working correctly if that ever changes (e.g. run inside the Hub's own
+    test suite where the Hub package really is importable).
+    """
+
+    def test_crash_reporter_matches_the_in_process_vs_isolated_split(self, qapp):
+        from karcytics_sdk.plugin.runtime_services import diagnostics
+
+        plugin = _DummyPlugin()
+
+        if _IN_PROCESS:
+            assert plugin.crash_reporter is None
+        else:
+            assert plugin.crash_reporter is diagnostics

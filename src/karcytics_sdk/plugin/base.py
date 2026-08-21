@@ -14,6 +14,8 @@ from PyQt6.QtWidgets import QWidget
 
 try:
     from karcytics.ui.theme import Colors, theme_manager
+
+    _IN_PROCESS = True
 except ImportError:
     # In an isolated plugin .venv, karcytics.ui.theme is never importable.
     # theme_fallback provides the SDK's canonical fallback: Colors reads live
@@ -22,12 +24,15 @@ except ImportError:
     # handler). Same pattern already used by components.py and cyto_character.py.
     from .theme_fallback import Colors, theme_manager
 
+    _IN_PROCESS = False
+
 from .analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
 from .events import CentralEventBus
 from .signals import PluginSignals
 from .state import PluginState
 
 if TYPE_CHECKING:
+    from karcytics_sdk.interfaces.i_crash_reporter import ICrashReporter
     from karcytics_sdk.interfaces.i_task_scheduler import ITaskScheduler
 
     from .rendering.lock import RasterLock
@@ -85,6 +90,16 @@ class PluginBase(QWidget):
 
         self._history = None
         self._current_state = None
+
+        # Isolated plugins have no automatic route back to the Hub's
+        # diagnostics engine (in-process plugins get one for free via
+        # logger.exception() + the Hub's AutoReportHandler) — resolve the
+        # explicit forwarder only when actually running isolated.
+        self.crash_reporter: ICrashReporter | None = None
+        if not _IN_PROCESS:
+            from .runtime_services import diagnostics as _isolated_diagnostics
+
+            self.crash_reporter = _isolated_diagnostics
 
         # Connect to global theme engine
         theme_manager.theme_changed.connect(self._apply_theme_styles)
@@ -322,6 +337,8 @@ class PluginBase(QWidget):
             task_scheduler=task_scheduler,
             target_factory=target_factory,
             parent=self,
+            crash_reporter=self.crash_reporter,
+            plugin_id=self.plugin_id,
         )
 
     # ── Two-phase loading protocol ────────────────────────────────────

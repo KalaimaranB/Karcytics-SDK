@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
+from unittest.mock import MagicMock
 
 from karcytics_sdk.plugin.rendering.lock import MPL_RASTER_LOCK, RasterLock
 
@@ -130,6 +131,41 @@ class TestTryRun:
         lock.release()
         assert lock.acquire(blocking=False) is True
         lock.release()
+
+
+class TestTryRunCrashReporting:
+    def test_no_crash_reporter_by_default_still_just_logs(self, caplog):
+        lock = RasterLock("test")
+
+        def _boom():
+            raise ValueError("boom")
+
+        lock.try_run(_boom, lambda: None)  # must not raise, no crash_reporter given
+
+    def test_reports_to_crash_reporter_when_action_raises(self):
+        lock = RasterLock("test")
+        reporter = MagicMock()
+        boom = ValueError("boom")
+
+        def _boom():
+            raise boom
+
+        lock.try_run(_boom, lambda: None, crash_reporter=reporter, plugin_id="flow_cytometry")
+
+        reporter.report_error.assert_called_once_with(
+            "Raster action failed (lock=test)",
+            exception=boom,
+            plugin_id="flow_cytometry",
+            fatal=False,
+        )
+
+    def test_does_not_call_crash_reporter_when_action_succeeds(self):
+        lock = RasterLock("test")
+        reporter = MagicMock()
+
+        lock.try_run(lambda: None, lambda: None, crash_reporter=reporter, plugin_id="flow_cytometry")
+
+        reporter.report_error.assert_not_called()
 
 
 class TestModuleLevelSingleton:

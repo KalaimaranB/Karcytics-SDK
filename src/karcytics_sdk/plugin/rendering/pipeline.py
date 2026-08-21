@@ -29,6 +29,7 @@ from ..state import PluginState
 from .lock import RasterLock
 
 if TYPE_CHECKING:
+    from karcytics_sdk.interfaces.i_crash_reporter import ICrashReporter
     from karcytics_sdk.interfaces.i_task_scheduler import ITaskScheduler
 
 logger = logging.getLogger(__name__)
@@ -151,6 +152,8 @@ class RenderPipelineController(QObject):
         task_scheduler: ITaskScheduler,
         target_factory: Callable[[], Any],
         parent: QObject | None = None,
+        crash_reporter: ICrashReporter | None = None,
+        plugin_id: str | None = None,
     ) -> None:
         super().__init__(parent)
         self._compute_stage = compute_stage
@@ -159,6 +162,8 @@ class RenderPipelineController(QObject):
         self._task_scheduler = task_scheduler
         self._target_factory = target_factory
         self._generation = 0
+        self._crash_reporter = crash_reporter
+        self._plugin_id = plugin_id or getattr(compute_stage, "plugin_id", None)
 
     def request(self, state: PluginState | None = None) -> None:
         """Submit `compute_stage` for the given state, superseding any in-flight request."""
@@ -173,12 +178,30 @@ class RenderPipelineController(QObject):
             return  # Superseded by a newer request; drop this stale result.
         data = results["render_data"]
         target = self._target_factory()
-        with self._raster_lock:
-            self._rasterize_stage.rasterize(target, data)
+        try:
+            with self._raster_lock:
+                self._rasterize_stage.rasterize(target, data)
+        except Exception as exc:
+            logger.exception("Render pipeline rasterize failed")
+            if self._crash_reporter is not None:
+                self._crash_reporter.report_error(
+                    "Render pipeline rasterize failed",
+                    exception=exc,
+                    plugin_id=self._plugin_id,
+                    fatal=False,
+                )
+            return
         self.result_ready.emit(data)
 
     def _on_compute_failed(self, generation: int, message: str) -> None:
         if generation != self._generation:
             return
         logger.error("Render pipeline compute failed: %s", message)
+        if self._crash_reporter is not None:
+            self._crash_reporter.report_error(
+                f"Render pipeline compute failed: {message}",
+                exception=None,
+                plugin_id=self._plugin_id,
+                fatal=False,
+            )
         self.compute_failed.emit(message)

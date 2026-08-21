@@ -18,8 +18,12 @@ from __future__ import annotations
 import logging
 import threading
 from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 from PyQt6.QtCore import QTimer
+
+if TYPE_CHECKING:
+    from karcytics_sdk.interfaces.i_crash_reporter import ICrashReporter
 
 logger = logging.getLogger(__name__)
 
@@ -58,6 +62,8 @@ class RasterLock:
         action: Callable[[], None],
         on_busy_retry: Callable[[], None],
         retry_ms: int = 50,
+        crash_reporter: ICrashReporter | None = None,
+        plugin_id: str | None = None,
     ) -> None:
         """Runs `action` under a non-blocking acquire of this lock.
 
@@ -71,14 +77,26 @@ class RasterLock:
         logged rather than propagated, since this is meant to run inside Qt
         event handlers where an uncaught exception would otherwise abort
         event delivery.
+
+        `crash_reporter` is optional and defaults to `None` (log-only,
+        today's behavior) — pass it explicitly when the caller knows it's
+        running isolated and has no other route back to the Hub's
+        diagnostics engine (see `ICrashReporter`'s docstring).
         """
         if not self._lock.acquire(blocking=False):
             QTimer.singleShot(retry_ms, on_busy_retry)
             return
         try:
             action()
-        except Exception:
+        except Exception as exc:
             logger.exception("Exception during locked raster action (lock=%s)", self.name)
+            if crash_reporter is not None:
+                crash_reporter.report_error(
+                    f"Raster action failed (lock={self.name})",
+                    exception=exc,
+                    plugin_id=plugin_id,
+                    fatal=False,
+                )
         finally:
             self._lock.release()
 

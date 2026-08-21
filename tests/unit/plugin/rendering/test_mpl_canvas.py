@@ -152,6 +152,67 @@ class TestDataLayer:
         assert failures == ["boom"]
 
 
+class TestCrashReporting:
+    @pytest.fixture
+    def canvas_with_reporter(self, qapp):
+        reporter = MagicMock()
+        fig = Figure()
+        c = LayeredMatplotlibCanvas(
+            fig,
+            raster_lock=RasterLock("test-canvas-crash"),
+            crash_reporter=reporter,
+            plugin_id="flow_cytometry",
+        )
+        yield c, reporter
+        c.deleteLater()
+
+    def test_compute_failure_reports_to_crash_reporter(self, canvas_with_reporter, qtbot):
+        canvas, reporter = canvas_with_reporter
+        scheduler, workers = _fake_scheduler()
+        canvas._task_scheduler = scheduler
+        canvas.set_compute_stage(_FakeComputeStage("flow_cytometry"))
+        canvas.set_rasterize_stage(_RecordingRasterizeStage())
+
+        canvas.request_data_redraw(debounce_ms=10)
+        qtbot.waitUntil(lambda: len(workers) == 1, timeout=1000)
+        workers[0].emit_error("boom")
+
+        reporter.report_error.assert_called_once_with(
+            "Data layer compute failed: boom",
+            exception=None,
+            plugin_id="flow_cytometry",
+            fatal=False,
+        )
+
+    def test_rasterize_failure_reports_to_crash_reporter(self, canvas_with_reporter, qtbot):
+        canvas, reporter = canvas_with_reporter
+        scheduler, workers = _fake_scheduler()
+        canvas._task_scheduler = scheduler
+        canvas.set_compute_stage(_FakeComputeStage("flow_cytometry"))
+
+        class _FailingRasterizeStage(RasterizeStage):
+            def rasterize(self, target, data):
+                raise ValueError("rasterize boom")
+
+        canvas.set_rasterize_stage(_FailingRasterizeStage())
+
+        canvas.request_data_redraw(debounce_ms=10)
+        qtbot.waitUntil(lambda: len(workers) == 1, timeout=1000)
+        workers[0].emit_finished({"render_data": _FakeRenderData(value=1)})  # must not raise
+
+        reporter.report_error.assert_called_once()
+        args, kwargs = reporter.report_error.call_args
+        assert "matplotlib-agg" in args[0] or "raster" in args[0].lower()
+        assert isinstance(kwargs["exception"], ValueError)
+        assert kwargs["plugin_id"] == "flow_cytometry"
+
+    def test_no_crash_reporter_by_default(self, qapp):
+        fig = Figure()
+        c = LayeredMatplotlibCanvas(fig, raster_lock=RasterLock("test-canvas-default"))
+        assert c._crash_reporter is None
+        c.deleteLater()
+
+
 class TestOverlayLayer:
     def test_draw_overlay_artists_blit_is_a_noop_without_a_cached_bitmap(self, canvas):
         # No data layer has ever been applied, so there's nothing to restore/blit onto.

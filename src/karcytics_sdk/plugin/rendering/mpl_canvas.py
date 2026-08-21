@@ -30,6 +30,7 @@ if TYPE_CHECKING:
     from matplotlib.artist import Artist
     from matplotlib.figure import Figure
 
+    from karcytics_sdk.interfaces.i_crash_reporter import ICrashReporter
     from karcytics_sdk.interfaces.i_task_scheduler import ITaskScheduler
 
     from ..state import PluginState
@@ -51,12 +52,14 @@ class LayeredMatplotlibCanvas(FigureCanvasQTAgg):
     data_layer_finished = pyqtSignal()
     data_layer_failed = pyqtSignal(str)
 
-    def __init__(
+    def __init__(  # noqa: PLR0913, PLR0917 - a small DI-style constructor; each param is a distinct collaborator, not a group that bundles cleanly
         self,
         figure: Figure,
         raster_lock: RasterLock | None = None,
         task_scheduler: ITaskScheduler | None = None,
         parent: Any = None,
+        crash_reporter: ICrashReporter | None = None,
+        plugin_id: str | None = None,
     ) -> None:
         super().__init__(figure)
         if parent is not None:
@@ -64,6 +67,8 @@ class LayeredMatplotlibCanvas(FigureCanvasQTAgg):
 
         self.raster_lock = raster_lock or MPL_RASTER_LOCK
         self._task_scheduler = task_scheduler
+        self._crash_reporter = crash_reporter
+        self._plugin_id = plugin_id
 
         self._compute_stage: RenderComputeStage | None = None
         self._rasterize_stage: RasterizeStage | None = None
@@ -133,6 +138,13 @@ class LayeredMatplotlibCanvas(FigureCanvasQTAgg):
         if generation != self._generation:
             return
         logger.error("Data layer compute failed: %s", message)
+        if self._crash_reporter is not None:
+            self._crash_reporter.report_error(
+                f"Data layer compute failed: {message}",
+                exception=None,
+                plugin_id=self._plugin_id,
+                fatal=False,
+            )
         self.data_layer_failed.emit(message)
 
     def _apply_data_layer(self, render_data: Any) -> None:
@@ -143,7 +155,12 @@ class LayeredMatplotlibCanvas(FigureCanvasQTAgg):
             FigureCanvasQTAgg.draw(self)
             self._bitmap_cache = self.copy_from_bbox(self.figure.bbox)
 
-        self.raster_lock.try_run(_draw, lambda: self._apply_data_layer(render_data))
+        self.raster_lock.try_run(
+            _draw,
+            lambda: self._apply_data_layer(render_data),
+            crash_reporter=self._crash_reporter,
+            plugin_id=self._plugin_id,
+        )
 
     # ── Overlay layer ───────────────────────────────────────────────
 
@@ -170,7 +187,12 @@ class LayeredMatplotlibCanvas(FigureCanvasQTAgg):
                 ax.draw_artist(artist)
             self.blit(ax.bbox)
 
-        self.raster_lock.try_run(_blit, lambda: self.draw_overlay_artists_blit(artists))
+        self.raster_lock.try_run(
+            _blit,
+            lambda: self.draw_overlay_artists_blit(artists),
+            crash_reporter=self._crash_reporter,
+            plugin_id=self._plugin_id,
+        )
 
     @property
     def bitmap_cache(self) -> Any:
@@ -180,14 +202,24 @@ class LayeredMatplotlibCanvas(FigureCanvasQTAgg):
     # ── Lock-guarded Qt/matplotlib entry points ────────────────────
 
     def paintEvent(self, event: Any) -> None:
-        """Paint under a non-blocking `RasterLock` acquire, retrying if a background render task holds it."""
+        """Paint under a non-blocking `RasterLock` acquire, retrying if a background render task holds it.
+
+        Deliberately not wired to `crash_reporter` — Qt calls this on its own
+        schedule (widget show/resize/focus churn), so failures here are
+        largely Qt lifecycle noise rather than actual render bugs; those are
+        already caught at the source in `_apply_data_layer`/
+        `draw_overlay_artists_blit`.
+        """
         self.raster_lock.try_run(
             lambda: FigureCanvasQTAgg.paintEvent(self, event),
             self.update,
         )
 
     def draw(self) -> None:
-        """Draw under a non-blocking `RasterLock` acquire, retrying if a background render task holds it."""
+        """Draw under a non-blocking `RasterLock` acquire, retrying if a background render task holds it.
+
+        Deliberately not wired to `crash_reporter` — see `paintEvent()`.
+        """
         self.raster_lock.try_run(
             lambda: FigureCanvasQTAgg.draw(self),
             self.draw,
