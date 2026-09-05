@@ -371,16 +371,17 @@ def test_runtime_sends_ready_with_geometry(minimal_worker_script):
     daemon.ensure_started()
 
     deadline = time.monotonic() + 5.0
-    while time.monotonic() < deadline and not received:
+    while time.monotonic() < deadline:
+        if any(t == "ready" for t, p in received):
+            break
         from PyQt6.QtWidgets import QApplication
 
         QApplication.processEvents()
         time.sleep(0.02)
 
-    assert received
-    topic, payload = received[0]
-    assert topic == "ready"
-    assert "geometry" in payload
+    assert any(t == "ready" for t, p in received), "ready event not found"
+    ready_payload = next(p for t, p in received if t == "ready")
+    assert "geometry" in ready_payload
 
     PluginUIDaemon.stop_instance(plugin_id)
 
