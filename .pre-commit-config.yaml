@@ -38,7 +38,10 @@ repos:
 
       - id: pytest
         name: Headless Unit Testing (Pytest)
+        # E2E tests spin up full Qt event loops (~1s/test) and make the hook
+        # appear hung on slow machines. They run in CI without this exclusion.
         entry: env QT_QPA_PLATFORM=offscreen PYTHONPATH=src uv run pytest
+          --ignore=tests/unit/plugin/test_ui_daemon_runtime_e2e.py
         language: system
         pass_filenames: false
         always_run: true

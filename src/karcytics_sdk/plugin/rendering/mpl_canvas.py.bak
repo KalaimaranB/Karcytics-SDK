@@ -19,23 +19,10 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg
 from PyQt6.QtCore import QTimer, pyqtSignal
 
 from .lock import MPL_RASTER_LOCK, RasterLock
-
-
-def _mpl_canvas_base() -> type:  # noqa: ANN201
-    """Lazily import and return ``FigureCanvasQTAgg``.
-
-    Deferred so that plugins that never use ``LayeredMatplotlibCanvas``
-    are not forced to have ``matplotlib`` installed in their venv.
-    """
-    from matplotlib.backends.backend_qtagg import (  # noqa: PLC0415
-        FigureCanvasQTAgg,
-    )
-
-    return FigureCanvasQTAgg
-
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -52,7 +39,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class LayeredMatplotlibCanvas(_mpl_canvas_base()):
+class LayeredMatplotlibCanvas(FigureCanvasQTAgg):
     """`FigureCanvasQTAgg` base class with a debounced async data layer and a cheap overlay layer.
 
     `raster_lock` defaults to the shared `MPL_RASTER_LOCK` singleton and
@@ -161,13 +148,11 @@ class LayeredMatplotlibCanvas(_mpl_canvas_base()):
         self.data_layer_failed.emit(message)
 
     def _apply_data_layer(self, render_data: Any) -> None:
-        _base_draw = super().draw  # captured here where super() has __class__ context
-
         def _draw() -> None:
             ax = self.figure.gca()
             ax.clear()
             self._rasterize_stage.rasterize(ax, render_data)
-            _base_draw()
+            FigureCanvasQTAgg.draw(self)
             self._bitmap_cache = self.copy_from_bbox(self.figure.bbox)
 
         self.raster_lock.try_run(
@@ -225,9 +210,8 @@ class LayeredMatplotlibCanvas(_mpl_canvas_base()):
         already caught at the source in `_apply_data_layer`/
         `draw_overlay_artists_blit`.
         """
-        _base_paint = super().paintEvent  # captured in method scope
         self.raster_lock.try_run(
-            lambda: _base_paint(event),
+            lambda: FigureCanvasQTAgg.paintEvent(self, event),
             self.update,
         )
 
@@ -236,8 +220,7 @@ class LayeredMatplotlibCanvas(_mpl_canvas_base()):
 
         Deliberately not wired to `crash_reporter` — see `paintEvent()`.
         """
-        _base_draw = super().draw  # captured in method scope
         self.raster_lock.try_run(
-            lambda: _base_draw(),
+            lambda: FigureCanvasQTAgg.draw(self),
             self.draw,
         )

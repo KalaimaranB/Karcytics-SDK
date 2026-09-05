@@ -309,5 +309,9 @@ class CourseCompleteOverlay(QWidget):
 
     def _on_continue(self) -> None:
         self._bg_timer.stop()
+        # Defer hide and emit to prevent click fall-through to underlying widgets
+        QTimer.singleShot(0, self._hide_and_emit)
+
+    def _hide_and_emit(self) -> None:
         self.hide()
         self.dismissed.emit()

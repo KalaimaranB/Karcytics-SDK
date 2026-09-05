@@ -35,6 +35,7 @@ class BaseStep(ABC):
     next_step_id: str | None = None
     target_widget_names: list[str] = field(default_factory=list)
     allow_interaction: bool = False
+    allow_scroll: bool = False
     guide_poly: list[tuple[float, float]] | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
     hide_bubble_after_ms: int | None = None
@@ -160,6 +161,20 @@ class WaitForEventStep(BaseStep):
 
 
 @dataclass
+class ConsentStep(BaseStep):
+    """Presents a consent dialog or options to the user before proceeding.
+
+    If accepted, triggers on_accept_action and proceeds to on_accept_step_id.
+    If declined, triggers on_decline_action and proceeds to on_decline_step_id.
+    """
+
+    accept_text: str = "Accept"
+    decline_text: str = "Decline"
+    on_accept_step_id: str | None = None
+    on_decline_step_id: str | None = None
+
+
+@dataclass
 class Course:
     """A collection of polymorphic steps representing a guided tutorial course."""
 
@@ -229,5 +244,6 @@ __all__ = [
     "ForcedInteractionStep",
     "SubplotCheckStep",
     "WaitForEventStep",
+    "ConsentStep",
     "Course",
 ]

@@ -30,7 +30,7 @@ from typing import Any
 import msgpack
 from PyQt6.QtCore import QMetaObject, QObject, QThread, QTimer, pyqtSignal
 from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QApplication, QMainWindow, QMenu, QMessageBox, QWidget
+from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox, QWidget
 
 from .logging import get_logger
 
@@ -229,62 +229,6 @@ class _RequestReader:
             self._bridge.request_received.emit(frame)
 
 
-def _build_theme_menu(theme_menu: QMenu, client: Any, logger: Any) -> None:
-    """Populate `theme_menu` from the Hub's `theme.list_categorized_themes`
-    the first time it's opened, not eagerly at startup.
-
-    Eager population would add a blocking Hub round-trip to every window's
-    startup time whether or not the user ever opens this menu; deferring to
-    `aboutToShow` means the round-trip only happens for someone who actually
-    wants it, and startup never waits on the Hub being reachable at all.
-
-    The placeholder action added immediately below is not cosmetic: macOS
-    only syncs a top-level `QMenu` into the real native menu bar if it's
-    non-empty at the moment Qt's Cocoa bridge builds it (confirmed live —
-    an otherwise-identical menu left empty at insertion time, populated
-    only later via `aboutToShow`, never appeared in the native bar at all,
-    not even after being opened). A disabled placeholder gives it real
-    content from the very first sync; `_populate()` removes it before
-    adding the actual items.
-    """
-    state = {"populated": False}
-    placeholder = theme_menu.addAction("Loading…")
-    placeholder.setEnabled(False)
-
-    def _switch_theme(path: str) -> None:
-        try:
-            client.call("theme.switch_theme", path=path)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "Failed to switch Hub theme.",
-                extra={"log_event": "theme_switch_failed", "error": str(exc)},
-            )
-
-    def _populate() -> None:
-        if state["populated"]:
-            return
-        state["populated"] = True
-        theme_menu.removeAction(placeholder)
-        try:
-            categorized = client.call("theme.list_categorized_themes")
-        except Exception as exc:  # noqa: BLE001
-            logger.warning(
-                "Failed to list Hub themes.",
-                extra={"log_event": "theme_list_failed", "error": str(exc)},
-            )
-            unavailable = theme_menu.addAction("(Hub unavailable)")
-            unavailable.setEnabled(False)
-            return
-
-        for category, themes in categorized.items():
-            submenu = theme_menu.addMenu(category)
-            for name, path in themes:
-                action = submenu.addAction(name)
-                action.triggered.connect(lambda _checked, p=path: _switch_theme(p))
-
-    theme_menu.aboutToShow.connect(_populate)
-
-
 def _format_about_karcytics(info: dict[str, str]) -> str:
     return (
         f"<h3>{info.get('name', 'Karcytics')}</h3>"
@@ -324,99 +268,76 @@ def _show_fetched_about(  # noqa: PLR0913, PLR0917
     QMessageBox.about(window, title, formatter(info or {}))
 
 
-def _build_help_menu(window: QMainWindow, client: Any, logger: Any) -> None:
-    r"""A minimal Help menu for an isolated window: About Karcytics and About
-    the Developer, sourced from the Hub over `CoreServicesClient` so the
-    text (version, credits) can't drift from what the Hub's own, richer
-    in-process dialogs show (`karcytics/core/about_info.py` is the shared
-    source both read from). Fetched lazily, on click — same reasoning as
-    `_build_theme_menu`: no blocking Hub round-trip added to startup for
-    someone who may never open this menu.
+def _open_preferences(window: QMainWindow, client: Any) -> None:
+    from .ui_preferences import SDKPreferencesDialog
 
-    `setMenuRole(NoRole)` on both actions is load-bearing, not defensive:
-    Qt's Cocoa integration auto-classifies any action whose text matches
-    `/^about\\b/i` as `QAction.MenuRole.AboutRole` unless told otherwise,
-    and macOS allows only one About-role item per application menu — a
-    slot the OS-injected "About Python" (this being a bare, unbundled
-    interpreter process) already occupies. Confirmed live: with the
-    default auto-detected role, both actions vanished entirely (not merged
-    into the app menu, not left in Help — just gone, and the now-empty
-    Help menu didn't sync to the native bar either, the same fate as an
-    empty `theme_menu` above). `NoRole` keeps them as plain items in this
-    window's own Help menu, which is what they actually are.
-    """
-    help_menu = window.menuBar().addMenu("&Help")
+    dialog = SDKPreferencesDialog(window, client)
 
-    about_karcytics_action = QAction("About Karcytics", window)
-    about_karcytics_action.setMenuRole(QAction.MenuRole.NoRole)
-    about_karcytics_action.triggered.connect(
-        lambda: _show_fetched_about(
-            window, client, logger, "menu.get_about_karcytics", "About Karcytics", _format_about_karcytics
-        )
-    )
-    help_menu.addAction(about_karcytics_action)
+    # Give the plugin a chance to populate preferences if it wants to
+    panel = getattr(window, "wizard_panel", None)
+    if panel is None:
+        panel = window.centralWidget()
+    if hasattr(panel, "populate_preferences"):
+        panel.populate_preferences(dialog)
+    else:
+        # Just an empty state if no plugin preferences exist, or we can add Theme later
+        pass
 
-    about_developer_action = QAction("About the Developer", window)
-    about_developer_action.setMenuRole(QAction.MenuRole.NoRole)
-    about_developer_action.triggered.connect(
-        lambda: _show_fetched_about(
-            window,
-            client,
-            logger,
-            "menu.get_about_developer",
-            "About the Developer",
-            _format_about_developer,
-        )
-    )
-    help_menu.addAction(about_developer_action)
-
-    # No cross-process course discovery to gate this on (the Hub can't see
-    # into this process's own AcademyManager either — see
-    # academy_window.py's course-discovery docstring on the Hub side), so
-    # this is always enabled; clicking with zero registered courses just
-    # says so. Actual wiring (needs `panel`, which doesn't exist yet at
-    # `_build_menu_bar()` time — see `run()`'s own docstring) happens once
-    # `panel_factory()` has run; the action is stashed on `window` for that.
-    academy_action = QAction("🎓 Academy", window)
-    academy_action.setMenuRole(QAction.MenuRole.NoRole)
-    help_menu.addAction(academy_action)
-    window._academy_menu_action = academy_action  # type: ignore[attr-defined]
+    dialog.exec()
 
 
 def _build_menu_bar(window: QMainWindow, logger: Any) -> None:
-    """Give the isolated window its own menu bar.
+    """Give the isolated window its own menu bar using StandardMenuBuilder."""
+    from karcytics_sdk.plugin.menu_builder import StandardMenuBuilder
 
-    In-process, a plugin's panel shared the Hub's own QMainWindow, so the
-    Hub's File/Edit/Theme/Help menu bar was always reachable while using it.
-    An isolated plugin's window is a separate native window with no menu
-    bar at all unless this builds one — see the Interpreter Isolation
-    Plan's bug tracker, "menu options ... not available in the plugins".
-    Covers File > Close Window (purely local), Theme, and a minimal Help
-    menu (About Karcytics / About the Developer) — all three via
-    `CoreServicesClient`, only if the Hub registered one (see
-    `KARCYTICS_CORE_SERVICES_PORT`/`TOKEN`). The Hub's own Edit menu depends
-    on Hub-only state (undo history) with no equivalent here yet. A plugin
-    that wants its own additional top-level menus passes `configure_menus`
-    to `run()` — see there for why that happens after this function, not
-    inside it.
-    """
-    menubar = window.menuBar()
+    builder = StandardMenuBuilder(window)
 
-    file_menu = menubar.addMenu("&File")
     close_action = QAction("&Close Window", window)
     close_action.triggered.connect(window.close)
-    file_menu.addAction(close_action)
+    builder.add_file_menu([close_action])
 
     port = os.environ.get("KARCYTICS_CORE_SERVICES_PORT")
     token = os.environ.get("KARCYTICS_CORE_SERVICES_TOKEN")
+
     if port and token:
         from karcytics_sdk.host.core_services import CoreServicesClient
 
         client = CoreServicesClient(int(port), token=token)
-        theme_menu = menubar.addMenu("&Theme")
-        if theme_menu is not None:
-            _build_theme_menu(theme_menu, client, logger)
-        _build_help_menu(window, client, logger)
+
+        # Edit -> Preferences
+        builder.add_edit_menu(pref_cb=lambda: _open_preferences(window, client))
+
+        # View -> Theme
+        try:
+            categorized_themes = client.call("theme.get_categorized_themes")
+            builder.add_theme_menu(
+                switch_theme_cb=lambda path: client.call("theme.switch_theme", {"theme_path": str(path)}),
+                categorized_themes=categorized_themes,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to fetch categorized themes from core: {e}")
+
+        # Help
+        # The Academy action needs to be added manually after the builder finishes
+        help_menu = builder.add_help_menu(
+            docs_cb=lambda: _show_fetched_about(
+                window, client, logger, "menu.get_about_karcytics", "About Karcytics", _format_about_karcytics
+            ),
+            # In SDK there was no docs_cb/wiki_cb originally, wait!
+            # The original _build_help_menu only had "About Karcytics" and "About the Developer".
+            about_cb=lambda: _show_fetched_about(
+                window, client, logger, "menu.get_about_karcytics", "About Karcytics", _format_about_karcytics
+            ),
+            about_dev_cb=lambda: _show_fetched_about(
+                window, client, logger, "menu.get_about_developer", "About the Developer", _format_about_developer
+            ),
+            mac_no_role=True,
+        )
+
+        academy_action = QAction("🎓 Academy", window)
+        academy_action.setMenuRole(QAction.MenuRole.NoRole)
+        help_menu.addAction(academy_action)
+        window._academy_menu_action = academy_action  # type: ignore[attr-defined]
 
 
 def _wire_academy_menu(window: QMainWindow, panel: QWidget, logger: Any) -> None:
@@ -580,6 +501,7 @@ def run(  # noqa: C901, PLR0913, PLR0915
     window_size: tuple[int, int] = (1400, 900),
     extra_handlers: dict[str, Callable[[dict[str, Any]], Any]] | None = None,
     configure_menus: Callable[[QMainWindow, QWidget], None] | None = None,
+    on_panel_ready: Callable[[QMainWindow, QWidget], None] | None = None,
     plugin_id: str = "unknown",
 ) -> None:
     """Host `panel_factory()`'s widget as a standalone top-level window in
@@ -605,6 +527,14 @@ def run(  # noqa: C901, PLR0913, PLR0915
     `panel.run_umap()`, etc.) instead of reaching for indirection to work
     around the panel not existing yet.
 
+    `on_panel_ready` is the same shape as `configure_menus` (called once,
+    right after it, as `on_panel_ready(window, panel)`) for plugin startup
+    logic that isn't about menus — e.g. a plugin auto-starting its own local
+    Academy course when the Hub hands off part of an onboarding tour to it
+    (see `karcytics_plugins.flow_cytometry.ui_daemon`'s use of this to detect
+    `KARCYTICS_ACADEMY_HANDOFF`). Kept separate from `configure_menus` rather
+    than folded into it so that hook's contract stays literally "menus".
+
     Also sets `window.project_manager` to a `RemoteProjectManager` for the
     Hub's currently open project (or `None`), fetched once at startup —
     see `_fetch_project_manager`.
@@ -618,10 +548,12 @@ def run(  # noqa: C901, PLR0913, PLR0915
     from .logging import configure_plugin_logging
 
     configure_plugin_logging(plugin_id)
+    send_event("loading_progress", {"message": "Bootstrapping isolated environment…"})
 
     logger = get_logger(__name__, plugin_id)
     _confirm_hub_theme_or_exit(logger, plugin_id)
     app = QApplication.instance() or QApplication(sys.argv)
+    send_event("loading_progress", {"message": "Initializing UI framework…"})
 
     # `components.py` tries to do this at import time, but that import
     # (via this module's own `from karcytics_sdk.plugin import
@@ -636,6 +568,15 @@ def run(  # noqa: C901, PLR0913, PLR0915
 
     def _notify_window_closed() -> None:
         logger.info("Native window close.", extra={"log_event": "window_closed"})
+
+        from karcytics_sdk.plugin.runtime_services import tutorial_manager
+
+        if (
+            tutorial_manager.active_course
+            and getattr(tutorial_manager.current_step, "id", None) == "handoff_return_home"
+        ):
+            send_event("academy_handoff_complete", {})
+
         send_event("window_closed", {})
 
     window = ClosableMainWindow(on_close=_notify_window_closed)
@@ -858,6 +799,7 @@ def run(  # noqa: C901, PLR0913, PLR0915
         {"geometry": [geometry.x(), geometry.y(), geometry.width(), geometry.height()]},
     )
 
+    send_event("loading_progress", {"message": "Constructing module interface…"})
     # panel_factory() — Phase 1 — deliberately runs *after* the ready
     # handshake above, same reasoning as begin_async_init() below: the
     # loader is already up and visible, so nothing about this window's
@@ -880,6 +822,14 @@ def run(  # noqa: C901, PLR0913, PLR0915
         panel.data_ready.connect(lambda: send_event("panel_data_ready", {}))
 
     _wire_academy_menu(window, panel, logger)
+    if on_panel_ready is not None:
+        try:
+            on_panel_ready(window, panel)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning(
+                "Plugin's on_panel_ready() raised; continuing without it.",
+                extra={"log_event": "on_panel_ready_failed", "error": str(exc)},
+            )
     if configure_menus is not None:
         try:
             configure_menus(window, panel)

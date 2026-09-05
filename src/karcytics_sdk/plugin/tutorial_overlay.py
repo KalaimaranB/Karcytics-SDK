@@ -15,6 +15,8 @@ Design principles (SOLID):
 """
 
 import math
+from collections.abc import Callable
+from typing import Any
 
 from PyQt6.QtCore import QRect, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QPen, QRegion
@@ -40,6 +42,7 @@ from .theme_fallback import Colors, theme_manager
 from .tutorial_models import (
     BaseStep,
     BranchingStep,
+    ConsentStep,
     ForcedInteractionStep,
     InfoStep,
     InteractionStep,
@@ -97,6 +100,8 @@ class TutorialOverlay(QWidget):
         self.target_rects: list[QRect] = []
         self.current_step: BaseStep | None = None
         self._compact_mode = compact_mode
+        self.custom_completion_factories: dict[str, Callable[[QWidget], QWidget]] = {}
+        self.completion_container: Any = None
 
         self._build_cyto()
         self._build_bubble()
@@ -279,15 +284,23 @@ class TutorialOverlay(QWidget):
         pass
 
     def _on_theme_changed(self) -> None:
-        """Re-render current step text so inline HTML colors match the new theme."""
+        """Re-apply all tracked styles and re-render text so the bubble reflects the new theme."""
+        # Re-apply every widget style that was registered via theme_manager.apply_style()
+        theme_manager._apply_dynamic_styles()
+        # Re-render text so inline HTML accent colors (bold spans) also update
         if self.current_step:
             self._update_text_rendering(self.current_step.text)
+        if hasattr(self, "cyto") and hasattr(self.cyto, "apply_theme"):
+            self.cyto.apply_theme()
 
     def _update_text_rendering(self, text: str) -> None:
         import re
 
         # Replace newlines with <br>
         text = text.replace("\\n", "<br>")
+
+        # Replace --- with a styled horizontal rule
+        text = re.sub(r"---", f'<hr style="border: none; border-top: 1px solid {Colors.BORDER}; margin: 8px 0;">', text)
 
         # Replace **text** with highlighted accent color
         text = re.sub(r"\*\*(.*?)\*\*", f'<b style="color: {Colors.ACCENT_PRIMARY};">\\1</b>', text)
@@ -297,7 +310,7 @@ class TutorialOverlay(QWidget):
         # Replace `text` with inline code style
         text = re.sub(
             r"`(.*?)`",
-            f'<code style="color: {Colors.FG_PRIMARY}; background-color: {Colors.BG_DARKER}; padding: 2px 4px; border-radius: 3px;">\\1</code>',
+            f'<code style="color: {Colors.FG_PRIMARY}; background-color: {Colors.BG_MEDIUM}; padding: 2px 4px; border-radius: 3px;">\\1</code>',
             text,
         )
 
@@ -326,7 +339,13 @@ class TutorialOverlay(QWidget):
 
         from .course_complete_overlay import CourseCompleteOverlay
 
-        self.completion_container: CourseCompleteOverlay = CourseCompleteOverlay(self)
+        if course_id in self.custom_completion_factories:
+            self.completion_container = self.custom_completion_factories[course_id](self)
+            # Assuming custom factories return an object that matches the interface:
+            # .dismissed signal and .show_completion(course_id, badge_reward) method.
+        else:
+            self.completion_container = CourseCompleteOverlay(self)
+
         self.completion_container.dismissed.connect(self._close_completion_screen)
 
         self.bubble_container.hide()
@@ -339,7 +358,7 @@ class TutorialOverlay(QWidget):
         self.completion_container.show_completion(course_id, badge_reward)
 
     def _center_completion_container(self) -> None:
-        if hasattr(self, "completion_container") and self.completion_container.isVisible():
+        if self.completion_container is not None and self.completion_container.isVisible():
             cx = (self.width() - self.completion_container.width()) // 2
             cy = (self.height() - self.completion_container.height()) // 2
             self.completion_container.move(cx, cy)
@@ -422,6 +441,9 @@ class TutorialOverlay(QWidget):
             self.btn_next.show()
             self.btn_next.setText("Next →")
 
+            if getattr(step, "id", None) == "handoff_return_home":
+                self.btn_next.hide()
+
         elif isinstance(step, InteractionStep):
             # Auto-advances when the target widget fires its signal.
             self.btn_next.hide()
@@ -434,6 +456,10 @@ class TutorialOverlay(QWidget):
         elif isinstance(step, BranchingStep):
             self.btn_next.hide()
             self._render_branching_options(step.options)
+
+        elif isinstance(step, ConsentStep):
+            self.btn_next.hide()
+            self._render_consent_options(step)
 
         elif isinstance(step, ForcedInteractionStep):
             self.btn_next.hide()
@@ -609,6 +635,20 @@ class TutorialOverlay(QWidget):
 
         self.bubble_container.move(int(bubble_x), int(bubble_y))
 
+    # ── Input Events ──────────────────────────────────────────────────────────
+
+    def wheelEvent(self, event) -> None:
+        if getattr(self, "current_step", None) and getattr(self.current_step, "allow_scroll", False):
+            self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+            from PyQt6.QtWidgets import QApplication
+
+            widget = QApplication.widgetAt(event.globalPosition().toPoint())
+            self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
+            if widget and widget != self:
+                QApplication.sendEvent(widget, event)
+                return
+        event.accept()
+
     # ── Painting & masking ────────────────────────────────────────────────────
 
     def paintEvent(self, event) -> None:  # noqa: N802, ARG002
@@ -748,11 +788,39 @@ class TutorialOverlay(QWidget):
             self.btn_layout.addWidget(btn)
 
     def _render_waiting_indicator(self) -> None:
-        """Add a static 'waiting' label for WaitForEventStep steps."""
+        """Add a static 'waiting' label in the footer button slot (where Next normally sits)."""
         wait_lbl = QLabel("⏳  Waiting for your action…")
         wait_lbl.setObjectName("waitingIndicator")
         theme_manager.apply_style(wait_lbl, "color: {ACCENT_PRIMARY}; font-size: 12px; font-style: italic;")
-        self.dynamic_content.addWidget(wait_lbl)
+        self.btn_layout.addWidget(wait_lbl)
+
+    def _render_consent_options(self, step: ConsentStep) -> None:
+        """Render explicit Accept/Decline buttons for a ConsentStep."""
+        self._clear_buttons()
+
+        btn_decline = QPushButton(step.decline_text)
+        theme_manager.apply_style(
+            btn_decline,
+            "background-color: transparent; color: {FG_SECONDARY}; border: 1px solid {BORDER}; border-radius: 4px; padding: 8px 14px;",
+        )
+        btn_decline.setCursor(Qt.CursorShape.PointingHandCursor)
+        if step.on_decline_step_id:
+            btn_decline.clicked.connect(
+                lambda _checked, tid=step.on_decline_step_id: self._academy_manager.next_step(tid)
+            )
+        self.btn_layout.addWidget(btn_decline)
+
+        btn_accept = QPushButton(step.accept_text)
+        theme_manager.apply_style(
+            btn_accept,
+            "background-color: {ACCENT_SUCCESS}; color: white; border: none; border-radius: 4px; padding: 8px 14px; font-weight: bold;",
+        )
+        btn_accept.setCursor(Qt.CursorShape.PointingHandCursor)
+        if step.on_accept_step_id:
+            btn_accept.clicked.connect(
+                lambda _checked, tid=step.on_accept_step_id: self._academy_manager.next_step(tid)
+            )
+        self.btn_layout.addWidget(btn_accept)
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 

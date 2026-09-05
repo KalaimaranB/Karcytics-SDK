@@ -356,14 +356,38 @@ def test_dialogs_message_boxes(mock_crit, mock_warn, mock_info):
     mock_crit.assert_called_once()
 
 
-@patch("PyQt6.QtWidgets.QMessageBox.question")
-def test_dialogs_questions(mock_quest):
+def test_dialogs_questions():
     """Verify yes/no and ok/cancel popups translate dialog response codes."""
-    mock_quest.return_value = QMessageBox.StandardButton.Yes
-    assert ask_yes_no(title="Proceed?") is True
 
-    mock_quest.return_value = QMessageBox.StandardButton.Ok
-    assert ask_ok_cancel(title="Apply?") is True
+    class MockMessageBox:
+        StandardButton = QMessageBox.StandardButton
+        Icon = QMessageBox.Icon
+
+        exec_return_value = QMessageBox.StandardButton.Yes
+        question_return_value = QMessageBox.StandardButton.Ok
+
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def windowFlags(self):
+            return 0
+
+        def setWindowFlags(self, flags):
+            pass
+
+        def exec(self):
+            return self.exec_return_value
+
+        @classmethod
+        def question(cls, *args, **kwargs):
+            return cls.question_return_value
+
+    with patch("karcytics_sdk.plugin.dialogs.QMessageBox", new=MockMessageBox):
+        MockMessageBox.exec_return_value = QMessageBox.StandardButton.Yes
+        assert ask_yes_no(title="Proceed?") is True
+
+        MockMessageBox.question_return_value = QMessageBox.StandardButton.Ok
+        assert ask_ok_cancel(title="Apply?") is True
 
 
 @patch("PyQt6.QtWidgets.QInputDialog.getText")

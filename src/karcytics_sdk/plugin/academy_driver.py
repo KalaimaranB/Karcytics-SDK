@@ -244,19 +244,23 @@ class AcademyStepDriver(QObject):
 
     def _update_targets(self, step: Any) -> None:
         targets: list[QWidget] = []
-        name = getattr(step, "target_widget_name", "")
-        if name:
-            w = self._search_root.findChild(QWidget, name)
-            if w and w.isVisible():
-                targets.append(w)
-        for name in getattr(step, "target_widget_names", []):
-            by_name = [w for w in self._search_root.findChildren(QWidget, name) if w and w.isVisible()]
-            if by_name:
-                targets.extend(by_name)
-            else:
-                for w in self._search_root.findChildren(QWidget):
-                    if w.property("tutorial_id") == name and w.isVisible():
-                        targets.append(w)
+        names_list = getattr(step, "target_widget_names", [])
+
+        if names_list:
+            for name in names_list:
+                by_name = [w for w in self._search_root.findChildren(QWidget, name) if w and w.isVisible()]
+                if by_name:
+                    targets.extend(by_name)
+                else:
+                    for w in self._search_root.findChildren(QWidget):
+                        if w.property("tutorial_id") == name and w.isVisible():
+                            targets.append(w)
+        else:
+            name = getattr(step, "target_widget_name", "")
+            if name:
+                w = self._search_root.findChild(QWidget, name)
+                if w and w.isVisible():
+                    targets.append(w)
 
         rects = []
         for w in targets:

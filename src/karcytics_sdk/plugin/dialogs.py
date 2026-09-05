@@ -6,6 +6,7 @@ that work with the current theme.
 
 from datetime import datetime
 
+from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
@@ -177,7 +178,16 @@ def ask_yes_no(parent=None, title: str = "", message: str = "") -> bool:
     Returns:
         True if user clicks Yes, False otherwise
     """
-    reply = QMessageBox.question(parent, title, message, QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No)
+    msg_box = QMessageBox(
+        QMessageBox.Icon.Question,
+        title,
+        message,
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        parent,
+    )
+    if parent and (parent.windowFlags() & Qt.WindowType.WindowStaysOnTopHint):
+        msg_box.setWindowFlags(msg_box.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
+    reply = msg_box.exec()
     return reply == QMessageBox.StandardButton.Yes
 
 

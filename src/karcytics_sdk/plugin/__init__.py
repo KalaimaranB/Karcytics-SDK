@@ -58,7 +58,6 @@ from .rendering import (
     MPL_RASTER_LOCK,
     DirtyTrackingGraphicsScene,
     DirtyTrackingGraphicsView,
-    LayeredMatplotlibCanvas,
     RasterizeStage,
     RasterizeToImageTask,
     RasterLock,
@@ -66,6 +65,8 @@ from .rendering import (
     RenderData,
     RenderPipelineController,
 )
+
+# LayeredMatplotlibCanvas is lazily resolved via __getattr__ below.
 from .ribbon import BioRibbon
 from .runtime_services import (
     DiagnosticsForwarder,
@@ -197,3 +198,18 @@ __all__ = [
     "WorkflowAttachment",
     "WorkflowContext",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """Lazily import matplotlib-dependent names.
+
+    ``LayeredMatplotlibCanvas`` requires ``matplotlib`` and ``PyQt6`` to be
+    installed in the calling environment.  Plugins that never use it (e.g.
+    text-only or headless plugins) should not be forced to vendor those heavy
+    dependencies just because they import ``karcytics_sdk.plugin``.
+    """
+    if name == "LayeredMatplotlibCanvas":
+        from .rendering import LayeredMatplotlibCanvas  # noqa: PLC0415
+
+        return LayeredMatplotlibCanvas
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

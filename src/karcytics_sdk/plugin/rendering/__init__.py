@@ -29,7 +29,10 @@ constructing these classes directly.
 
 from .graphics_scene import DirtyTrackingGraphicsScene, DirtyTrackingGraphicsView
 from .lock import MPL_RASTER_LOCK, RasterLock
-from .mpl_canvas import LayeredMatplotlibCanvas
+
+# LayeredMatplotlibCanvas is lazily imported via __getattr__ below
+# so that plugins without matplotlib in their venv can still import
+# this subpackage and use the non-matplotlib components.
 from .pipeline import (
     RasterizeStage,
     RasterizeToImageTask,
@@ -50,3 +53,16 @@ __all__ = [
     "RenderData",
     "RenderPipelineController",
 ]
+
+
+def __getattr__(name: str) -> object:
+    """Lazily import matplotlib-dependent names to avoid hard-requiring matplotlib.
+
+    ``LayeredMatplotlibCanvas`` is the only name gated here; everything else
+    is already imported eagerly above.
+    """
+    if name == "LayeredMatplotlibCanvas":
+        from .mpl_canvas import LayeredMatplotlibCanvas  # noqa: PLC0415
+
+        return LayeredMatplotlibCanvas
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

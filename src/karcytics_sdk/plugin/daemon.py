@@ -541,6 +541,7 @@ class PluginUIDaemon(QObject):
         # attribute, not defer to _start_process's own `getattr(self,
         # "pending_workflow", False)` to learn that.
         self.pending_workflow: bool = False
+        self.pending_academy_handoff: bool = False
         self._proc: subprocess.Popen | None = None
         self._start_lock = threading.Lock()
         self._next_request_id = itertools.count(1)
@@ -593,7 +594,12 @@ class PluginUIDaemon(QObject):
         phantom entry for one that isn't.
         """
         with cls._registry_lock:
-            return cls._instances.get(plugin_id)
+            daemon = cls._instances.get(plugin_id)
+            if daemon is None:
+                return None
+            if daemon._proc is None or daemon._proc.poll() is None:
+                return daemon
+            return None
 
     @classmethod
     def start_instance(
@@ -700,6 +706,8 @@ class PluginUIDaemon(QObject):
         }
         if self.pending_workflow:
             extra_env["KARCYTICS_PENDING_WORKFLOW"] = "1"
+        if getattr(self, "pending_academy_handoff", False):
+            extra_env["KARCYTICS_ACADEMY_HANDOFF"] = "1"
         if self._core_services_port is not None:
             extra_env["KARCYTICS_CORE_SERVICES_PORT"] = str(self._core_services_port)
         if self._core_services_token is not None:

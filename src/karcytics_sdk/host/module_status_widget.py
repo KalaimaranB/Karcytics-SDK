@@ -30,7 +30,7 @@ from typing import Any
 from PyQt6 import sip
 from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter
-from PyQt6.QtWidgets import QFrame, QLabel, QPushButton, QVBoxLayout, QWidget
+from PyQt6.QtWidgets import QFrame, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget
 
 from karcytics_sdk.plugin.daemon import PluginUIDaemon
 
@@ -184,6 +184,14 @@ class ModuleStatusWidget(QWidget):
         self._status_label.setMaximumWidth(360)
         self._status_label.setStyleSheet("color: #f2f2f2; background: transparent; border: none; font-size: 14px;")
 
+        self._progress_bar = QProgressBar()
+        self._progress_bar.setRange(0, 0)
+        self._progress_bar.setTextVisible(False)
+        self._progress_bar.setMaximumWidth(200)
+        self._progress_bar.setStyleSheet(
+            "QProgressBar { background: rgba(255,255,255,30); border-radius: 2px; border: none; height: 4px; } QProgressBar::chunk { background-color: #3b82f6; border-radius: 2px; }"
+        )
+
         # One button whose label/action follows the current state
         # (Cancel while spawning, Bring to Front once running, Reopen after
         # a crash or close) rather than three buttons only one of which is
@@ -192,6 +200,7 @@ class ModuleStatusWidget(QWidget):
         self._action_button.clicked.connect(self._on_action_clicked)
 
         card_layout.addWidget(self._status_label)
+        card_layout.addWidget(self._progress_bar, alignment=Qt.AlignmentFlag.AlignHCenter)
         card_layout.addWidget(self._action_button, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         outer.addWidget(card)
@@ -226,6 +235,10 @@ class ModuleStatusWidget(QWidget):
         }
         self._status_label.setText(messages[self._state])
         self._action_button.setText(actions[self._state])
+        if self._state == self.STATE_SPAWNING:
+            self._progress_bar.show()
+        else:
+            self._progress_bar.hide()
 
     def _set_state(self, state: str, error_message: str | None = None) -> None:
         self._state = state
@@ -367,6 +380,11 @@ class ModuleStatusWidget(QWidget):
         if topic == "ready":
             if self._state == self.STATE_SPAWNING:
                 self._set_state(self.STATE_RUNNING)
+        elif topic == "loading_progress":
+            if self._state == self.STATE_SPAWNING and isinstance(payload, dict):
+                msg = payload.get("message")
+                if msg:
+                    self._status_label.setText(f"Starting {self._module_name}…\n{msg}")
         elif topic == "window_closed":
             self._set_state(self.STATE_CLOSED)
 
