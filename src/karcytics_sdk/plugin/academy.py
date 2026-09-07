@@ -167,17 +167,21 @@ class AcademyManager:
         """Checks if a course has its prerequisite workflow hash recorded."""
         return course_id in self.prerequisites_met
 
-    def next_step(self, specific_step_id: str | None = None) -> None:
+    def next_step(self, specific_step_id: str | None = None, _internal_force: bool = False) -> None:
         """Progresses the state machine to the next step."""
         if not self.active_course or not self.current_step:
             return
 
         # Enforce sub-task completion if it's a ForcedInteractionStep
-        if isinstance(self.current_step, ForcedInteractionStep):
+        if isinstance(self.current_step, ForcedInteractionStep) and specific_step_id is None:
             progress = self._get_current_subtask_progress()
             if not all(progress.get(task.id, False) for task in self.current_step.sub_tasks):
                 logger.warning("Cannot advance: not all sub-tasks completed.")
                 return
+
+        if isinstance(self.current_step, WaitForEventStep) and not _internal_force and specific_step_id is None:
+            logger.warning(f"Cannot advance: waiting for event {self.current_step.event_name}")
+            return
 
         # Unsubscribe any previous WaitForEventStep listener before moving on
         self._cancel_wait_subscription()
@@ -230,7 +234,7 @@ class AcademyManager:
         def _on_event(*_args: Any, **_kwargs: Any) -> Any:
             # Only advance if we're still on this step
             if self.current_step and self.current_step.id == step_id:
-                self.next_step()
+                self.next_step(_internal_force=True)
 
         self._event_bus.subscribe(topic, _on_event)
         self._wait_event_subscription = (topic, _on_event)
