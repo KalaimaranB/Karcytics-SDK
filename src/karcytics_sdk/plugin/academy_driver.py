@@ -82,7 +82,8 @@ class AcademyStepDriver(QObject):
 
         step = self._academy_manager.current_step
         has_completion = (
-            hasattr(self._overlay, "completion_container") and self._overlay.completion_container.isVisible()
+            getattr(self._overlay, "completion_container", None) is not None
+            and self._overlay.completion_container.isVisible()
         )
         if not step and not has_completion:
             if self._last_step_id is not None:
