@@ -406,7 +406,7 @@ class TutorialOverlay(QWidget):
             return
 
         if not step:
-            if hasattr(self, "completion_container") and self.completion_container.isVisible():
+            if self.completion_container is not None and self.completion_container.isVisible():
                 return
             self.hide()
             return
