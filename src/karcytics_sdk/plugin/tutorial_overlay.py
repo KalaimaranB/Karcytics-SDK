@@ -334,7 +334,7 @@ class TutorialOverlay(QWidget):
 
         self.show()
 
-        if hasattr(self, "completion_container"):
+        if self.completion_container is not None:
             self.completion_container.deleteLater()
 
         from .course_complete_overlay import CourseCompleteOverlay
@@ -364,7 +364,7 @@ class TutorialOverlay(QWidget):
             self.completion_container.move(cx, cy)
 
     def _close_completion_screen(self) -> None:
-        if hasattr(self, "completion_container"):
+        if self.completion_container is not None:
             self.completion_container.hide()
         self.hide()
 
