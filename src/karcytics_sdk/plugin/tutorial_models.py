@@ -15,6 +15,23 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+@dataclass(frozen=True)
+class ValidationFailure:
+    """Structured diagnosis of why an `IValidator.validate()` call failed.
+
+    Returned by the optional `IValidator.describe_failure()` hook so a
+    driver can show the user *why* a step didn't pass and optionally fix
+    it for them, instead of a course author smuggling that same
+    information out through a validator-specific side channel (e.g. a
+    module-level mutable dict) that only that course's own routing code
+    knows how to read.
+    """
+
+    reason: str
+    corrective: Callable[[Any], None] | None = None
+    retry_step_id: str | None = None
+
+
 class IValidator(ABC):
     """Interface for verifying application state."""
 
@@ -22,6 +39,18 @@ class IValidator(ABC):
     def validate(self, app_state: Any) -> bool:
         """Evaluate the current application state. Returns True if valid."""
         pass
+
+    def describe_failure(self, app_state: Any) -> ValidationFailure | None:
+        """Optional: called after `validate()` returns False to get a
+        user-facing reason and, optionally, a self-contained fix.
+
+        Default `None` means "no extra diagnosis" — the caller falls back
+        to a step's plain `on_fail_step_id`/`max_retries` routing,
+        unchanged. Override only in validators that can explain *why* the
+        user's action was wrong (e.g. right shape, wrong name) and/or can
+        revert the specific mistake themselves.
+        """
+        return None
 
 
 @dataclass
@@ -40,6 +69,9 @@ class BaseStep(ABC):
     metadata: dict[str, Any] = field(default_factory=dict)
     hide_bubble_after_ms: int | None = None
     manual_dismiss_bubble: bool = False
+    failure_hint: str | None = None
+    stuck_hint_text: str | None = None
+    stuck_hint_after_ms: int | None = None
 
 
 @dataclass
@@ -221,9 +253,15 @@ class Course:
 
             on_success = getattr(step, "on_success_step_id", None)
             nxt = getattr(step, "next_step_id", None)
+            on_accept = getattr(step, "on_accept_step_id", None)
+            options = getattr(step, "options", None)
 
             if on_success:
                 current_id = on_success
+            elif on_accept:
+                current_id = on_accept
+            elif options and isinstance(options, dict) and options:
+                current_id = next(iter(options.values()))
             elif nxt:
                 current_id = nxt
             else:
@@ -234,6 +272,7 @@ class Course:
 
 __all__ = [
     "IValidator",
+    "ValidationFailure",
     "BaseStep",
     "InfoStep",
     "InteractionStep",

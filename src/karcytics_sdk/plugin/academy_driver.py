@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -28,6 +29,8 @@ from .tutorial_models import (
     BranchingStep,
     ForcedInteractionStep,
     InteractionStep,
+    IValidator,
+    ValidationFailure,
     VerificationStep,
 )
 from .tutorial_overlay import TutorialOverlay
@@ -36,6 +39,13 @@ logger = logging.getLogger(__name__)
 
 _VALIDATION_POLL_TICKS = 20
 _TIMER_INTERVAL_MS = 100
+_DEFAULT_FAILURE_HINT = "That doesn't look right — check the instructions above and try again."
+# A VerificationStep with allow_interaction=True starts "failing" the instant
+# it appears — the user hasn't acted yet, that's just its normal starting
+# state. The safety-net banner below must not fire off the first ~2s poll
+# tick (_VALIDATION_POLL_TICKS), or it flashes and disappears before anyone
+# had a chance to read the step, let alone act on it. Give them real time.
+_FAILURE_HINT_MIN_DELAY_MS = 15000
 
 
 class AcademyStepDriver(QObject):
@@ -71,6 +81,9 @@ class AcademyStepDriver(QObject):
         self._last_action_step_executed: str | None = None
         self._current_forced_step_id: str | None = None
         self._reported_subtask_errors: set[tuple[str, str]] = set()
+        self._step_entered_at = 0.0
+        self._stuck_hint_shown = False
+        self._failure_hint_shown = False
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
@@ -104,6 +117,10 @@ class AcademyStepDriver(QObject):
             self._last_rendered_text = step.text
             self._verification_wait = 0
             self._verification_attempts = 0
+            self._last_action_step_executed = None
+            self._step_entered_at = time.monotonic()
+            self._stuck_hint_shown = False
+            self._failure_hint_shown = False
             self._overlay.raise_()
             self._overlay.render_step(step)
             self._apply_canvas_guide(step)
@@ -136,7 +153,27 @@ class AcademyStepDriver(QObject):
         if isinstance(step, ActionStep) and step.id != self._last_action_step_executed:
             self._run_action_step(step)
 
+        self._maybe_show_stuck_hint(step)
         self._update_targets(step)
+
+    def _maybe_show_stuck_hint(self, step: Any) -> None:
+        """Surfaces `step.stuck_hint_text` once the user has been sitting on
+        this step, with no advance, longer than `step.stuck_hint_after_ms`.
+
+        Opt-in and purely informative — does not change routing, so it's
+        safe to set on any step type (most usefully `InteractionStep`,
+        where nothing else ever tells the user they clicked the wrong
+        thing, or nothing at all).
+        """
+        after_ms = getattr(step, "stuck_hint_after_ms", None)
+        if not after_ms or self._stuck_hint_shown:
+            return
+        elapsed_ms = (time.monotonic() - self._step_entered_at) * 1000
+        if elapsed_ms < after_ms:
+            return
+        self._stuck_hint_shown = True
+        hint = getattr(step, "stuck_hint_text", None) or step.text
+        self._overlay.show_banner(hint, is_error=False, duration_ms=4000)
 
     def _apply_canvas_guide(self, step: Any | None) -> None:
         """Draws (or clears, on `step=None`) this step's dotted guide shape
@@ -194,13 +231,50 @@ class AcademyStepDriver(QObject):
         if is_valid:
             self._verification_attempts = 0
             self._academy_manager.next_step(step.on_success_step_id)
-        elif not getattr(step, "allow_interaction", False) and step.on_fail_step_id:
+            return
+
+        failure = self._describe_validator_failure(step.validator, app_state)
+        if failure is not None:
+            self._overlay.show_banner(failure.reason)
+            if failure.corrective:
+                try:
+                    failure.corrective(self._search_root)
+                except Exception as e:
+                    logger.exception(f"Academy: ValidationFailure corrective action error: {e}")
+            if failure.retry_step_id:
+                self._verification_attempts = 0
+                self._academy_manager.next_step(failure.retry_step_id)
+                return
+
+        if not getattr(step, "allow_interaction", False) and step.on_fail_step_id:
             max_retries = getattr(step, "max_retries", 0)
             if self._verification_attempts >= max_retries:
                 self._verification_attempts = 0
                 self._academy_manager.next_step(step.on_fail_step_id)
             else:
                 self._verification_attempts += 1
+        elif not step.on_fail_step_id and failure is None and not self._failure_hint_shown:
+            # Safety net: a VerificationStep with neither a richer
+            # ValidationFailure nor a configured on_fail_step_id would
+            # otherwise poll forever with unchanging step text — the
+            # exact "the course just stalls" failure mode. At minimum,
+            # tell the user something's wrong instead of staying silent.
+            # Only once they've actually had time to act, though — see
+            # _FAILURE_HINT_MIN_DELAY_MS above.
+            elapsed_ms = (time.monotonic() - self._step_entered_at) * 1000
+            min_delay = getattr(step, "stuck_hint_after_ms", None) or _FAILURE_HINT_MIN_DELAY_MS
+            if elapsed_ms >= min_delay:
+                self._failure_hint_shown = True
+                self._overlay.show_banner(step.failure_hint or _DEFAULT_FAILURE_HINT, is_error=False)
+
+    def _describe_validator_failure(self, validator: IValidator | None, app_state: Any) -> ValidationFailure | None:
+        if validator is None:
+            return None
+        try:
+            return validator.describe_failure(app_state)
+        except Exception as e:
+            logger.exception(f"Academy: describe_failure error: {e}")
+            return None
 
     def _process_forced_interaction_step(self, step: ForcedInteractionStep) -> None:
         if self._current_forced_step_id != step.id:

@@ -373,6 +373,36 @@ class TutorialOverlay(QWidget):
         self.text_label.setText(text)
         self._force_resize()
 
+    def show_banner(self, text: str, *, is_error: bool = True, duration_ms: int = 2500) -> None:
+        """Transient banner near the top of the overlay, auto-dismissed after `duration_ms`.
+
+        The single shared "something the user should notice right now"
+        affordance for the whole Academy engine — `AcademyStepDriver` uses
+        it for validator-failure explanations and idle "still stuck?"
+        hints, and a plugin's own UI code can call it directly for the
+        same purpose (e.g. an immediate invalid-gate rejection) rather
+        than keeping a second, duplicate transient-banner implementation.
+        """
+        if not self._is_alive():
+            return
+        from PyQt6.QtCore import QTimer
+
+        bg = Colors.ACCENT_DANGER if is_error else Colors.BG_MEDIUM
+        label = QLabel(text, self)
+        label.setWordWrap(True)
+        label.setStyleSheet(
+            f"background: {bg}; color: {Colors.FG_PRIMARY}; padding: 12px; border-radius: 6px; "
+            "font-weight: bold; font-size: 14px;"
+        )
+        label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        max_width = max(self.width() - 80, CONTENT_WIDTH)
+        label.setMaximumWidth(max_width)
+        label.resize(label.sizeHint())
+        label.move((self.width() - label.width()) // 2, 40)
+        label.show()
+        label.raise_()
+        QTimer.singleShot(duration_ms, label.deleteLater)
+
     def set_dark_mode(self, enabled: bool) -> None:
         """Forces the overlay into a pure dark screen (no cyto, no bubble, no holes)."""
         if not self._is_alive():
