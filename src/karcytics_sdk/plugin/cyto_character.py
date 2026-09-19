@@ -3,7 +3,7 @@
 import math
 import random
 
-from PyQt6.QtCore import Qt, QTimer
+from PyQt6.QtCore import QPoint, Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import (
     QBrush,
     QColor,
@@ -22,6 +22,7 @@ from PyQt6.QtWidgets import (
 )
 
 from .cyto_costumes import CostumeFactory
+from .draggable import DraggableMixin
 from .effects import apply_glow_effect
 from .theme_fallback import theme_manager
 
@@ -53,8 +54,12 @@ class Particle(QGraphicsEllipseItem):
         return self.life > 0
 
 
-class CytoWidget(QGraphicsView):
+class CytoWidget(QGraphicsView, DraggableMixin):
     """A pure rendering widget for the Cyto character."""
+
+    drag_started = pyqtSignal()
+    drag_finished = pyqtSignal()
+    dragged_by = pyqtSignal(QPoint)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -71,6 +76,7 @@ class CytoWidget(QGraphicsView):
         self.setFrameStyle(0)  # remove any frame
         self.setFixedSize(300, 400)
         self.scene.setSceneRect(0, 0, 300, 400)
+        self._init_draggable()
 
         self.time_step = 0
         self.particles = []
@@ -252,6 +258,18 @@ class CytoWidget(QGraphicsView):
     def drawBackground(self, painter, rect):  # noqa: N802
         """Override to prevent QGraphicsView from painting any background fill."""
         pass  # Intentionally empty — transparency handled by overlay paintEvent
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        if not self._handle_drag_press(event):
+            super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802
+        if not self._handle_drag_move(event):
+            super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        if not self._handle_drag_release(event):
+            super().mouseReleaseEvent(event)
 
     def animate(self):
         self.time_step += 0.05

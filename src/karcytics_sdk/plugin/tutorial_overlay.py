@@ -18,7 +18,7 @@ import math
 from collections.abc import Callable
 from typing import Any
 
-from PyQt6.QtCore import QRect, Qt, pyqtSignal
+from PyQt6.QtCore import QPoint, QRect, Qt, pyqtSignal
 from PyQt6.QtGui import QColor, QPainter, QPen, QRegion
 from PyQt6.QtWidgets import (
     QHBoxLayout,
@@ -38,6 +38,7 @@ from .academy import (
 )
 from .cyto_character import CytoWidget
 from .dialogs import ask_yes_no
+from .draggable import DraggableMixin
 from .theme_fallback import Colors, theme_manager
 from .tutorial_models import (
     BaseStep,
@@ -55,6 +56,35 @@ from .tutorial_models import (
 
 CONTENT_WIDTH: int = 392
 _HEADER_TEXT_HEIGHT_BUFFER: int = 48
+
+
+class _DraggableBubble(QWidget, DraggableMixin):
+    """The instructional bubble panel.
+
+    Click-and-drag anywhere on its background (header, text, empty
+    footer space) repositions it manually; clicks on its buttons are
+    handled by those buttons first and never start a drag.
+    """
+
+    drag_started = pyqtSignal()
+    drag_finished = pyqtSignal()
+    dragged_by = pyqtSignal(QPoint)
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._init_draggable()
+
+    def mousePressEvent(self, event) -> None:  # noqa: N802
+        if not self._handle_drag_press(event):
+            super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event) -> None:  # noqa: N802
+        if not self._handle_drag_move(event):
+            super().mouseMoveEvent(event)
+
+    def mouseReleaseEvent(self, event) -> None:  # noqa: N802
+        if not self._handle_drag_release(event):
+            super().mouseReleaseEvent(event)
 
 
 class TutorialOverlay(QWidget):
@@ -102,6 +132,11 @@ class TutorialOverlay(QWidget):
         self._compact_mode = compact_mode
         self.custom_completion_factories: dict[str, Callable[[QWidget], QWidget]] = {}
         self.completion_container: Any = None
+        # True once the user has manually dragged Cyto or the bubble on the
+        # current step — while set, live target-tracking (set_targets) skips
+        # re-running the smart placement so the drag sticks. Reset to False
+        # on every step change so the next step gets fresh smart placement.
+        self._user_positioned = False
 
         self._build_cyto()
         self._build_bubble()
@@ -155,10 +190,19 @@ class TutorialOverlay(QWidget):
 
     def _build_cyto(self) -> None:
         self.cyto = CytoWidget(self)
+        self.cyto.drag_started.connect(self._on_user_drag_started)
+        self.cyto.drag_finished.connect(self._on_user_drag_finished)
 
     def _build_bubble(self) -> None:
         """Builds the overlay's instructional bubble and its progress and navigation controls."""
-        self.bubble_container = QWidget(self)
+        self.bubble_container = _DraggableBubble(self)
+        self.bubble_container.drag_started.connect(self._on_user_drag_started)
+        self.bubble_container.drag_finished.connect(self._on_user_drag_finished)
+
+        # Cyto and the bubble are dragged as a linked pair: moving either
+        # one carries the other along by the same offset.
+        self.cyto.dragged_by.connect(lambda delta: self._move_by(self.bubble_container, delta))
+        self.bubble_container.dragged_by.connect(lambda delta: self._move_by(self.cyto, delta))
         self.bubble_container.setObjectName("BubbleContainer")
         theme_manager.apply_style(
             self.bubble_container,
@@ -508,6 +552,9 @@ class TutorialOverlay(QWidget):
             self.btn_dismiss_bubble.show()
         else:
             self.btn_dismiss_bubble.hide()
+        # A new step always gets fresh smart placement, even if the user
+        # dragged Cyto/the bubble around on the previous step.
+        self._user_positioned = False
         self._force_resize()
         self._update_mask()
         self._reposition_cyto_and_bubble(getattr(self, "target_rects", []))
@@ -525,7 +572,8 @@ class TutorialOverlay(QWidget):
                 return
             self._force_resize()
             self._update_mask()
-            self._reposition_cyto_and_bubble(getattr(self, "target_rects", []))
+            if not self._user_positioned:
+                self._reposition_cyto_and_bubble(getattr(self, "target_rects", []))
 
         QTimer.singleShot(0, _settle)
 
@@ -543,12 +591,34 @@ class TutorialOverlay(QWidget):
 
     # ── Spotlight geometry ────────────────────────────────────────────────────
 
+    def _on_user_drag_started(self) -> None:
+        """Cyto or the bubble started being dragged — stop overriding its position."""
+        self._user_positioned = True
+        self.cyto.raise_()
+        self.bubble_container.raise_()
+
+    def _on_user_drag_finished(self) -> None:
+        """Refresh the click-through mask to match the widget's dropped position."""
+        self._update_mask()
+
+    def _move_by(self, widget: QWidget, delta: QPoint) -> None:
+        """Shifts `widget` by `delta`, clamped to the overlay bounds.
+
+        Used to carry Cyto/the bubble along when the OTHER one of the pair
+        is dragged, so they move together as a unit.
+        """
+        new_pos = widget.pos() + delta
+        new_pos.setX(min(max(0, new_pos.x()), max(0, self.width() - widget.width())))
+        new_pos.setY(min(max(0, new_pos.y()), max(0, self.height() - widget.height())))
+        widget.move(new_pos)
+
     def set_targets(self, rects: list[QRect]) -> None:
         """Sets spotlight rectangles (in overlay-local coordinates)."""
         if self.target_rects == rects:
             return
         self.target_rects = rects
-        self._reposition_cyto_and_bubble(rects)
+        if not self._user_positioned:
+            self._reposition_cyto_and_bubble(rects)
         self._update_mask()
         self.update()  # schedule repaint
 
