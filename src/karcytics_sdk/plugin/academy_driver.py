@@ -197,7 +197,16 @@ class AcademyStepDriver(QObject):
                 canvas.set_tutorial_guide(step)
 
     def _wire_interaction_step(self, step: InteractionStep) -> None:
+        # findChildren() only searches descendants, never search_root
+        # itself — but for an isolated plugin, search_root IS "its own
+        # panel" (see class docstring), and a step can legitimately target
+        # that panel by name (e.g. course1/course2's gate steps wiring
+        # "MainPanel" to catch the panel's own `gate_added_to_tree`
+        # signal). Without this, such a step's target is unreachable no
+        # matter what its objectName is set to.
         targets = self._search_root.findChildren(QWidget, step.target_widget_name)
+        if self._search_root.objectName() == step.target_widget_name:
+            targets = [self._search_root, *targets]
         for target_w in targets:
             if not hasattr(target_w, step.event_trigger):
                 continue

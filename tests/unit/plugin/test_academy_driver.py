@@ -13,6 +13,7 @@ import time
 from typing import Any
 
 import pytest
+from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtWidgets import QWidget
 
 from karcytics_sdk.plugin.academy import AcademyManager
@@ -20,6 +21,7 @@ from karcytics_sdk.plugin.academy_driver import AcademyStepDriver
 from karcytics_sdk.plugin.tutorial_models import (
     Course,
     InfoStep,
+    InteractionStep,
     IValidator,
     ValidationFailure,
     VerificationStep,
@@ -246,3 +248,49 @@ class TestStuckHint:
         driver._maybe_show_stuck_hint(manager.current_step)
 
         assert banners == []
+
+
+class SelfSignalWidget(QWidget):
+    """Mirrors FlowCytometryPanel: a search_root that is ALSO the widget
+    an InteractionStep wants to listen on (e.g. its own gate_added_to_tree),
+    not just a container searched for some descendant target.
+    """
+
+    triggered = pyqtSignal()
+
+
+class TestWireInteractionStepSelfTarget:
+    def test_search_root_can_be_its_own_wiring_target(self, bus, tmp_path):
+        """findChildren() only returns descendants, never search_root
+        itself — so a step whose target_widget_name names search_root's
+        own objectName (as course1/course2's gate steps do with
+        "MainPanel") must still get wired, or its auto-advance signal is
+        unreachable no matter what the objectName is set to.
+        """
+        course = Course(
+            id="c1",
+            title="T",
+            steps=[
+                InteractionStep(
+                    id="draw",
+                    text="Draw it",
+                    target_widget_name="MainPanel",
+                    event_trigger="triggered",
+                    next_step_id="done",
+                ),
+                InfoStep(id="done", text="Done"),
+            ],
+        )
+        manager = AcademyManager(event_bus=bus, persistence_dir=tmp_path / "academy")
+        manager.register_storyboard("m", course)
+        manager.start_course_confirmed(course.id)
+
+        root = SelfSignalWidget()
+        root.setObjectName("MainPanel")
+        overlay = TutorialOverlay(manager, bus, parent=root)
+        driver = AcademyStepDriver(manager, overlay, root, state_provider=lambda: root)
+
+        driver._wire_interaction_step(manager.current_step)
+        root.triggered.emit()
+
+        assert manager.current_step.id == "done"

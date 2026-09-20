@@ -200,9 +200,16 @@ class TutorialOverlay(QWidget):
         self.bubble_container.drag_finished.connect(self._on_user_drag_finished)
 
         # Cyto and the bubble are dragged as a linked pair: moving either
-        # one carries the other along by the same offset.
-        self.cyto.dragged_by.connect(lambda delta: self._move_by(self.bubble_container, delta))
-        self.bubble_container.dragged_by.connect(lambda delta: self._move_by(self.cyto, delta))
+        # one carries the other along by the same total offset, each
+        # measured from its own drag-start anchor (see `_move_by`).
+        self._cyto_drag_anchor = QPoint()
+        self._bubble_drag_anchor = QPoint()
+        self.cyto.dragged_by.connect(
+            lambda total_delta: self._move_by(self.bubble_container, self._bubble_drag_anchor, total_delta)
+        )
+        self.bubble_container.dragged_by.connect(
+            lambda total_delta: self._move_by(self.cyto, self._cyto_drag_anchor, total_delta)
+        )
         self.bubble_container.setObjectName("BubbleContainer")
         theme_manager.apply_style(
             self.bubble_container,
@@ -249,6 +256,16 @@ class TutorialOverlay(QWidget):
         # Step text
         self.text_label = QLabel("Welcome to Karcytics Academy!")
         self.text_label.setTextFormat(Qt.TextFormat.RichText)
+        # A rich-text QLabel defaults its textInteractionFlags to
+        # LinksAccessibleByMouse (for hyperlink handling) even though
+        # `_update_text_rendering()` never emits an <a> tag — that's enough
+        # for QLabel's internal text control to accept() every mouse press
+        # over it (to track a possible link click) instead of ignore()-ing
+        # it, which is what a plain QLabel does. An accepted event never
+        # bubbles to the bubble's own mousePressEvent, so dragging worked
+        # everywhere in the bubble EXCEPT directly over this label. There's
+        # no interactive text here, so disable interaction outright.
+        self.text_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
         font = self.text_label.font()
         font.setPixelSize(16)
         font.setFamily("sans-serif")
@@ -594,6 +611,14 @@ class TutorialOverlay(QWidget):
     def _on_user_drag_started(self) -> None:
         """Cyto or the bubble started being dragged — stop overriding its position."""
         self._user_positioned = True
+        # Snapshot BOTH widgets' pre-drag positions, whichever one is about
+        # to be dragged — `_move_by` recomputes the follower's position from
+        # this anchor plus the dragged widget's total offset on every move,
+        # instead of accumulating clamped deltas frame over frame (which
+        # could permanently drift the pair's fixed relative offset apart
+        # near an overlay edge).
+        self._cyto_drag_anchor = self.cyto.pos()
+        self._bubble_drag_anchor = self.bubble_container.pos()
         self.cyto.raise_()
         self.bubble_container.raise_()
 
@@ -601,13 +626,22 @@ class TutorialOverlay(QWidget):
         """Refresh the click-through mask to match the widget's dropped position."""
         self._update_mask()
 
-    def _move_by(self, widget: QWidget, delta: QPoint) -> None:
-        """Shifts `widget` by `delta`, clamped to the overlay bounds.
+    def _move_by(self, widget: QWidget, anchor: QPoint, total_delta: QPoint) -> None:
+        """Moves `widget` to `anchor + total_delta`, clamped to the overlay bounds.
 
         Used to carry Cyto/the bubble along when the OTHER one of the pair
-        is dragged, so they move together as a unit.
+        is dragged, so they move together as a rigid unit. `anchor` is
+        `widget`'s OWN position from when the drag started (see
+        `_on_user_drag_started`) and `total_delta` is the total offset the
+        actively-dragged widget has moved since then (see
+        `DraggableMixin._handle_drag_move`) — recomputing from these two
+        every time, rather than adding this frame's delta onto wherever
+        `widget` last ended up, means a clamp on one widget near an edge
+        can never permanently desync it from the other: as soon as the drag
+        moves back into an unclamped region, both widgets are exactly back
+        in their original relative positions.
         """
-        new_pos = widget.pos() + delta
+        new_pos = anchor + total_delta
         new_pos.setX(min(max(0, new_pos.x()), max(0, self.width() - widget.width())))
         new_pos.setY(min(max(0, new_pos.y()), max(0, self.height() - widget.height())))
         widget.move(new_pos)
