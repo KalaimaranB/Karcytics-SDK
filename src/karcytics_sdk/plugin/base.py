@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from abc import abstractmethod
 from collections.abc import Callable
+from functools import partial
 from typing import TYPE_CHECKING, Any
 
 from PyQt6.QtWidgets import QWidget
@@ -30,13 +31,37 @@ from .analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
 from .events import CentralEventBus
 from .signals import PluginSignals
 from .state import PluginState
+from .toast import STYLE_SUCCESS, STYLE_UPDATE, show_toast
+from .worker_thread import OneShotWorkerThread
 
 if TYPE_CHECKING:
     from karcytics_sdk.interfaces.i_crash_reporter import ICrashReporter
     from karcytics_sdk.interfaces.i_task_scheduler import ITaskScheduler
 
+    from .autosave import WorkflowAutosaveController
     from .rendering.lock import RasterLock
     from .rendering.pipeline import RasterizeStage, RenderComputeStage, RenderPipelineController
+    from .update_check import UpdateCheckResult
+
+
+class _UpdateCheckWorker(OneShotWorkerThread):
+    """Runs `update_check.check_for_plugin_update` off the UI thread.
+
+    A separate small worker rather than reusing `AnalysisWorker`/`create_worker`:
+    those are built around `AnalysisBase` (compute-heavy analysis with
+    progress reporting), which is the wrong shape for a single cheap network
+    call with a plain "found a newer version or not" result.
+    """
+
+    def __init__(self, current_version: str, repo_url: str, parent: QWidget) -> None:
+        super().__init__(parent)
+        self._current_version = current_version
+        self._repo_url = repo_url
+
+    def _execute(self) -> UpdateCheckResult:
+        from .update_check import check_for_plugin_update
+
+        return check_for_plugin_update(self._current_version, self._repo_url)
 
 
 class PluginBase(QWidget):
@@ -250,6 +275,13 @@ class PluginBase(QWidget):
                 def get_heavy_resources(*args, **kwargs):
                     return []
 
+        # 0. Stop the autosave loop, if this plugin opted in — nothing left
+        # to save once cleanup starts, and a toast firing after the window
+        # closes has nothing sensible to anchor to.
+        controller = getattr(self, "_workflow_autosave_controller", None)
+        if controller is not None:
+            controller.stop()
+
         # 1. Clean PluginState
         state = self.get_state()
         if state:
@@ -340,6 +372,148 @@ class PluginBase(QWidget):
             crash_reporter=self.crash_reporter,
             plugin_id=self.plugin_id,
         )
+
+    # ── Toasts & self-update notices ────────────────────────────────────
+
+    def show_toast(
+        self,
+        message: str,
+        icon: str = "ℹ️",
+        color: str = "#5C9EE5",
+        duration_ms: int = 4000,
+    ) -> None:
+        """Show a non-intrusive toast notification anchored to this plugin's window.
+
+        Uses the same bottom-right, auto-fading popup the Hub uses for its
+        own system warnings (see ``karcytics_sdk.plugin.toast``). Works
+        identically whether this plugin runs in-process or isolated, since
+        each owns its own ``QApplication``.
+        """
+        show_toast(message, icon=icon, color=color, duration_ms=duration_ms)
+
+    # ── Workflow autosave ────────────────────────────────────────────────
+
+    def setup_workflow_autosave(
+        self,
+        has_saved_once: Callable[[], bool],
+        save: Callable[[Callable[[bool], None]], None],
+        *,
+        interval_ms: int | None = None,
+    ) -> WorkflowAutosaveController:
+        """Opt this plugin into the SDK's shared workflow-autosave loop.
+
+        `has_saved_once` should report whether the current workspace has
+        already been saved manually at least once (autosave only ever
+        applies after that — it's what gives a workflow a name). `save`
+        should perform a *quiet* save (no blocking dialogs — the controller
+        shows its own toast) and call the callback it's given with whether
+        that save succeeded.
+
+        Building the `WorkflowAutosaveController` here — rather than each
+        plugin constructing one itself — is what makes `populate_preferences`
+        below able to add its "Workspace" preferences page automatically for
+        any plugin that calls this, with no further wiring on the plugin's
+        part.
+        """
+        from .autosave import DEFAULT_INTERVAL_MS, WorkflowAutosaveController
+
+        controller = WorkflowAutosaveController(
+            self.plugin_id,
+            has_saved_once,
+            save,
+            interval_ms=interval_ms if interval_ms is not None else DEFAULT_INTERVAL_MS,
+            parent=self,
+        )
+        self._workflow_autosave_controller = controller
+        controller.start()
+        return controller
+
+    def populate_preferences(self, dialog: Any) -> None:
+        """Default preferences-page contribution: adds the "Workspace"
+        autosave page if `setup_workflow_autosave()` was called, otherwise
+        does nothing.
+
+        Called by the isolated-plugin daemon runtime's Preferences dialog
+        (see `ui_daemon_runtime._open_preferences`). Subclasses that need
+        their own additional pages should override this and call
+        `super().populate_preferences(dialog)` to keep this behavior.
+        """
+        controller = getattr(self, "_workflow_autosave_controller", None)
+        if controller is not None:
+            from .ui_preferences import AutosaveWorkflowsPreferencesPage
+
+            dialog.add_page("Workspace", AutosaveWorkflowsPreferencesPage(controller, dialog))
+
+    def check_for_updates(
+        self,
+        repo_url: str,
+        current_version: str | None = None,
+        display_name: str | None = None,
+    ) -> None:
+        """Check GitHub for a newer release of this plugin and toast the user with the result.
+
+        Opt-in: call this yourself (e.g. from ``begin_async_init``) if you
+        want it — nothing runs it automatically. The check happens on a
+        background thread and never blocks or raises. A toast always appears
+        once it completes — either "an update is available" or a welcome
+        toast confirming the installed version is already current — *except*
+        when the check itself couldn't be completed (no network, GitHub
+        unreachable, ...), in which case nothing is shown rather than
+        guessing.
+
+        Parameters:
+            repo_url (str): This plugin's GitHub repository URL (its manifest's ``homepage``).
+            current_version (str | None): The installed version to compare against.
+                Defaults to ``update_check.resolve_installed_version()`` — tries
+                ``importlib.metadata`` first, then falls back to reading
+                ``pyproject.toml`` straight from this plugin's own source tree
+                (the path that matters for every isolated plugin here, which
+                is loaded via a ``sys.path`` insert rather than a real
+                ``pip install``). If neither resolves anything, the check is
+                skipped entirely.
+            display_name (str | None): The human-readable name to show in the
+                toast (e.g. ``"Flow Cytometry"``). Defaults to ``self.plugin_id``
+                (e.g. ``"flow_cytometry"``) if not given.
+        """
+        if current_version is None:
+            from .update_check import resolve_installed_version
+
+            current_version = resolve_installed_version(self.plugin_id, self)
+            if current_version is None:
+                self.logger.debug(
+                    "check_for_updates: could not resolve installed version for '%s'; skipping.",
+                    self.plugin_id,
+                )
+                return
+
+        worker = _UpdateCheckWorker(current_version, repo_url, self)
+        worker.finished_ok.connect(partial(self._on_update_check_result, display_name=display_name or self.plugin_id))
+        worker.finished_err.connect(lambda err: self.logger.debug("check_for_updates failed: %s", err))
+        worker.start()
+
+    def _on_update_check_result(self, result: object, display_name: str) -> None:
+        status = getattr(result, "status", None)
+        remote_version = getattr(result, "remote_version", None)
+
+        if status == "update_available":
+            icon, color = STYLE_UPDATE
+            self.show_toast(
+                f"A new version of {display_name} ({remote_version}) is available. "
+                "Close this module and update it from the Store to get the latest release.",
+                icon=icon,
+                color=color,
+                duration_ms=8000,
+            )
+        elif status == "up_to_date":
+            icon, color = STYLE_SUCCESS
+            self.show_toast(
+                f"Welcome back! You're running the latest version of {display_name} ({remote_version}).",
+                icon=icon,
+                color=color,
+                duration_ms=4000,
+            )
+        # status == "check_failed" (or anything unexpected): stay silent —
+        # never claim "up to date" when the check itself couldn't complete.
 
     # ── Two-phase loading protocol ────────────────────────────────────
     #

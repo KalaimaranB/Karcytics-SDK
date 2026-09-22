@@ -40,6 +40,15 @@ ACADEMY_SUBTASK_COMPLETED = "ACADEMY_SUBTASK_COMPLETED"
 ACADEMY_CHECKPOINT_SAVED = "ACADEMY_CHECKPOINT_SAVED"
 ACADEMY_COURSE_PREPARE_PROJECT = "ACADEMY_COURSE_PREPARE_PROJECT"
 
+# Emitted with (step, is_reviewing) whenever the *reviewed* step changes.
+# Deliberately separate from ACADEMY_STEP_CHANGED (which means "the live
+# course actually progressed") so existing/future subscribers can't mistake
+# read-only review navigation for real progress by forgetting to check a
+# flag. Not yet mirrored in the Hub's KarcyticsEvent enum — see
+# AcademyEventBus docs above; a Hub-side adapter for this topic is a
+# separate follow-up if review mode ships for Hub-native courses.
+ACADEMY_REVIEW_STATE_CHANGED = "ACADEMY_REVIEW_STATE_CHANGED"
+
 
 @runtime_checkable
 class AcademyEventBus(Protocol):
@@ -86,6 +95,14 @@ class AcademyManager:
         self.active_course: Course | None = None
         self.current_step: BaseStep | None = None
         self.active_subtask_progress: dict[str, bool] = {}
+
+        # Read-only "review" navigation (back/forward through already-visited
+        # steps). step_history records the actual path taken through the
+        # live course, in visitation order; _review_index points into it
+        # while reviewing, or is None while live. Session-only — never
+        # persisted, and cleared whenever a course (re)starts or resets.
+        self.step_history: list[str] = []
+        self._review_index: int | None = None
 
         # Tracks the active event subscription for WaitForEventStep
         self._wait_event_subscription: tuple[str, Callable[..., Any]] | None = None
@@ -145,6 +162,8 @@ class AcademyManager:
             for course in courses:
                 if course.id == course_id:
                     self.active_course = course
+                    self.step_history = []
+                    self._review_index = None
 
                     if course.steps:
                         self.current_step = course.steps[0]
@@ -170,6 +189,10 @@ class AcademyManager:
     def next_step(self, specific_step_id: str | None = None, _internal_force: bool = False) -> None:
         """Progresses the state machine to the next step."""
         if not self.active_course or not self.current_step:
+            return
+
+        if self.is_reviewing:
+            logger.warning("Cannot advance: currently reviewing a past step.")
             return
 
         # Enforce sub-task completion if it's a ForcedInteractionStep
@@ -206,6 +229,8 @@ class AcademyManager:
     def complete_subtask(self, subtask_id: str) -> None:
         """Marks a sub-task as complete for the current step."""
         if not self.active_course or not isinstance(self.current_step, ForcedInteractionStep):
+            return
+        if self.is_reviewing:
             return
 
         valid_ids = [t.id for t in self.current_step.sub_tasks]
@@ -249,6 +274,8 @@ class AcademyManager:
 
     def complete_course(self) -> None:
         """Marks the active course as completed and awards badges."""
+        if self.is_reviewing:
+            return
         self._cancel_wait_subscription()
         if self.active_course:
             course_id = self.active_course.id
@@ -282,6 +309,8 @@ class AcademyManager:
             # Reset state
             self.active_course = None
             self.current_step = None
+            self.step_history = []
+            self._review_index = None
             self._emit_step_changed()
 
     def _award_badge(self, course: Course) -> None:
@@ -332,7 +361,79 @@ class AcademyManager:
 
     def _emit_step_changed(self) -> None:
         """Notifies the UI overlay that the tutorial state has progressed."""
+        if self.current_step is not None and (not self.step_history or self.step_history[-1] != self.current_step.id):
+            self.step_history.append(self.current_step.id)
         self._event_bus.emit(ACADEMY_STEP_CHANGED, self.current_step)
+
+    @property
+    def is_reviewing(self) -> bool:
+        """True while a past step is being displayed read-only (see review_previous)."""
+        return self._review_index is not None
+
+    def can_review_previous(self) -> bool:
+        """True if there is an earlier visited step to review."""
+        if not self.step_history:
+            return False
+        anchor = self._review_index if self._review_index is not None else len(self.step_history) - 1
+        return anchor > 0
+
+    def can_review_next(self) -> bool:
+        """True if currently reviewing and there is a later visited step to page to."""
+        if self._review_index is None:
+            return False
+        return self._review_index < len(self.step_history) - 1
+
+    def get_review_step(self) -> BaseStep | None:
+        """Returns the step currently being reviewed, or None if not reviewing."""
+        if self._review_index is None or not self.active_course:
+            return None
+        return self.active_course.get_step(self.step_history[self._review_index])
+
+    def review_previous(self) -> bool:
+        """Moves the review pointer one step further back in visitation history.
+
+        The first call while live starts reviewing from the entry just
+        before the current step. Never touches `current_step` or any
+        progress state — only what should be *displayed* changes.
+        """
+        if not self.can_review_previous():
+            return False
+        anchor = self._review_index if self._review_index is not None else len(self.step_history) - 1
+        self._review_index = anchor - 1
+        self._event_bus.emit(ACADEMY_REVIEW_STATE_CHANGED, self.get_review_step(), True)
+        return True
+
+    def review_next(self) -> bool:
+        """Moves the review pointer one step forward.
+
+        Lets the user page back and forth within already-visited history
+        (back 5, forward 2, back 3, ...) without leaving review mode. Landing
+        back on the live step itself — the last `step_history` entry — exits
+        review mode outright via `return_to_current()` instead of merely
+        displaying it read-only: paging all the way forward should mean
+        "I'm back," not "I'm reviewing a read-only copy of where I already
+        am." Previously this only capped the pointer there, so walking
+        forward back to the current step left `is_reviewing` stuck True —
+        the overlay kept showing the review lock/banner and disabling
+        `btn_next` (see TutorialOverlay._render_review_step) even though the
+        user was, from their perspective, already "back."
+        """
+        if not self.can_review_next():
+            return False
+        assert self._review_index is not None
+        self._review_index += 1
+        if self._review_index == len(self.step_history) - 1:
+            self.return_to_current()
+        else:
+            self._event_bus.emit(ACADEMY_REVIEW_STATE_CHANGED, self.get_review_step(), True)
+        return True
+
+    def return_to_current(self) -> None:
+        """Exits review mode and restores the live step's full interactivity."""
+        if self._review_index is None:
+            return
+        self._review_index = None
+        self._event_bus.emit(ACADEMY_REVIEW_STATE_CHANGED, self.current_step, False)
 
     def get_progress(self, course_id: str) -> float:
         """Returns completion percentage (100.0 if completed)."""

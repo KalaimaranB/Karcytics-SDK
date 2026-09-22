@@ -25,14 +25,77 @@ import threading
 import time
 import traceback
 from collections.abc import Callable
-from typing import Any
+from pathlib import Path
+from typing import Any, cast
 
 import msgpack
 from PyQt6.QtCore import QMetaObject, QObject, QThread, QTimer, pyqtSignal
-from PyQt6.QtGui import QAction
+from PyQt6.QtGui import QAction, QIcon
 from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox, QWidget
 
 from .logging import get_logger
+
+
+def patch_macos_bundle_name(display_name: str, logger: Any) -> None:
+    """Make macOS's native menu bar show `display_name` instead of the
+    literal name of whatever bare Python process is running.
+
+    A public SDK helper — not just for isolated plugins. Any process that
+    isn't a real `.app` bundle hits this: every isolated plugin runs as a
+    bare `python3 ui_daemon.py` subprocess (see `daemon.py`'s
+    `PluginUIDaemon._start_process`), and so does the Hub itself in dev mode
+    (`karcytics` console script / `python -m karcytics` — see
+    `karcytics.__main__`'s `KarcyticsApp.__init__`; a PyInstaller-frozen
+    build is the one case that's already a real bundle and doesn't need
+    this). None of these have an `Info.plist` for macOS to read a
+    `CFBundleName` from, so Cocoa falls back to the running executable's own
+    name for the bold title of the native application menu, while Qt's
+    Cocoa integration separately derives the "Hide "/"Quit " menu item text
+    from `QCoreApplication::applicationName()` (which itself defaults to
+    the script's basename when unset) — hence a user seeing something like
+    mismatched "python3" / "ui_daemon.py" text without this.
+    Patching `NSBundle.mainBundle()`'s own info dictionary before
+    `QApplication` spins up Cocoa's application menu is the standard
+    workaround for this (used by e.g. the `rumps` menu-bar-app library) —
+    it makes `[[NSRunningApplication currentApplication] localizedName]`
+    (what the WindowServer actually renders as the bold title) resolve to
+    `display_name` instead of falling through to the executable name.
+
+    Best-effort and macOS-only: `pyobjc-framework-cocoa` is a
+    `sys_platform == 'darwin'`-only dependency (see the SDK's
+    pyproject.toml), so this silently no-ops everywhere else, and any
+    failure here (an unsupported pyobjc version, an already-frozen
+    dictionary) degrades to the pre-existing generic title rather than
+    taking the calling process down over cosmetics.
+    """
+    if sys.platform != "darwin":
+        return
+    try:
+        from Foundation import NSBundle
+
+        info = NSBundle.mainBundle().infoDictionary()
+        if info is not None:
+            info["CFBundleName"] = display_name
+            info["CFBundleDisplayName"] = display_name
+    except Exception:
+        logger.debug(
+            "Could not patch macOS bundle name for the menu bar; falling back to the default process name.",
+            extra={"log_event": "macos_bundle_name_patch_failed"},
+        )
+
+
+def _resolve_app_icon_path(icon_path: str | Path | None) -> Path | None:
+    """Pick this window's icon: the plugin's own if it provided one and it
+    exists, else the Hub's default icon (see `PluginUIDaemon
+    .set_default_icon_path`, threaded through via `KARCYTICS_CORE_ICON_PATH`
+    — set once by the Hub, at `core_services_bootstrap.start_core_services`),
+    else `None` if neither resolves to a real file.
+    """
+    candidate = Path(icon_path) if icon_path else None
+    if candidate is None or not candidate.exists():
+        fallback = os.environ.get("KARCYTICS_CORE_ICON_PATH")
+        candidate = Path(fallback) if fallback else None
+    return candidate if candidate is not None and candidate.exists() else None
 
 
 def write_frame(data: dict[str, Any]) -> None:
@@ -269,19 +332,22 @@ def _show_fetched_about(  # noqa: PLR0913, PLR0917
 
 
 def _open_preferences(window: QMainWindow, client: Any) -> None:
-    from .ui_preferences import SDKPreferencesDialog
+    from .ui_preferences import SDKPreferencesDialog, SDKThemePreferencesPage
 
     dialog = SDKPreferencesDialog(window, client)
 
-    # Give the plugin a chance to populate preferences if it wants to
+    # Every isolated plugin gets a working "Theme" page for free — this used
+    # to be genuinely empty unless the plugin implemented populate_preferences
+    # itself (which none did), so Preferences opened blank for every isolated
+    # plugin even though the Hub's own in-process dialog always had one.
+    dialog.add_page("Theme", SDKThemePreferencesPage(client, dialog))
+
+    # Give the plugin a chance to add its own preference pages alongside it.
     panel = getattr(window, "wizard_panel", None)
     if panel is None:
         panel = window.centralWidget()
     if hasattr(panel, "populate_preferences"):
         panel.populate_preferences(dialog)
-    else:
-        # Just an empty state if no plugin preferences exist, or we can add Theme later
-        pass
 
     dialog.exec()
 
@@ -309,9 +375,9 @@ def _build_menu_bar(window: QMainWindow, logger: Any) -> None:
 
         # View -> Theme
         try:
-            categorized_themes = client.call("theme.get_categorized_themes")
+            categorized_themes = client.call("theme.list_categorized_themes")
             builder.add_theme_menu(
-                switch_theme_cb=lambda path: client.call("theme.switch_theme", {"theme_path": str(path)}),
+                switch_theme_cb=lambda path: client.call("theme.switch_theme", path=str(path)),
                 categorized_themes=categorized_themes,
             )
         except Exception as e:
@@ -503,6 +569,7 @@ def run(  # noqa: C901, PLR0913, PLR0915
     configure_menus: Callable[[QMainWindow, QWidget], None] | None = None,
     on_panel_ready: Callable[[QMainWindow, QWidget], None] | None = None,
     plugin_id: str = "unknown",
+    icon_path: str | Path | None = None,
 ) -> None:
     """Host `panel_factory()`'s widget as a standalone top-level window in
     this process, speaking `PluginUIDaemon`'s protocol over stdio until the
@@ -544,6 +611,15 @@ def run(  # noqa: C901, PLR0913, PLR0915
     attributed to which isolated process it came from; it defaults to
     "unknown" only so this function keeps working for a caller that hasn't
     been updated yet, not because "unknown" is an acceptable steady state.
+
+    `window_title` doubles as this process's app identity: it's both the
+    window's titlebar text and — via `QApplication.setApplicationName`/
+    `setApplicationDisplayName` plus `patch_macos_bundle_name` below — what
+    macOS's native menu bar and Qt's own Hide/Quit menu items show instead
+    of the raw `python3`/`ui_daemon.py` process name. `icon_path` is this
+    plugin's own icon (e.g. `Path(__file__).parent / "icon.png"`, if the
+    plugin ships one); when omitted, or the given path doesn't exist, this
+    falls back to the Hub's own default icon (see `_resolve_app_icon_path`).
     """
     from .logging import configure_plugin_logging
 
@@ -552,7 +628,17 @@ def run(  # noqa: C901, PLR0913, PLR0915
 
     logger = get_logger(__name__, plugin_id)
     _confirm_hub_theme_or_exit(logger, plugin_id)
-    app = QApplication.instance() or QApplication(sys.argv)
+    patch_macos_bundle_name(window_title, logger)
+    # QApplication.instance() is typed as returning the QCoreApplication
+    # base (it overrides an inherited classmethod without narrowing the
+    # stub's return type), so the `or` here still widens to that base type
+    # even though both branches are always a real QApplication at runtime.
+    app = cast("QApplication", QApplication.instance() or QApplication(sys.argv))
+    app.setApplicationName(window_title)
+    app.setApplicationDisplayName(window_title)
+    resolved_icon = _resolve_app_icon_path(icon_path)
+    if resolved_icon is not None:
+        app.setWindowIcon(QIcon(str(resolved_icon)))
     send_event("loading_progress", {"message": "Initializing UI framework…"})
 
     # `components.py` tries to do this at import time, but that import

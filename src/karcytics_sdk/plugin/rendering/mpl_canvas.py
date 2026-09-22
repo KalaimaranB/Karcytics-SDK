@@ -241,3 +241,53 @@ class LayeredMatplotlibCanvas(_mpl_canvas_base()):
             lambda: _base_draw(),
             self.draw,
         )
+
+
+class LockedFigureCanvas(_mpl_canvas_base()):
+    """A plain `FigureCanvasQTAgg` that serializes all Agg rasterization behind a `RasterLock`.
+
+    Matplotlib's Agg/FreeType backend is not thread-safe: concurrent draws
+    from different `Figure` objects on different threads can corrupt shared
+    C-level state (glyph cache, font transforms) and crash with garbage
+    arguments deep in matplotlib's `ft2font`. Any plugin widget with its own
+    standalone `FigureCanvasQTAgg` — one that doesn't need the full async
+    compute/rasterize split `LayeredMatplotlibCanvas` provides — still shares
+    the same process-wide matplotlib backend state as everything else, and
+    so still needs its paint/draw calls serialized through the same lock
+    instance. Use this class in place of `FigureCanvasQTAgg` instead of
+    hand-rolling the lock dance again.
+
+    `raster_lock` defaults to the shared `MPL_RASTER_LOCK` singleton,
+    overridable at construction so tests can inject a private lock instead
+    of the process-wide one.
+    """
+
+    def __init__(self, figure: Figure, raster_lock: RasterLock | None = None) -> None:
+        super().__init__(figure)
+        self.raster_lock = raster_lock or MPL_RASTER_LOCK
+
+    def draw(self) -> None:
+        self.raster_lock.try_run(super().draw, self._retry_draw)
+
+    def _retry_draw(self) -> None:
+        # The canvas can be replaced/deleteLater()'d (e.g. the user generated
+        # a new plot) while this retry was still queued — touching a
+        # destroyed C++ widget here would crash natively rather than raise a
+        # catchable RuntimeError, since this runs from a QTimer callback
+        # rather than a normal Python call.
+        from PyQt6 import sip
+
+        if sip.isdeleted(self):
+            return
+        self.draw()
+
+    def paintEvent(self, event: Any) -> None:  # noqa: N802
+        _base_paint = super().paintEvent  # captured in method scope
+        self.raster_lock.try_run(lambda: _base_paint(event), self._retry_update)
+
+    def _retry_update(self) -> None:
+        from PyQt6 import sip
+
+        if sip.isdeleted(self):
+            return
+        self.update()

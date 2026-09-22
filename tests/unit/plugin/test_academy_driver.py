@@ -29,6 +29,11 @@ from karcytics_sdk.plugin.tutorial_models import (
 from karcytics_sdk.plugin.tutorial_overlay import TutorialOverlay
 
 
+class SucceedingValidator(IValidator):
+    def validate(self, app_state: Any) -> bool:
+        return True
+
+
 class FakeEventBus:
     def __init__(self) -> None:
         self.subscriptions: dict[str, list[Any]] = {}
@@ -294,3 +299,128 @@ class TestWireInteractionStepSelfTarget:
         root.triggered.emit()
 
         assert manager.current_step.id == "done"
+
+
+class FakeCanvas(QWidget):
+    """Stands in for flow-cytometry's own FlowCanvas — records every
+    set_tutorial_guide() call so a test can assert exactly when the guide
+    is cleared/restored around a review-mode round trip.
+    """
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self.setObjectName("FlowCanvas")
+        self.guide_calls: list[Any] = []
+
+    def set_tutorial_guide(self, step: Any) -> None:
+        self.guide_calls.append(step)
+
+
+def make_visible_driver(
+    course: Course, bus: FakeEventBus, tmp_path, root: QWidget | None = None
+) -> tuple[AcademyStepDriver, AcademyManager, QWidget, TutorialOverlay]:
+    """Like make_driver(), but the overlay reports itself as visible so
+    _tick() actually runs its body instead of early-returning — needed to
+    exercise _tick()'s review-mode short-circuit rather than calling the
+    driver's per-step-type methods directly.
+    """
+    manager = AcademyManager(event_bus=bus, persistence_dir=tmp_path / "academy")
+    manager.register_storyboard("m", course)
+    manager.start_course_confirmed(course.id)
+
+    root = root if root is not None else QWidget()
+    overlay = TutorialOverlay(manager, bus, parent=root)
+    overlay.isVisible = lambda: True  # type: ignore[method-assign]
+
+    driver = AcademyStepDriver(manager, overlay, root, state_provider=lambda: root)
+    return driver, manager, root, overlay
+
+
+class TestReviewModeShortCircuit:
+    def test_tick_skips_verification_polling_while_reviewing(self, bus, tmp_path):
+        course = Course(
+            id="c1",
+            title="T",
+            steps=[
+                InfoStep(id="step_1", text="First", next_step_id="step_2"),
+                VerificationStep(
+                    id="step_2",
+                    text="Checking...",
+                    validator=SucceedingValidator(),
+                    on_success_step_id="step_3",
+                ),
+                InfoStep(id="step_3", text="Third"),
+            ],
+        )
+        driver, manager, _root, _overlay = make_visible_driver(course, bus, tmp_path)
+        manager.next_step()  # -> step_2 (live, VerificationStep)
+        manager.review_previous()  # reviewing step_1
+
+        for _ in range(30):  # well past _VALIDATION_POLL_TICKS
+            driver._tick()
+
+        assert manager.current_step.id == "step_2", "a passing validator must not advance the live course"
+        assert driver._verification_wait == 0, "the verification poll counter must never move while reviewing"
+
+    def test_tick_skips_interaction_wiring_while_reviewing(self, bus, tmp_path):
+        course = Course(
+            id="c1",
+            title="T",
+            steps=[
+                InfoStep(id="step_1", text="First", next_step_id="step_2"),
+                InteractionStep(
+                    id="step_2",
+                    text="Click it",
+                    target_widget_name="MainPanel",
+                    event_trigger="triggered",
+                    next_step_id="step_3",
+                ),
+                InfoStep(id="step_3", text="Third"),
+            ],
+        )
+        root = SelfSignalWidget()
+        root.setObjectName("MainPanel")
+        driver, manager, _root, _overlay = make_visible_driver(course, bus, tmp_path, root=root)
+        manager.next_step()  # -> step_2 (live, InteractionStep)
+        manager.review_previous()  # reviewing step_1
+
+        driver._tick()
+
+        assert driver._connections == {}, "reviewing must never wire the live step's interaction signal"
+
+    def test_return_to_current_restores_canvas_guide_without_duplicate_wiring(self, bus, tmp_path):
+        course = Course(
+            id="c1",
+            title="T",
+            steps=[
+                InfoStep(id="step_1", text="First", next_step_id="step_2"),
+                InteractionStep(
+                    id="step_2",
+                    text="Click it",
+                    target_widget_name="MainPanel",
+                    event_trigger="triggered",
+                    next_step_id="step_3",
+                ),
+                InfoStep(id="step_3", text="Third"),
+            ],
+        )
+        root = SelfSignalWidget()
+        root.setObjectName("MainPanel")
+        canvas = FakeCanvas(root)
+        driver, manager, _root, _overlay = make_visible_driver(course, bus, tmp_path, root=root)
+
+        manager.next_step()  # -> step_2 (live, InteractionStep)
+        driver._tick()  # wires step_2 + applies its canvas guide
+        assert len(driver._connections) == 1
+        assert canvas.guide_calls[-1] is manager.current_step
+
+        manager.review_previous()  # reviewing step_1
+        driver._tick()  # must clear the canvas guide, not touch wiring
+        assert canvas.guide_calls[-1] is None
+        assert len(driver._connections) == 1, "review must not tear down the existing connection either"
+
+        manager.return_to_current()
+        driver._tick()  # must restore the guide, without re-wiring the signal
+
+        assert canvas.guide_calls[-1] is manager.current_step
+        assert len(driver._connections) == 1, "returning to current must not create a duplicate connection"

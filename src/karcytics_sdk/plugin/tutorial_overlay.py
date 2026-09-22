@@ -18,8 +18,8 @@ import math
 from collections.abc import Callable
 from typing import Any
 
-from PyQt6.QtCore import QPoint, QRect, Qt, pyqtSignal
-from PyQt6.QtGui import QColor, QPainter, QPen, QRegion
+from PyQt6.QtCore import QPoint, QRect, Qt, QUrl, pyqtSignal
+from PyQt6.QtGui import QColor, QDesktopServices, QPainter, QPen, QRegion
 from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
@@ -31,6 +31,7 @@ from PyQt6.QtWidgets import (
 
 from .academy import (
     ACADEMY_COURSE_COMPLETED,
+    ACADEMY_REVIEW_STATE_CHANGED,
     ACADEMY_STEP_CHANGED,
     ACADEMY_SUBTASK_COMPLETED,
     AcademyEventBus,
@@ -129,6 +130,11 @@ class TutorialOverlay(QWidget):
 
         self.target_rects: list[QRect] = []
         self.current_step: BaseStep | None = None
+        # True while displaying a past step read-only (see
+        # _render_review_step) — self.current_step keeps meaning "the live
+        # step" everywhere; the reviewed step is tracked separately here.
+        self._is_reviewing = False
+        self._review_step: BaseStep | None = None
         self._compact_mode = compact_mode
         self.custom_completion_factories: dict[str, Callable[[QWidget], QWidget]] = {}
         self.completion_container: Any = None
@@ -146,10 +152,12 @@ class TutorialOverlay(QWidget):
         self._render_step_cb = self.render_step
         self._on_subtask_cb = self._on_subtask_completed
         self._on_course_cb = self.show_completion_screen
+        self._on_review_cb = self._on_review_state_changed
 
         self._event_bus.subscribe(ACADEMY_STEP_CHANGED, self._render_step_cb)
         self._event_bus.subscribe(ACADEMY_SUBTASK_COMPLETED, self._on_subtask_cb)
         self._event_bus.subscribe(ACADEMY_COURSE_COMPLETED, self._on_course_cb)
+        self._event_bus.subscribe(ACADEMY_REVIEW_STATE_CHANGED, self._on_review_cb)
 
         self._on_theme_cb = self._on_theme_changed
         theme_manager.theme_changed.connect(self._on_theme_cb)
@@ -172,6 +180,7 @@ class TutorialOverlay(QWidget):
         self._event_bus.unsubscribe(ACADEMY_STEP_CHANGED, self._render_step_cb)
         self._event_bus.unsubscribe(ACADEMY_SUBTASK_COMPLETED, self._on_subtask_cb)
         self._event_bus.unsubscribe(ACADEMY_COURSE_COMPLETED, self._on_course_cb)
+        self._event_bus.unsubscribe(ACADEMY_REVIEW_STATE_CHANGED, self._on_review_cb)
 
         import contextlib
 
@@ -253,19 +262,37 @@ class TutorialOverlay(QWidget):
         header.addWidget(self.btn_close)
         self.body_layout.addLayout(header)
 
+        # Standing indicator shown only while reviewing a past step —
+        # distinct from show_banner()'s transient toast, this is a fixed
+        # "you are not live" marker for as long as review mode is active.
+        self.lbl_review_indicator = QLabel("\U0001f441 Reviewing a completed step — read-only")
+        self.lbl_review_indicator.setWordWrap(True)
+        theme_manager.apply_style(
+            self.lbl_review_indicator,
+            "background-color: {ACCENT_WARNING}; color: {BG_DARKEST};"
+            "padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;",
+        )
+        self.lbl_review_indicator.hide()
+        self.body_layout.addWidget(self.lbl_review_indicator)
+
         # Step text
         self.text_label = QLabel("Welcome to Karcytics Academy!")
         self.text_label.setTextFormat(Qt.TextFormat.RichText)
         # A rich-text QLabel defaults its textInteractionFlags to
         # LinksAccessibleByMouse (for hyperlink handling) even though
-        # `_update_text_rendering()` never emits an <a> tag — that's enough
-        # for QLabel's internal text control to accept() every mouse press
-        # over it (to track a possible link click) instead of ignore()-ing
-        # it, which is what a plain QLabel does. An accepted event never
-        # bubbles to the bubble's own mousePressEvent, so dragging worked
-        # everywhere in the bubble EXCEPT directly over this label. There's
-        # no interactive text here, so disable interaction outright.
+        # `_update_text_rendering()` almost never emits an <a> tag — that's
+        # enough for QLabel's internal text control to accept() every mouse
+        # press over it (to track a possible link click) instead of
+        # ignore()-ing it, which is what a plain QLabel does. An accepted
+        # event never bubbles to the bubble's own mousePressEvent, so
+        # dragging worked everywhere in the bubble EXCEPT directly over this
+        # label. Most steps have no interactive text, so disable interaction
+        # outright by default; `_update_text_rendering()` re-enables
+        # LinksAccessibleByMouse only for the rare step whose text actually
+        # contains a `[label](url)` link, trading away drag-over-text on
+        # that one step for a clickable link.
         self.text_label.setTextInteractionFlags(Qt.TextInteractionFlag.NoTextInteraction)
+        self.text_label.linkActivated.connect(lambda url: QDesktopServices.openUrl(QUrl(url)))
         font = self.text_label.font()
         font.setPixelSize(16)
         font.setFamily("sans-serif")
@@ -298,6 +325,10 @@ class TutorialOverlay(QWidget):
         # Progress bar (moved to footer)
         self.progress_bar = QProgressBar()
         self.progress_bar.setFixedHeight(6)
+        # Starting cap; _adjust_progress_bar_width() (called from
+        # _force_resize on every render) continuously resizes this based
+        # on how much room the button row actually needs — see there.
+        self.progress_bar.setMaximumWidth(70)
         self.progress_bar.setTextVisible(False)
         theme_manager.apply_style(
             self.progress_bar,
@@ -312,6 +343,7 @@ class TutorialOverlay(QWidget):
         theme_manager.apply_style(self.btn_container, "background: transparent;")
         self.btn_layout = QHBoxLayout(self.btn_container)
         self.btn_layout.setContentsMargins(0, 0, 0, 0)
+        self.btn_layout.setSpacing(6)  # tighter than most styles' default gap
         self.footer_layout.addWidget(self.btn_container)
 
         self.btn_next = QPushButton("Next →")
@@ -319,7 +351,7 @@ class TutorialOverlay(QWidget):
             self.btn_next,
             "background-color: {ACCENT_PRIMARY}; color: {BG_DARKEST};"
             "border: 1px solid {ACCENT_PRIMARY}; border-radius: 4px;"
-            "padding: 6px 14px; font-weight: bold;",
+            "padding: 6px 10px; font-weight: bold;",
         )
         self.btn_next.setCursor(Qt.CursorShape.PointingHandCursor)
 
@@ -333,12 +365,37 @@ class TutorialOverlay(QWidget):
             self.btn_dismiss_bubble,
             "background-color: transparent; color: {FG_SECONDARY};"
             "border: 1px solid {BORDER}; border-radius: 4px;"
-            "padding: 6px 14px;",
+            "padding: 6px 10px;",
         )
         self.btn_dismiss_bubble.setCursor(Qt.CursorShape.PointingHandCursor)
         self.btn_dismiss_bubble.clicked.connect(self._dismiss_bubble)
         self.btn_dismiss_bubble.clicked.connect(self._dismiss_bubble)
         self.btn_dismiss_bubble.hide()
+
+        # Review-mode navigation: step back/forward through already-visited
+        # steps to re-read them, without touching the live course. See
+        # _render_review_step()/_populate_review_buttons().
+        self.btn_previous = QPushButton("← Previous")
+        theme_manager.apply_style(
+            self.btn_previous,
+            "background-color: transparent; color: {FG_SECONDARY};"
+            "border: 1px solid {BORDER}; border-radius: 4px;"
+            "padding: 6px 10px;",
+        )
+        self.btn_previous.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_previous.clicked.connect(self._academy_manager.review_previous)
+        self.btn_previous.hide()
+
+        self.btn_return_to_current = QPushButton("↩ Resume")
+        theme_manager.apply_style(
+            self.btn_return_to_current,
+            "background-color: {ACCENT_WARNING}; color: {BG_DARKEST};"
+            "border: 1px solid {ACCENT_WARNING}; border-radius: 4px;"
+            "padding: 6px 10px; font-weight: bold;",
+        )
+        self.btn_return_to_current.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_return_to_current.clicked.connect(self._academy_manager.return_to_current)
+        self.btn_return_to_current.hide()
 
     def on_cyto_clicked(self) -> None:
         """User clicked Cyto directly (e.g. to hear a fun tip)."""
@@ -348,8 +405,12 @@ class TutorialOverlay(QWidget):
         """Re-apply all tracked styles and re-render text so the bubble reflects the new theme."""
         # Re-apply every widget style that was registered via theme_manager.apply_style()
         theme_manager._apply_dynamic_styles()
-        # Re-render text so inline HTML accent colors (bold spans) also update
-        if self.current_step:
+        # Re-render text so inline HTML accent colors (bold spans) also
+        # update — the reviewed step's text while reviewing, else the live
+        # step's, since those can differ.
+        if self._is_reviewing and self._review_step:
+            self._update_text_rendering(self._review_step.text)
+        elif self.current_step:
             self._update_text_rendering(self.current_step.text)
         if hasattr(self, "cyto") and hasattr(self.cyto, "apply_theme"):
             self.cyto.apply_theme()
@@ -362,6 +423,21 @@ class TutorialOverlay(QWidget):
 
         # Replace --- with a styled horizontal rule
         text = re.sub(r"---", f'<hr style="border: none; border-top: 1px solid {Colors.BORDER}; margin: 8px 0;">', text)
+
+        # Replace [label](url) with a real, clickable link — must run before
+        # the bold/italic passes below since a label could otherwise get
+        # partially consumed by them.
+        text, link_count = re.subn(
+            r"\[([^\]]+)\]\((https?://[^\s)]+)\)",
+            f'<a href="\\2" style="color: {Colors.ACCENT_PRIMARY};">\\1</a>',
+            text,
+        )
+        # Only steps whose text actually contains a link pay the
+        # drag-over-text tradeoff described where text_label is constructed;
+        # every other step keeps NoTextInteraction as before.
+        self.text_label.setTextInteractionFlags(
+            Qt.TextInteractionFlag.LinksAccessibleByMouse if link_count else Qt.TextInteractionFlag.NoTextInteraction
+        )
 
         # Replace **text** with highlighted accent color
         text = re.sub(r"\*\*(.*?)\*\*", f'<b style="color: {Colors.ACCENT_PRIMARY};">\\1</b>', text)
@@ -502,6 +578,15 @@ class TutorialOverlay(QWidget):
             self.hide()
             return
 
+        # render_step() always means "show the live step, fully
+        # interactive" — guard against it ever running while a leftover
+        # review-mode flag/indicator is still set (e.g. a direct call from
+        # somewhere other than _on_review_state_changed).
+        if self._is_reviewing:
+            self._is_reviewing = False
+            self._review_step = None
+            self._apply_review_indicator(False)
+
         self.current_step = step
         self.show()
         self.cyto.show()
@@ -605,6 +690,79 @@ class TutorialOverlay(QWidget):
                 self._update_mask()
 
             QTimer.singleShot(hide_after, _hide_bubble)
+
+    # ── Review mode (read-only "Previous step") ─────────────────────────────────
+
+    def _render_review_step(self, step: BaseStep) -> None:
+        """Read-only render of an already-visited step — text/emotion only.
+
+        Triggered off ACADEMY_REVIEW_STATE_CHANGED. Deliberately does not
+        touch `self.current_step` (that always means "the live step") and
+        skips every step-type-specific branch `render_step()` has
+        (branching/consent options, the ForcedInteractionStep checklist,
+        waiting indicators) — those reflect live, in-progress state that
+        can't be faithfully reconstructed for a past step, and aren't part
+        of "let me re-read the text."
+        """
+        if not self._is_alive():
+            return
+
+        self._is_reviewing = True
+        self._review_step = step
+        self.show()
+        self.cyto.show()
+        self.bubble_container.show()
+        self._clear_dynamic_content()
+        self.target_rects = []
+
+        course = self._academy_manager.active_course
+        main_path = course.get_main_path() if course else []
+        if step.id in main_path:
+            current = main_path.index(step.id) + 1
+        else:
+            current = getattr(self, "_last_main_step_idx", 1)
+        self.set_progress(current, max(len(main_path), 1))
+        self.lbl_progress.setText(self.lbl_progress.text() + "  (reviewing)")
+
+        self._update_text_rendering(step.text)
+        self.cyto.set_emotion(getattr(step, "cyto_emotion", "idle"))
+
+        self._populate_review_buttons()
+        self.btn_previous.setEnabled(self._academy_manager.can_review_previous())
+        self.btn_next.setEnabled(self._academy_manager.can_review_next())
+        self.btn_next.setText("Next →")
+
+        self._apply_review_indicator(True)
+
+        self._user_positioned = False
+        self._force_resize()
+        self._update_mask()
+        self._reposition_cyto_and_bubble([])
+
+    def _apply_review_indicator(self, is_reviewing: bool) -> None:
+        """Toggles the standing "reviewing, read-only" banner + bubble accent."""
+        self.lbl_review_indicator.setVisible(is_reviewing)
+        if is_reviewing:
+            theme_manager.apply_style(
+                self.bubble_container,
+                "#BubbleContainer { background-color: {BG_DARKEST}; border: 2px solid {ACCENT_WARNING}; border-radius: 12px; }",
+            )
+        else:
+            theme_manager.apply_style(
+                self.bubble_container,
+                "#BubbleContainer { background-color: {BG_DARKEST}; border: 2px solid {ACCENT_SUCCESS}; border-radius: 12px; }",
+            )
+
+    def _on_review_state_changed(self, step: BaseStep | None, is_reviewing: bool) -> None:
+        if not self._is_alive():
+            return
+        if is_reviewing and step is not None:
+            self._render_review_step(step)
+        else:
+            self._is_reviewing = False
+            self._review_step = None
+            self._apply_review_indicator(False)
+            self.render_step(self._academy_manager.current_step)
 
     # ── Spotlight geometry ────────────────────────────────────────────────────
 
@@ -772,7 +930,11 @@ class TutorialOverlay(QWidget):
     # ── Input Events ──────────────────────────────────────────────────────────
 
     def wheelEvent(self, event) -> None:
-        if getattr(self, "current_step", None) and getattr(self.current_step, "allow_scroll", False):
+        if (
+            not self._is_reviewing
+            and getattr(self, "current_step", None)
+            and getattr(self.current_step, "allow_scroll", False)
+        ):
             self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
             from PyQt6.QtWidgets import QApplication
 
@@ -790,8 +952,18 @@ class TutorialOverlay(QWidget):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
 
-        allow = getattr(self.current_step, "allow_interaction", False)
         dim = QColor(0, 0, 0, 160)
+
+        if self._is_reviewing:
+            # Read-only review: always fully dimmed, never spotlight holes —
+            # target_rects is kept empty while reviewing anyway (see
+            # _render_review_step), but a live step's own allow_interaction
+            # must never leak through here either.
+            painter.fillRect(self.rect(), dim)
+            painter.end()
+            return
+
+        allow = getattr(self.current_step, "allow_interaction", False)
 
         if self.target_rects:
             # Paint dim as a set of rects that surrounds the holes — never paint OVER holes.
@@ -836,6 +1008,12 @@ class TutorialOverlay(QWidget):
 
     def _update_mask(self) -> None:
         """Build a widget mask so mouse events pass through to target areas."""
+        if self._is_reviewing:
+            # Full lock regardless of the live step's own allow_interaction —
+            # reviewing a past step must never let clicks reach anything.
+            self.clearMask()
+            return
+
         allow = getattr(self.current_step, "allow_interaction", False)
         if isinstance(self.current_step, (InteractionStep, ForcedInteractionStep)):
             allow = True
@@ -908,9 +1086,12 @@ class TutorialOverlay(QWidget):
             options (dict): Mapping of option labels to target step identifiers.
         """
         self._clear_buttons()
+        self.btn_layout.addStretch()
+        self.btn_layout.addWidget(self.btn_previous)
+        self._show_previous_button()
         btn_style = (
             "background-color: #1f6feb; color: white; border: none;"
-            "border-radius: 4px; padding: 8px 14px; font-weight: bold;"
+            "border-radius: 4px; padding: 6px 10px; font-weight: bold;"
         )
 
         for text, target_id in options.items():
@@ -931,11 +1112,14 @@ class TutorialOverlay(QWidget):
     def _render_consent_options(self, step: ConsentStep) -> None:
         """Render explicit Accept/Decline buttons for a ConsentStep."""
         self._clear_buttons()
+        self.btn_layout.addStretch()
+        self.btn_layout.addWidget(self.btn_previous)
+        self._show_previous_button()
 
         btn_decline = QPushButton(step.decline_text)
         theme_manager.apply_style(
             btn_decline,
-            "background-color: transparent; color: {FG_SECONDARY}; border: 1px solid {BORDER}; border-radius: 4px; padding: 8px 14px;",
+            "background-color: transparent; color: {FG_SECONDARY}; border: 1px solid {BORDER}; border-radius: 4px; padding: 6px 10px;",
         )
         btn_decline.setCursor(Qt.CursorShape.PointingHandCursor)
         if step.on_decline_step_id:
@@ -947,7 +1131,7 @@ class TutorialOverlay(QWidget):
         btn_accept = QPushButton(step.accept_text)
         theme_manager.apply_style(
             btn_accept,
-            "background-color: {ACCENT_SUCCESS}; color: white; border: none; border-radius: 4px; padding: 8px 14px; font-weight: bold;",
+            "background-color: {ACCENT_SUCCESS}; color: white; border: none; border-radius: 4px; padding: 6px 10px; font-weight: bold;",
         )
         btn_accept.setCursor(Qt.CursorShape.PointingHandCursor)
         if step.on_accept_step_id:
@@ -959,13 +1143,61 @@ class TutorialOverlay(QWidget):
     # ── Internal helpers ──────────────────────────────────────────────────────
 
     def _populate_default_buttons(self) -> None:
+        # All clustered together on the right (stretch first, not between
+        # them) — with nothing else in the footer, pinning Previous to the
+        # far left while Next sits at the far right left a large dead gap
+        # between two buttons that have nothing to do with each other.
         self._clear_buttons()
+        self.btn_return_to_current.hide()
         self.btn_layout.addStretch()
+        self.btn_layout.addWidget(self.btn_previous)
         self.btn_layout.addWidget(self.btn_dismiss_bubble)
         self.btn_layout.addWidget(self.btn_next)
+        # A review session that paged all the way forward to the live step's
+        # own history entry disables btn_next (see _render_review_step's
+        # can_review_next() check) — it's the same persistent widget reused
+        # here, so without resetting it, the live "Next →" button would stay
+        # permanently unclickable after leaving review mode.
+        self.btn_next.setEnabled(True)
+        self._show_previous_button()
+
+    def _show_previous_button(self) -> None:
+        """Shows/enables btn_previous for the live-step button row.
+
+        A shared helper (not just inline in _populate_default_buttons) so
+        the step-type-specific rendering paths that build their own button
+        row directly (_render_branching_options, _render_consent_options)
+        can still offer "step back to re-read" instead of silently losing
+        it whenever a step isn't a plain InfoStep.
+        """
+        self.btn_previous.setEnabled(self._academy_manager.can_review_previous())
+        self.btn_previous.show()
+
+    def _populate_review_buttons(self) -> None:
+        """Previous (left) / Return to current (middle) / Next (right).
+
+        `btn_next` is the same persistent widget used live — only its
+        connected behavior differs while reviewing (see
+        academy_driver.build_academy_overlay's dispatcher).
+        """
+        self._clear_buttons()
+        self.btn_dismiss_bubble.hide()
+        self.btn_layout.addWidget(self.btn_previous)
+        self.btn_layout.addStretch()
+        self.btn_layout.addWidget(self.btn_return_to_current)
+        self.btn_layout.addStretch()
+        self.btn_layout.addWidget(self.btn_next)
+        self.btn_previous.show()
+        self.btn_return_to_current.show()
+        self.btn_next.show()
 
     def _clear_buttons(self) -> None:
-        persistent = (getattr(self, "btn_next", None), getattr(self, "btn_dismiss_bubble", None))
+        persistent = (
+            getattr(self, "btn_next", None),
+            getattr(self, "btn_dismiss_bubble", None),
+            getattr(self, "btn_previous", None),
+            getattr(self, "btn_return_to_current", None),
+        )
         while self.btn_layout.count():
             item = self.btn_layout.takeAt(0)
             if item is None:
@@ -1018,9 +1250,30 @@ class TutorialOverlay(QWidget):
         self.dynamic_content.invalidate()
         self.body_layout.invalidate()
         self.body_container.updateGeometry()
+        self._adjust_progress_bar_width()
         self.bubble_layout.invalidate()
         self.bubble_container.updateGeometry()
 
         # Force layouts to activate and calculate their sizes synchronously
         self.bubble_layout.activate()
         self.bubble_container.resize(self.bubble_layout.sizeHint())
+
+    def _adjust_progress_bar_width(self) -> None:
+        """Sizes the progress bar to whatever width the button row isn't
+        using, instead of reserving (or capping it to) a fixed amount.
+
+        The footer is a fixed-width row shared between the progress bar
+        and the buttons — a plain InfoStep only needs "Next →" and leaves
+        most of the row free, while review mode (Previous/Resume/Next) or
+        a ConsentStep (Previous/Decline/Accept) needs three buttons whose
+        labels vary in length. Sizing the bar off the button row's actual
+        current sizeHint — with no upper cap beyond the space that's
+        genuinely free — means it grows to fill unused room when the
+        buttons don't need it, and shrinks the instant they do.
+        """
+        self.btn_layout.activate()
+        buttons_width = self.btn_container.sizeHint().width()
+        margins = self.footer_layout.contentsMargins()
+        spacing_between = 16  # matches the addSpacing() after the progress bar
+        available = self.bubble_container.width() - margins.left() - margins.right() - spacing_between - buttons_width
+        self.progress_bar.setMaximumWidth(max(24, available))

@@ -305,6 +305,62 @@ while True:
         PluginUIDaemon._core_services_token = None
 
 
+def test_worker_env_carries_default_icon_path(tmp_path):
+    """The Hub records its own icon path once, via set_default_icon_path();
+    every worker this daemon spawns afterward must see it in its own
+    environment, so ui_daemon_runtime.run() has a fallback icon to use when
+    the plugin itself doesn't ship one — see _resolve_app_icon_path().
+    """
+    script_path = tmp_path / "icon_env_echo_worker.py"
+    code = """
+import os
+import sys
+import struct
+import msgpack
+
+def write_frame(data):
+    payload = msgpack.packb(data, use_bin_type=True)
+    header = struct.pack('>I', len(payload))
+    sys.stdout.buffer.write(header + payload)
+    sys.stdout.buffer.flush()
+
+write_frame({
+    "kind": "event",
+    "topic": "ready",
+    "payload": {"icon_path": os.environ.get("KARCYTICS_CORE_ICON_PATH")},
+})
+
+while True:
+    header = sys.stdin.buffer.read(4)
+    if not header or len(header) < 4:
+        break
+"""
+    script_path.write_text(code, encoding="utf-8")
+
+    plugin_id = "test_default_icon_path_plugin"
+    fake_icon_path = str(tmp_path / "logo.icns")
+    PluginUIDaemon.set_default_icon_path(fake_icon_path)
+    try:
+        daemon = PluginUIDaemon.get_instance(plugin_id, daemon_script_path=script_path)
+
+        received = []
+        daemon.event_received.connect(lambda topic, payload: received.append((topic, payload)))
+        daemon.ensure_started()
+
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline and not received:
+            from PyQt6.QtWidgets import QApplication
+
+            QApplication.processEvents()
+            time.sleep(0.02)
+
+        assert received
+        assert received[0] == ("ready", {"icon_path": fake_icon_path})
+    finally:
+        PluginUIDaemon.stop_instance(plugin_id)
+        PluginUIDaemon._core_icon_path = None
+
+
 def test_resolve_daemon_script_finds_plugin_root_layout(tmp_path):
     """Older plugins (manifest_version 2, no src/karcytics_plugins/<id>/ tree —
     e.g. Synthetic Biology) keep everything at the plugin's own root next to

@@ -80,8 +80,19 @@ from .runtime_services import (
 )
 from .signals import PluginSignals
 from .state import PluginState
+from .toast import (
+    STYLE_ERROR,
+    STYLE_INFO,
+    STYLE_SUCCESS,
+    STYLE_UPDATE,
+    STYLE_WARNING,
+    ToastManager,
+    ToastNotification,
+    show_toast,
+    toast_manager,
+)
 from .tutorial_overlay import TutorialOverlay
-from .ui_daemon_runtime import ClosableMainWindow, RequestDispatcher
+from .ui_daemon_runtime import ClosableMainWindow, RequestDispatcher, patch_macos_bundle_name
 from .ui_daemon_runtime import run as run_ui_daemon
 from .validation import (
     validate_directory_exists,
@@ -92,6 +103,7 @@ from .validation import (
     validate_value_range,
 )
 from .wizard import StepIndicator, WizardPanel, WizardStep
+from .worker_thread import OneShotWorkerThread
 from .workflow import WorkflowAttachment, WorkflowContext
 
 __all__ = [
@@ -104,12 +116,14 @@ __all__ = [
     "ClosableMainWindow",
     "RequestDispatcher",
     "run_ui_daemon",
+    "patch_macos_bundle_name",
     "PluginContext",
     "PluginManifest",
     "UndeclaredCapabilityAccess",
     "AnalysisBase",
     "AnalysisRunnable",
     "AnalysisWorker",
+    "OneShotWorkerThread",
     "LocalTaskScheduler",
     "task_scheduler",
     "KarcyticsEvent",
@@ -128,6 +142,16 @@ __all__ = [
     "CourseCompleteOverlay",
     "CentralEventBus",
     "PreferenceManagerProtocol",
+    # Toasts
+    "STYLE_ERROR",
+    "STYLE_INFO",
+    "STYLE_SUCCESS",
+    "STYLE_UPDATE",
+    "STYLE_WARNING",
+    "ToastManager",
+    "ToastNotification",
+    "show_toast",
+    "toast_manager",
     "get_logger",
     "KarcyticsPlugin",
     # Rendering

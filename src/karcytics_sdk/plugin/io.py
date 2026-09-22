@@ -75,6 +75,15 @@ class PluginConfig(PreferenceManagerProtocol):
     This is useful for persisting user settings across sessions, like
     the last used parameters or paths.
 
+    One instance per `plugin_id` per process (see `__new__`): two independent
+    `PluginConfig` objects for the same plugin would each cache their own
+    snapshot of the JSON file in `.data`, and whichever calls `.save()` last
+    would silently overwrite the other's unsaved changes with its own stale
+    snapshot. A plugin's own config wrapper (e.g. a `FlowConfig` holding
+    `PluginConfig("flow_cytometry")`) and any SDK feature that also reaches
+    for `PluginConfig(same_plugin_id)` — the workflow-autosave preference,
+    for instance — now always share the exact same object and `.data` dict.
+
     Example:
         >>> config = PluginConfig('my_plugin')
         >>> config.set('threshold', 0.5)
@@ -83,17 +92,29 @@ class PluginConfig(PreferenceManagerProtocol):
         >>> config.save()
     """
 
+    _instances: dict[str, "PluginConfig"] = {}
+
+    def __new__(cls, plugin_id: str) -> "PluginConfig":
+        instance = cls._instances.get(plugin_id)
+        if instance is None:
+            instance = super().__new__(cls)
+            cls._instances[plugin_id] = instance
+        return instance
+
     def __init__(self, plugin_id: str):
         """Initialize config manager.
 
         Args:
             plugin_id: Unique plugin identifier (used for filename)
         """
+        if getattr(self, "_initialized", False):
+            return
         self.plugin_id = plugin_id
         self.config_dir = Path.home() / ".karcytics" / "plugin_configs"
         self.config_file = self.config_dir / f"{plugin_id}.json"
         self.data: dict[str, Any] = {}
         self.load()
+        self._initialized = True
 
     def load(self) -> None:
         """Load config from disk.

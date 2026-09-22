@@ -84,6 +84,7 @@ class AcademyStepDriver(QObject):
         self._step_entered_at = 0.0
         self._stuck_hint_shown = False
         self._failure_hint_shown = False
+        self._was_reviewing = False
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
@@ -94,58 +95,96 @@ class AcademyStepDriver(QObject):
             return
 
         step = self._academy_manager.current_step
+        if self._handle_no_active_step(step):
+            return
+
+        self._sync_overlay_geometry()
+        if not step:
+            return
+
+        if self._handle_reviewing_state(step):
+            return
+
+        if step.id != self._last_step_id:
+            self._handle_step_changed(step)
+
+        self._dispatch_step_updates(step)
+        self._maybe_show_stuck_hint(step)
+        self._update_targets(step)
+
+    def _handle_no_active_step(self, step: Any | None) -> bool:
+        """Hides the overlay and clears the canvas guide if there's nothing to show.
+
+        Returns True (and `_tick` should return early) only when there's
+        neither a live step nor a completion screen on display.
+        """
         has_completion = (
             getattr(self._overlay, "completion_container", None) is not None
             and self._overlay.completion_container.isVisible()
         )
-        if not step and not has_completion:
-            if self._last_step_id is not None:
-                self._last_step_id = None
-                self._apply_canvas_guide(None)
-            self._overlay.hide()
-            return
+        if step or has_completion:
+            return False
+        if self._last_step_id is not None:
+            self._last_step_id = None
+            self._apply_canvas_guide(None)
+        self._overlay.hide()
+        return True
 
+    def _sync_overlay_geometry(self) -> None:
         new_geom = self._search_root.rect()
         if self._overlay.geometry() != new_geom:
             self._overlay.setGeometry(new_geom)
             self._overlay.raise_()
-        if not step:
-            return
 
-        if step.id != self._last_step_id:
-            self._last_step_id = step.id
-            self._last_rendered_text = step.text
-            self._verification_wait = 0
-            self._verification_attempts = 0
-            self._last_action_step_executed = None
-            self._step_entered_at = time.monotonic()
-            self._stuck_hint_shown = False
-            self._failure_hint_shown = False
-            self._overlay.raise_()
-            self._overlay.render_step(step)
+    def _handle_reviewing_state(self, step: Any) -> bool:
+        """Returns True (and `_tick` should return early) while a past step is being reviewed.
+
+        Read-only review of a past step is rendered by the overlay itself
+        (see TutorialOverlay._render_review_step, triggered off
+        ACADEMY_REVIEW_STATE_CHANGED) — this driver must not wire signals,
+        poll validators, or touch targets/canvas guides for the *live* step
+        while a past one is on screen, or an action taken elsewhere could
+        silently advance/complete the real course out from under the review
+        UI.
+        """
+        if self._academy_manager.is_reviewing:
+            if not self._was_reviewing:
+                self._apply_canvas_guide(None)
+            self._was_reviewing = True
+            return True
+
+        if self._was_reviewing:
+            # Returning from review: current_step never changed underneath
+            # us (only the review pointer did), so _last_step_id is still
+            # correct and the step-changed block below correctly does NOT
+            # re-run — re-wiring here would create a duplicate Qt
+            # connection alongside the one made before review started.
+            # The overlay already re-rendered the live step itself (it
+            # reacts to ACADEMY_REVIEW_STATE_CHANGED directly) — the only
+            # thing exclusively this driver's job to restore is the
+            # on-canvas guide, which was just cleared above while reviewing.
+            self._was_reviewing = False
             self._apply_canvas_guide(step)
-            if isinstance(step, InteractionStep) and step.target_widget_name:
-                self._wire_interaction_step(step)
+        return False
 
+    def _handle_step_changed(self, step: Any) -> None:
+        self._last_step_id = step.id
+        self._last_rendered_text = step.text
+        self._verification_wait = 0
+        self._verification_attempts = 0
+        self._last_action_step_executed = None
+        self._step_entered_at = time.monotonic()
+        self._stuck_hint_shown = False
+        self._failure_hint_shown = False
+        self._overlay.raise_()
+        self._overlay.render_step(step)
+        self._apply_canvas_guide(step)
+        if isinstance(step, InteractionStep) and step.target_widget_name:
+            self._wire_interaction_step(step)
+
+    def _dispatch_step_updates(self, step: Any) -> None:
         if isinstance(step, VerificationStep) and step.validator:
-            # A validator can mutate its own step's .text in place (e.g. to
-            # report live progress) — render_step() only ran above on an
-            # actual step change, so pick up in-place text edits here too.
-            # Compares against the last *raw* text this driver rendered, not
-            # `text_label.text()` — that getter returns the already-rendered
-            # HTML `_update_text_rendering()` produced (bold/italic/code
-            # markup converted, `<br>` inserted), which never equals the raw
-            # markdown source once a step uses any of that syntax. Comparing
-            # against it made this branch fire on literally every tick,
-            # each time clobbering the correctly rendered bubble with the
-            # raw, unconverted `**text**` straight from `step.text`.
-            if step.text != self._last_rendered_text:
-                self._last_rendered_text = step.text
-                self._overlay._update_text_rendering(step.text)  # noqa: SLF001
-            self._verification_wait += 1
-            if self._verification_wait > _VALIDATION_POLL_TICKS:
-                self._verification_wait = 0
-                self._poll_verification_step(step)
+            self._handle_verification_step(step)
 
         if isinstance(step, ForcedInteractionStep) and step.sub_tasks:
             self._process_forced_interaction_step(step)
@@ -153,8 +192,26 @@ class AcademyStepDriver(QObject):
         if isinstance(step, ActionStep) and step.id != self._last_action_step_executed:
             self._run_action_step(step)
 
-        self._maybe_show_stuck_hint(step)
-        self._update_targets(step)
+    def _handle_verification_step(self, step: VerificationStep) -> None:
+        # A validator can mutate its own step's .text in place (e.g. to
+        # report live progress) — render_step() only ran in
+        # _handle_step_changed() on an actual step change, so pick up
+        # in-place text edits here too. Compares against the last *raw*
+        # text this driver rendered, not `text_label.text()` — that getter
+        # returns the already-rendered HTML `_update_text_rendering()`
+        # produced (bold/italic/code markup converted, `<br>` inserted),
+        # which never equals the raw markdown source once a step uses any
+        # of that syntax. Comparing against it made this branch fire on
+        # literally every tick, each time clobbering the correctly
+        # rendered bubble with the raw, unconverted `**text**` straight
+        # from `step.text`.
+        if step.text != self._last_rendered_text:
+            self._last_rendered_text = step.text
+            self._overlay._update_text_rendering(step.text)  # noqa: SLF001
+        self._verification_wait += 1
+        if self._verification_wait > _VALIDATION_POLL_TICKS:
+            self._verification_wait = 0
+            self._poll_verification_step(step)
 
     def _maybe_show_stuck_hint(self, step: Any) -> None:
         """Surfaces `step.stuck_hint_text` once the user has been sitting on
@@ -411,7 +468,16 @@ def build_academy_overlay(window: QWidget, panel: QWidget) -> TutorialOverlay:
         tutorial_manager.current_step = None
         overlay.hide()
 
-    overlay.btn_next.clicked.connect(lambda: academy_next_step(tutorial_manager, panel))
+    def _on_next_clicked() -> None:
+        # While reviewing, "Next" pages forward through already-visited
+        # history instead of advancing the live course — see
+        # AcademyManager.review_next(). It's a no-op past the live step.
+        if tutorial_manager.is_reviewing:
+            tutorial_manager.review_next()
+        else:
+            academy_next_step(tutorial_manager, panel)
+
+    overlay.btn_next.clicked.connect(_on_next_clicked)
     overlay.skip_requested.connect(_on_skip)
     window._academy_overlay = overlay  # type: ignore[attr-defined]
     window._academy_driver = AcademyStepDriver(  # type: ignore[attr-defined]

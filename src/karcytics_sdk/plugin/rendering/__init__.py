@@ -16,7 +16,10 @@ components:
   serialized through a ``RasterLock``.
 - ``mpl_canvas``: ``LayeredMatplotlibCanvas``, a matplotlib
   ``FigureCanvasQTAgg`` base class wiring the pipeline above into a debounced
-  async data layer plus a cheap synchronous overlay layer.
+  async data layer plus a cheap synchronous overlay layer. Also
+  ``LockedFigureCanvas``, a plain ``FigureCanvasQTAgg`` for plugins that just
+  need a standalone plot serialized behind the same ``RasterLock``, without
+  the full async data-layer machinery.
 - ``graphics_scene``: ``DirtyTrackingGraphicsScene``/``DirtyTrackingGraphicsView``,
   a ``QGraphicsScene``/``QGraphicsView`` base defaulting to Qt's
   ``MinimalViewportUpdate`` instead of a plugin-authored full-viewport
@@ -30,9 +33,9 @@ constructing these classes directly.
 from .graphics_scene import DirtyTrackingGraphicsScene, DirtyTrackingGraphicsView
 from .lock import MPL_RASTER_LOCK, RasterLock
 
-# LayeredMatplotlibCanvas is lazily imported via __getattr__ below
-# so that plugins without matplotlib in their venv can still import
-# this subpackage and use the non-matplotlib components.
+# LayeredMatplotlibCanvas/LockedFigureCanvas are lazily imported via
+# __getattr__ below so that plugins without matplotlib in their venv can
+# still import this subpackage and use the non-matplotlib components.
 from .pipeline import (
     RasterizeStage,
     RasterizeToImageTask,
@@ -46,6 +49,7 @@ __all__ = [
     "DirtyTrackingGraphicsScene",
     "DirtyTrackingGraphicsView",
     "LayeredMatplotlibCanvas",
+    "LockedFigureCanvas",
     "RasterLock",
     "RasterizeStage",
     "RasterizeToImageTask",
@@ -54,15 +58,17 @@ __all__ = [
     "RenderPipelineController",
 ]
 
+_MPL_LAZY_NAMES = frozenset({"LayeredMatplotlibCanvas", "LockedFigureCanvas"})
+
 
 def __getattr__(name: str) -> object:
     """Lazily import matplotlib-dependent names to avoid hard-requiring matplotlib.
 
-    ``LayeredMatplotlibCanvas`` is the only name gated here; everything else
-    is already imported eagerly above.
+    ``LayeredMatplotlibCanvas``/``LockedFigureCanvas`` are the only names
+    gated here; everything else is already imported eagerly above.
     """
-    if name == "LayeredMatplotlibCanvas":
-        from .mpl_canvas import LayeredMatplotlibCanvas  # noqa: PLC0415
+    if name in _MPL_LAZY_NAMES:
+        from . import mpl_canvas  # noqa: PLC0415
 
-        return LayeredMatplotlibCanvas
+        return getattr(mpl_canvas, name)
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

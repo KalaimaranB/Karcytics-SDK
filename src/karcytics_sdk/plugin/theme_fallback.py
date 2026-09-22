@@ -148,13 +148,58 @@ Colors = _ColorsProxy()
 DynamicColors.set_theme("dark")
 
 
-class Fonts:
+class _Fonts:
+    """Mirrors the Hub's real `_Fonts` (`karcytics.ui.theme.Fonts`) closely
+    enough that shared widgets (preferences pages, toasts, ...) can use the
+    same `Fonts.H2`/`Fonts.BODY`/... calls in either process — see this
+    module's own docstring for why `Colors`/`theme_manager` follow the same
+    dual-resolution pattern. `H1`/`H2`/.../`CAPTION` are `@property`, exactly
+    like the Hub's own class, so `Fonts` below must be an *instance* — a bare
+    class reference would hand callers the `property` descriptor object
+    instead of a `QFont`.
+    """
+
     SIZE_SMALL = 11
     SIZE_NORMAL = 13
     SIZE_LARGE = 18
     SIZE_XLARGE = 24
     FAMILY_UI = "Inter, sans-serif"
     FAMILY_HEADINGS = "Inter, sans-serif"
+
+    @property
+    def H1(self):  # noqa: N802
+        from PyQt6.QtGui import QFont
+
+        return QFont(self.FAMILY_HEADINGS, self.SIZE_XLARGE, QFont.Weight.Bold)
+
+    @property
+    def H2(self):  # noqa: N802
+        from PyQt6.QtGui import QFont
+
+        return QFont(self.FAMILY_HEADINGS, self.SIZE_LARGE, QFont.Weight.Bold)
+
+    @property
+    def H3(self):  # noqa: N802
+        from PyQt6.QtGui import QFont
+
+        return QFont(self.FAMILY_HEADINGS, self.SIZE_NORMAL, QFont.Weight.Bold)
+
+    @property
+    def BODY(self):  # noqa: N802
+        from PyQt6.QtGui import QFont
+
+        return QFont(self.FAMILY_UI, self.SIZE_NORMAL)
+
+    @property
+    def CAPTION(self):  # noqa: N802
+        from PyQt6.QtGui import QFont
+
+        return QFont(self.FAMILY_UI, self.SIZE_SMALL)
+
+
+# Singleton instance for static-like access, mirroring the Hub's own
+# `Fonts = _Fonts()` (karcytics/ui/theme.py) — see _Fonts's docstring.
+Fonts = _Fonts()
 
 
 class _ThemeManagerProxy(QObject):

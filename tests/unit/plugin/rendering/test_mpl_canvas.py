@@ -8,8 +8,8 @@ from unittest.mock import MagicMock
 import pytest
 from matplotlib.figure import Figure
 
-from karcytics_sdk.plugin.rendering.lock import RasterLock
-from karcytics_sdk.plugin.rendering.mpl_canvas import LayeredMatplotlibCanvas
+from karcytics_sdk.plugin.rendering.lock import MPL_RASTER_LOCK, RasterLock
+from karcytics_sdk.plugin.rendering.mpl_canvas import LayeredMatplotlibCanvas, LockedFigureCanvas
 from karcytics_sdk.plugin.rendering.pipeline import RasterizeStage, RenderComputeStage, RenderData
 
 
@@ -225,3 +225,71 @@ class TestOverlayLayer:
         canvas.request_overlay_redraw()
 
         scheduler.submit.assert_not_called()
+
+
+class TestLockedFigureCanvas:
+    """LockedFigureCanvas: a plain FigureCanvasQTAgg serialized behind a RasterLock.
+
+    Promoted from flow-cytometry's private ``_mpl_compat.LockedFigureCanvas``
+    for any plugin widget that wants a standalone plot canvas without the
+    full async data-layer machinery ``LayeredMatplotlibCanvas`` provides.
+    """
+
+    @pytest.fixture
+    def locked_canvas(self, qapp):
+        fig = Figure()
+        c = LockedFigureCanvas(fig, raster_lock=RasterLock("test-locked-canvas"))
+        yield c
+        c.deleteLater()
+
+    def test_defaults_to_the_shared_process_wide_lock(self, qapp):
+        fig = Figure()
+        c = LockedFigureCanvas(fig)
+        assert c.raster_lock is MPL_RASTER_LOCK
+        c.deleteLater()
+
+    def test_draw_runs_immediately_when_the_lock_is_free(self, locked_canvas):
+        calls = []
+        locked_canvas.raster_lock.try_run = lambda action, retry: (calls.append("action"), action())
+
+        locked_canvas.draw()
+
+        assert calls == ["action"]
+
+    def test_draw_defers_to_a_retry_when_the_lock_is_busy(self, locked_canvas):
+        recorded = {}
+        locked_canvas.raster_lock.try_run = lambda action, retry: recorded.setdefault("retry", retry)
+
+        locked_canvas.draw()
+
+        assert recorded["retry"] == locked_canvas._retry_draw
+
+    def test_retry_draw_calls_draw_again_while_the_canvas_is_alive(self, locked_canvas, monkeypatch):
+        calls = []
+        monkeypatch.setattr(locked_canvas, "draw", lambda: calls.append("draw"))
+
+        locked_canvas._retry_draw()
+
+        assert calls == ["draw"]
+
+    def test_retry_draw_is_a_noop_once_the_canvas_has_been_deleted(self, qapp, qtbot):
+        fig = Figure()
+        c = LockedFigureCanvas(fig, raster_lock=RasterLock("test-locked-canvas-deleted"))
+        c.deleteLater()
+        qtbot.wait(10)  # let the queued deleteLater() actually run
+
+        from PyQt6 import sip
+
+        assert sip.isdeleted(c)
+        c._retry_draw()  # must not raise, and must not touch the destroyed C++ widget
+
+    def test_retry_update_is_a_noop_once_the_canvas_has_been_deleted(self, qapp, qtbot):
+        fig = Figure()
+        c = LockedFigureCanvas(fig, raster_lock=RasterLock("test-locked-canvas-deleted-2"))
+        c.deleteLater()
+        qtbot.wait(10)
+
+        from PyQt6 import sip
+
+        assert sip.isdeleted(c)
+        c._retry_update()  # must not raise

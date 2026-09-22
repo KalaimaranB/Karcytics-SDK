@@ -60,16 +60,32 @@ class _SerialWorker(QObject):
 
     def __init__(self) -> None:
         super().__init__()
-        self._queue: queue.Queue[tuple[Callable[[], Any], Any]] = queue.Queue()
+        # None is the stop() sentinel — never a valid (fn, context) submission.
+        self._queue: queue.Queue[tuple[Callable[[], Any], Any] | None] = queue.Queue()
         self._thread = threading.Thread(target=self._loop, daemon=True)
         self._thread.start()
 
     def submit(self, fn: Callable[[], Any], context: Any) -> None:
         self._queue.put((fn, context))
 
+    def stop(self) -> None:
+        """Tell the background thread to exit once any already-queued work finishes.
+
+        Safe to call more than once. Non-blocking — this only stops the
+        thread from living forever past its widget's shutdown (the original
+        hazard this worker outliving its widget was designed to avoid was a
+        *stale* thread being killed mid-call, not the thread never exiting
+        at all; see the class docstring), it does not wait for the thread to
+        actually finish exiting.
+        """
+        self._queue.put(None)
+
     def _loop(self) -> None:
         while True:
-            fn, context = self._queue.get()
+            item = self._queue.get()
+            if item is None:
+                return
+            fn, context = item
             try:
                 result = fn()
             except Exception as exc:  # noqa: BLE001
@@ -328,9 +344,15 @@ class ModuleStatusWidget(QWidget):
         the whole app is exiting right after this call returns, so routing
         it through `_SerialWorker` risks the process exiting before a
         queued shutdown ever runs, leaving the daemon subprocess orphaned.
+
+        Also stops `_worker`'s background thread — this widget is done for
+        good after this call (unlike `cancel()`, which a later `start()` can
+        still reopen on the same `_worker`), so there is nothing left for
+        that thread to ever run again.
         """
         self._shutdown_requested = True
         self._daemon.shutdown()
+        self._worker.stop()
 
     def push_theme(self, colors: dict[str, str]) -> None:
         """Forward a color palette to the daemon's isolated window via its

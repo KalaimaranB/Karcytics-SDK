@@ -15,11 +15,13 @@ import pytest
 from karcytics_sdk.plugin.academy import (
     ACADEMY_COURSE_COMPLETED,
     ACADEMY_COURSE_PREPARE_PROJECT,
+    ACADEMY_REVIEW_STATE_CHANGED,
     ACADEMY_STEP_CHANGED,
     ACADEMY_SUBTASK_COMPLETED,
     AcademyManager,
 )
 from karcytics_sdk.plugin.tutorial_models import (
+    BranchingStep,
     Course,
     ForcedInteractionStep,
     InfoStep,
@@ -333,3 +335,219 @@ class TestIsCoreIntroDone:
         manager.next_step()  # only step -> completes
 
         assert manager.is_core_intro_done() is True
+
+
+def make_three_step_course(course_id: str = "course_1") -> Course:
+    return Course(
+        id=course_id,
+        title="Test Course",
+        steps=[
+            InfoStep(id="step_1", text="First", next_step_id="step_2"),
+            InfoStep(id="step_2", text="Second", next_step_id="step_3"),
+            InfoStep(id="step_3", text="Third", next_step_id=None),
+        ],
+    )
+
+
+class TestReviewMode:
+    def test_step_history_records_steps_in_visitation_order(self, manager):
+        course = make_three_step_course()
+        manager.register_storyboard("m", course)
+        manager.start_course_confirmed("course_1")
+        manager.next_step()
+        manager.next_step()
+
+        assert manager.step_history == ["step_1", "step_2", "step_3"]
+
+    def test_is_reviewing_false_and_review_previous_noop_before_any_history(self, manager):
+        assert manager.is_reviewing is False
+        assert manager.can_review_previous() is False
+        assert manager.review_previous() is False
+        assert manager.is_reviewing is False
+
+    def test_review_previous_moves_pointer_back_and_emits_review_state_changed(self, manager, bus):
+        course = make_three_step_course()
+        manager.register_storyboard("m", course)
+        manager.start_course_confirmed("course_1")
+        manager.next_step()
+        manager.next_step()
+        bus.emitted.clear()
+
+        result = manager.review_previous()
+
+        assert result is True
+        assert manager.is_reviewing is True
+        assert manager.get_review_step().id == "step_2"
+        assert manager.current_step.id == "step_3", "the live step must be untouched"
+        assert bus.emitted == [(ACADEMY_REVIEW_STATE_CHANGED, (manager.get_review_step(), True))]
+
+    def test_review_previous_can_walk_back_multiple_steps(self, manager):
+        course = make_three_step_course()
+        manager.register_storyboard("m", course)
+        manager.start_course_confirmed("course_1")
+        manager.next_step()
+        manager.next_step()
+
+        manager.review_previous()
+        manager.review_previous()
+
+        assert manager.get_review_step().id == "step_1"
+        assert manager.can_review_previous() is False
+        assert manager.review_previous() is False
+
+    def test_review_next_pages_forward_through_history_and_exits_at_the_live_step(self, manager):
+        course = make_three_step_course()
+        manager.register_storyboard("m", course)
+        manager.start_course_confirmed("course_1")
+        manager.next_step()
+        manager.next_step()
+
+        manager.review_previous()
+        manager.review_previous()
+        assert manager.get_review_step().id == "step_1"
+
+        assert manager.review_next() is True
+        assert manager.get_review_step().id == "step_2"
+        assert manager.can_review_next() is True
+        assert manager.is_reviewing is True
+
+        # Paging forward onto the live step's own history entry exits review
+        # mode outright — walking forward back to "where I am" should mean
+        # you're actually back, not looking at a read-only copy of it with
+        # Next stuck disabled (see review_next()'s docstring for the bug
+        # this fixes).
+        assert manager.review_next() is True
+        assert manager.is_reviewing is False
+        assert manager.get_review_step() is None
+        assert manager.current_step.id == "step_3"
+
+        assert manager.review_next() is False
+
+    def test_return_to_current_clears_pointer_and_emits_with_is_reviewing_false(self, manager, bus):
+        course = make_three_step_course()
+        manager.register_storyboard("m", course)
+        manager.start_course_confirmed("course_1")
+        manager.next_step()
+        manager.review_previous()
+        bus.emitted.clear()
+
+        manager.return_to_current()
+
+        assert manager.is_reviewing is False
+        assert manager.get_review_step() is None
+        assert bus.emitted == [(ACADEMY_REVIEW_STATE_CHANGED, (manager.current_step, False))]
+
+    def test_return_to_current_with_nothing_to_return_from_is_a_safe_noop(self, manager, bus):
+        manager.return_to_current()
+        assert bus.emitted == []
+
+    def test_next_step_is_a_noop_while_reviewing(self, manager):
+        course = make_three_step_course()
+        manager.register_storyboard("m", course)
+        manager.start_course_confirmed("course_1")
+        manager.next_step()
+        manager.review_previous()
+
+        manager.next_step()
+
+        assert manager.current_step.id == "step_2", "the live step must not advance while reviewing"
+        assert manager.is_reviewing is True
+
+    def test_complete_subtask_is_a_noop_while_reviewing(self, manager, bus):
+        # The LIVE step is the ForcedInteractionStep here — reviewing an
+        # earlier, different step must still block completing a subtask on
+        # it, even though `current_step` itself still satisfies the
+        # ForcedInteractionStep type check that complete_subtask() also does.
+        course = Course(
+            id="c",
+            title="Forced",
+            steps=[
+                InfoStep(id="step_1", text="First", next_step_id="step_2"),
+                ForcedInteractionStep(
+                    id="step_2",
+                    text="Do it",
+                    sub_tasks=[SubTask(id="a", instruction="A", target_widget_name="w1")],
+                ),
+            ],
+        )
+        manager.register_storyboard("m", course)
+        manager.start_course_confirmed("c")
+        manager.next_step()  # -> step_2 (live, ForcedInteractionStep)
+        manager.review_previous()  # reviewing step_1
+        bus.emitted.clear()
+
+        manager.complete_subtask("a")
+
+        assert bus.emitted == [], "reviewing must never let a subtask be completed"
+        assert manager.active_subtask_progress == {}
+
+    def test_complete_course_is_a_noop_while_reviewing(self, manager, bus):
+        course = make_two_step_course()
+        manager.register_storyboard("m", course)
+        manager.start_course_confirmed("course_1")
+        manager.next_step()  # -> step_2, gives history 2 entries so review_previous can engage
+        manager.review_previous()
+        bus.emitted.clear()
+
+        manager.complete_course()
+
+        assert "course_1" not in manager.completed_courses
+        assert bus.emitted == []
+
+    def test_branching_history_records_only_the_taken_path_not_the_untaken_option(self, manager):
+        course = Course(
+            id="c",
+            title="Branch",
+            steps=[
+                BranchingStep(id="step_1", text="Choose", options={"a": "step_a", "b": "step_b"}),
+                InfoStep(id="step_a", text="A"),
+                InfoStep(id="step_b", text="B"),
+            ],
+        )
+        manager.register_storyboard("m", course)
+        manager.start_course_confirmed("c")
+
+        manager.next_step(specific_step_id="step_a")
+
+        assert manager.step_history == ["step_1", "step_a"]
+        assert "step_b" not in manager.step_history
+
+    def test_revisiting_a_step_via_retry_routing_appends_a_new_history_entry(self, manager):
+        course = Course(
+            id="c",
+            title="Retry",
+            steps=[
+                InfoStep(id="step_1", text="First", next_step_id="step_2"),
+                InfoStep(id="step_2", text="Retry target", next_step_id="step_1"),
+            ],
+        )
+        manager.register_storyboard("m", course)
+        manager.start_course_confirmed("c")
+
+        manager.next_step()  # -> step_2
+        manager.next_step()  # -> step_1 again (simulating a retry loop back to an earlier step)
+
+        assert manager.step_history == ["step_1", "step_2", "step_1"]
+
+    def test_reset_course_clears_history_and_review_pointer(self, manager):
+        course = make_two_step_course()
+        manager.register_storyboard("m", course)
+        manager.start_course_confirmed("course_1")
+        manager.next_step()
+        manager.next_step()  # completes -> eligible for reset
+        manager.reset_course("course_1")
+
+        assert manager.step_history == []
+        assert manager.is_reviewing is False
+
+    def test_starting_a_new_course_clears_previous_course_history(self, manager):
+        course_1 = make_two_step_course("course_1")
+        course_2 = make_two_step_course("course_2")
+        manager.register_storyboard("m", course_1)
+        manager.register_storyboard("m", course_2)
+        manager.start_course_confirmed("course_1")
+        manager.next_step()
+
+        manager.start_course_confirmed("course_2")
+
+        assert manager.step_history == ["step_1"]

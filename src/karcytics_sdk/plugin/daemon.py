@@ -496,6 +496,23 @@ class PluginUIDaemon(QObject):
     _registry_lock: ClassVar[threading.Lock] = threading.Lock()
     _core_services_port: ClassVar[int | None] = None
     _core_services_token: ClassVar[str | None] = None
+    _core_icon_path: ClassVar[str | None] = None
+
+    @classmethod
+    def set_default_icon_path(cls, icon_path: str) -> None:
+        """Record the Hub's own app icon as the fallback every worker's
+        window/menu-bar/Dock icon uses when its plugin doesn't ship one of
+        its own.
+
+        Called once, by the Hub, right after it resolves its own icon file
+        (dev tree or PyInstaller bundle — see `karcytics.core.resource_manager
+        .resource_path`) — see `karcytics.core.core_services_bootstrap`. Every
+        worker subsequently started receives it via the
+        `KARCYTICS_CORE_ICON_PATH` environment variable; `ui_daemon_runtime
+        .run()` only falls back to it when the plugin's own `ui_daemon.py`
+        didn't pass an `icon_path` of its own.
+        """
+        cls._core_icon_path = icon_path
 
     @classmethod
     def set_core_services(cls, port: int, token: str) -> None:
@@ -712,6 +729,8 @@ class PluginUIDaemon(QObject):
             extra_env["KARCYTICS_CORE_SERVICES_PORT"] = str(self._core_services_port)
         if self._core_services_token is not None:
             extra_env["KARCYTICS_CORE_SERVICES_TOKEN"] = self._core_services_token
+        if self._core_icon_path is not None:
+            extra_env["KARCYTICS_CORE_ICON_PATH"] = self._core_icon_path
         env = _build_worker_env(extra_env)
 
         start_time = time.monotonic()
