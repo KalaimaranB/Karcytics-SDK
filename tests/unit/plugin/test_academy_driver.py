@@ -13,8 +13,9 @@ import time
 from typing import Any
 
 import pytest
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtCore import QPoint, QPointF, Qt, pyqtSignal
+from PyQt6.QtGui import QWheelEvent
+from PyQt6.QtWidgets import QApplication, QScrollArea, QSlider, QVBoxLayout, QWidget
 
 from karcytics_sdk.plugin.academy import AcademyManager
 from karcytics_sdk.plugin.academy_driver import AcademyStepDriver
@@ -424,3 +425,130 @@ class TestReviewModeShortCircuit:
 
         assert canvas.guide_calls[-1] is manager.current_step
         assert len(driver._connections) == 1, "returning to current must not create a duplicate connection"
+
+
+class TestScrollTargetForwarding:
+    """A step with allow_scroll=True must let the user scroll a sidebar
+    QScrollArea even while the overlay's dim mask covers everywhere outside
+    the spotlighted control — see TutorialOverlay.wheelEvent()'s docstring
+    for the hit-testing hack this replaced (it silently forwarded nothing).
+    """
+
+    @staticmethod
+    def _make_scrollable_sidebar() -> tuple[QScrollArea, QSlider]:
+        """A tall control inside a short QScrollArea, mirroring
+        PopulationAnalysisViewer's sidebar: the slider (the step's real
+        target) is a descendant of the QScrollArea, not the QScrollArea
+        itself.
+        """
+        content = QWidget()
+        layout = QVBoxLayout(content)
+        slider = QSlider()
+        slider.setObjectName("SomeParamSlider")
+        layout.addWidget(slider)
+        spacer = QWidget()
+        spacer.setFixedHeight(2000)  # forces real scrollable range
+        layout.addWidget(spacer)
+
+        scroll_area = QScrollArea()
+        scroll_area.setWidget(content)
+        scroll_area.setFixedHeight(100)
+        scroll_area.verticalScrollBar().setRange(0, 1000)
+        return scroll_area, slider
+
+    def test_find_scroll_area_ancestor_walks_up_to_nearest_scroll_area(self, bus, tmp_path):
+        scroll_area, slider = self._make_scrollable_sidebar()
+        driver, _manager, _root, _overlay = make_visible_driver(
+            Course(id="c1", title="T", steps=[InfoStep(id="s", text="x")]), bus, tmp_path
+        )
+
+        assert driver._find_scroll_area_ancestor(slider) is scroll_area
+
+    def test_find_scroll_area_ancestor_returns_none_without_one(self, bus, tmp_path):
+        driver, _manager, _root, _overlay = make_visible_driver(
+            Course(id="c1", title="T", steps=[InfoStep(id="s", text="x")]), bus, tmp_path
+        )
+        orphan = QSlider()
+
+        assert driver._find_scroll_area_ancestor(orphan) is None
+
+    def test_update_targets_sets_scroll_target_only_when_step_allows_it(self, bus, tmp_path):
+        course = Course(
+            id="c1",
+            title="T",
+            steps=[
+                InfoStep(
+                    id="scrollable",
+                    text="x",
+                    target_widget_names=["SomeParamSlider"],
+                    allow_scroll=True,
+                    next_step_id="not_scrollable",
+                ),
+                InfoStep(
+                    id="not_scrollable",
+                    text="x",
+                    target_widget_names=["SomeParamSlider"],
+                ),
+            ],
+        )
+        root = QWidget()
+        scroll_area, slider = self._make_scrollable_sidebar()
+        scroll_area.setParent(root)
+        root.show()  # isVisible() requires the whole ancestor chain to be shown
+        driver, manager, _root, overlay = make_visible_driver(course, bus, tmp_path, root=root)
+
+        # _tick(), not _update_targets() directly: wheelEvent() also reads
+        # overlay.current_step, which only render_step() (called from
+        # _handle_step_changed(), itself only reached via _tick()) sets.
+        driver._tick()
+        assert overlay._scroll_target is scroll_area.viewport()
+
+        manager.next_step()  # -> not_scrollable (allow_scroll defaults False)
+        driver._tick()
+        assert overlay._scroll_target is None
+
+    def test_wheel_event_forwarded_to_scroll_target_actually_scrolls_it(self, bus, tmp_path):
+        """End-to-end: a real QWheelEvent delivered to the overlay must move
+        the real scroll area's scrollbar, not just resolve the right widget.
+        """
+        course = Course(
+            id="c1",
+            title="T",
+            steps=[
+                InfoStep(
+                    id="scrollable",
+                    text="x",
+                    target_widget_names=["SomeParamSlider"],
+                    allow_scroll=True,
+                )
+            ],
+        )
+        root = QWidget()
+        scroll_area, slider = self._make_scrollable_sidebar()
+        scroll_area.setParent(root)
+        root.show()  # isVisible() requires the whole ancestor chain to be shown
+        # QScrollArea recomputes its scrollbar range from real widget
+        # geometry during layout, which only runs once the event loop gets
+        # to process the pending show/resize events queued by show() above.
+        QApplication.processEvents()
+        driver, manager, _root, overlay = make_visible_driver(course, bus, tmp_path, root=root)
+        driver._tick()  # sets overlay.current_step + overlay._scroll_target
+        assert overlay._scroll_target is scroll_area.viewport()
+        assert overlay.current_step is manager.current_step
+
+        bar = scroll_area.verticalScrollBar()
+        assert bar.maximum() > 0, "the tall spacer must have produced real scrollable range"
+        bar.setValue(0)
+        wheel_event = QWheelEvent(
+            QPointF(0, 0),
+            QPointF(0, 0),
+            QPoint(0, 0),
+            QPoint(0, -120),  # negative angleDelta.y == scroll down
+            Qt.MouseButton.NoButton,
+            Qt.KeyboardModifier.NoModifier,
+            Qt.ScrollPhase.NoScrollPhase,
+            False,
+        )
+        overlay.wheelEvent(wheel_event)
+
+        assert bar.value() != 0, "scrolling over the dimmed overlay must move the real sidebar"

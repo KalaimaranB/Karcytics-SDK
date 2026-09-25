@@ -129,6 +129,12 @@ class TutorialOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
 
         self.target_rects: list[QRect] = []
+        # The widget a step's allow_scroll=True should forward wheel events
+        # to (see set_scroll_target()/wheelEvent()) — set by AcademyStepDriver
+        # from the ancestor QScrollArea of the step's own target widget(s),
+        # not discovered via hit-testing at scroll time (see wheelEvent()'s
+        # docstring for why that used to be unreliable).
+        self._scroll_target: QWidget | None = None
         self.current_step: BaseStep | None = None
         # True while displaying a past step read-only (see
         # _render_review_step) — self.current_step keeps meaning "the live
@@ -814,6 +820,12 @@ class TutorialOverlay(QWidget):
         self._update_mask()
         self.update()  # schedule repaint
 
+    def set_scroll_target(self, widget: QWidget | None) -> None:
+        """Sets the widget `wheelEvent()` forwards scrolling to for a step
+        with `allow_scroll=True`. `None` (the default) disables forwarding.
+        """
+        self._scroll_target = widget
+
     def _reposition_cyto_and_bubble(self, rects: list[QRect]) -> None:
         """Move Cyto and bubble so they don't overlap spotlight holes.
 
@@ -930,19 +942,29 @@ class TutorialOverlay(QWidget):
     # ── Input Events ──────────────────────────────────────────────────────────
 
     def wheelEvent(self, event) -> None:
-        if (
-            not self._is_reviewing
-            and getattr(self, "current_step", None)
-            and getattr(self.current_step, "allow_scroll", False)
-        ):
-            self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, True)
+        """Forwards scrolling to `self._scroll_target` when the current step
+        allows it (e.g. a sidebar the spotlighted control lives in, so a
+        target below the fold on a small screen can still be scrolled to).
+
+        Used to instead flip `WA_TransparentForMouseEvents` on/off around a
+        `QApplication.widgetAt()` hit-test to find whatever was under the
+        cursor. That relies on the platform window's native input-transparency
+        flag taking effect synchronously within the same call before
+        `widgetAt()` queries it — not guaranteed (and observed not to happen
+        in practice on at least one platform), so the toggle silently didn't
+        forward anything and scrolling inside the dimmed region just didn't
+        work. `AcademyStepDriver._update_targets()` already resolves the
+        step's real target widget by objectName every tick; walking up from
+        there to its nearest `QScrollArea` ancestor (see `set_scroll_target()`)
+        gives a widget reference we know is correct, so this just sends the
+        event straight there — no hit-testing, nothing to race.
+        """
+        step = getattr(self, "current_step", None)
+        if not self._is_reviewing and step and getattr(step, "allow_scroll", False) and self._scroll_target is not None:
             from PyQt6.QtWidgets import QApplication
 
-            widget = QApplication.widgetAt(event.globalPosition().toPoint())
-            self.setAttribute(Qt.WidgetAttribute.WA_TransparentForMouseEvents, False)
-            if widget and widget != self:
-                QApplication.sendEvent(widget, event)
-                return
+            QApplication.sendEvent(self._scroll_target, event)
+            return
         event.accept()
 
     # ── Painting & masking ────────────────────────────────────────────────────

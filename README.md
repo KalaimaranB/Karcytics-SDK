@@ -2,7 +2,7 @@
 
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blueviolet?style=flat-square)](https://KalaimaranB.github.io/Karcytics-SDK/)
 [![CI Build Status](https://img.shields.io/github/actions/workflow/status/KalaimaranB/Karcytics-SDK/test_and_lint.yml?branch=main&style=flat-square&label=CI%20build)](https://github.com/KalaimaranB/Karcytics-SDK/actions)
-[![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)](https://github.com/KalaimaranB/Karcytics-SDK/blob/main/LICENSE)
+[![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue?style=flat-square)](https://github.com/KalaimaranB/Karcytics-SDK/blob/main/LICENSE)
 
 The Software Development Kit (SDK) and Command-Line Interface (CLI) for building, validating, and signing plugins for the **Karcytics** desktop scientific suite.
 
@@ -132,4 +132,4 @@ sys.exit(app.exec())
 ---
 
 ## 📄 License
-This project is licensed under the MIT License.
+This project is free for academic and personal use under the [PolyForm Noncommercial License 1.0.0](https://polyformproject.org/licenses/noncommercial/1.0.0). Commercial use requires a separate paid license (not yet available).

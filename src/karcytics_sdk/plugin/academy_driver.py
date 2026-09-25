@@ -21,7 +21,7 @@ from collections.abc import Callable
 from typing import Any
 
 from PyQt6.QtCore import QObject, QRect, QTimer
-from PyQt6.QtWidgets import QWidget
+from PyQt6.QtWidgets import QScrollArea, QWidget
 
 from .academy import AcademyManager
 from .tutorial_models import (
@@ -408,7 +408,56 @@ class AcademyStepDriver(QObject):
             global_pos = w.mapToGlobal(w.rect().topLeft())
             local_pos = self._overlay.mapFromGlobal(global_pos)
             rects.append(QRect(local_pos, w.size()))
+        rects.extend(self._collect_canvas_target_rects(step))
         self._overlay.set_targets(rects)
+
+        scroll_target = None
+        if targets and getattr(step, "allow_scroll", False):
+            scroll_area = self._find_scroll_area_ancestor(targets[0])
+            if scroll_area is not None:
+                # QAbstractScrollArea's own scrolling logic lives on its
+                # viewport, not the outer frame widget — sending a QWheelEvent
+                # to the QScrollArea itself is silently a no-op (confirmed:
+                # event() returns False, nothing scrolls); .viewport() is the
+                # widget that actually needs it.
+                scroll_target = scroll_area.viewport()
+        self._overlay.set_scroll_target(scroll_target)
+
+    def _collect_canvas_target_rects(self, step: Any) -> list[QRect]:
+        """Duck-typed extension point, mirroring _apply_canvas_guide()'s
+        FlowCanvas hook: a descendant that draws its own sub-elements inside
+        a QGraphicsScene/canvas (so they're never QWidgets findChildren()
+        could ever see, e.g. individual Pipeline nodes) can expose
+        get_tutorial_target_rects(step) -> list[QRect] (global coords) to
+        contribute additional tight spotlight rects computed from its own
+        internal geometry. Gated on step.metadata so the extra
+        findChildren(QWidget) scan only runs for the handful of steps that
+        actually use it.
+        """
+        if not getattr(step, "metadata", None):
+            return []
+        rects: list[QRect] = []
+        for w in self._search_root.findChildren(QWidget):
+            get_rects = getattr(w, "get_tutorial_target_rects", None)
+            if get_rects is None:
+                continue
+            for r in get_rects(step):
+                rects.append(QRect(self._overlay.mapFromGlobal(r.topLeft()), r.size()))
+        return rects
+
+    @staticmethod
+    def _find_scroll_area_ancestor(widget: QWidget) -> QScrollArea | None:
+        """Walks up from `widget` to the nearest enclosing `QScrollArea`, so
+        `allow_scroll=True` can forward wheel events there even when the
+        step's own target has scrolled outside its viewport — see
+        `TutorialOverlay.wheelEvent()`.
+        """
+        parent = widget.parentWidget()
+        while parent is not None:
+            if isinstance(parent, QScrollArea):
+                return parent
+            parent = parent.parentWidget()
+        return None
 
 
 # ── Generic Academy launch — shared by any isolated plugin's own UI trigger ──
