@@ -3,9 +3,32 @@
 from PyQt6.QtWidgets import QFrame, QHBoxLayout, QSizePolicy, QSpacerItem, QWidget
 
 from .components import BioCancelButton, BioRunButton
+from .theme_fallback import theme_manager
+
+_TOOLBAR_CONTAINER_QSS = "background: {BG_DARK}; border-bottom: 1px solid {BORDER};"
 
 
-class BioRibbon(QWidget):
+class ThemedToolbarContainer(QWidget):
+    """Base for a themed toolbar/ribbon container with no opinions beyond
+    objectName-scoped background/border theming — no layout, no Run/Cancel
+    state machine. `BioRibbon` is one specialization of this; a plugin ribbon
+    that doesn't need Run/Cancel can inherit this directly instead of
+    duplicating the same container stylesheet by hand.
+
+    Uses `theme_manager.apply_style()` rather than a manual
+    `_apply_theme_styles()` re-invocation method: it registers this widget
+    once and re-applies the template automatically on every future theme
+    change, so subclasses never need their own re-theming boilerplate for
+    the container itself.
+    """
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setObjectName(self.__class__.__name__)
+        theme_manager.apply_style(self, f"QWidget#{self.objectName()} {{ {_TOOLBAR_CONTAINER_QSS} }}")
+
+
+class BioRibbon(ThemedToolbarContainer):
     """Base class for ribbons that handles horizontal layouts and execution buttons.
 
     Plugins should inherit from this to create toolbars. It provides default

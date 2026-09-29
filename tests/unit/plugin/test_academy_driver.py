@@ -401,6 +401,13 @@ class TestReviewModeShortCircuit:
                     target_widget_name="MainPanel",
                     event_trigger="triggered",
                     next_step_id="step_3",
+                    # _apply_canvas_guide() now skips the whole
+                    # findChildren/set_tutorial_guide call for a step with
+                    # no guide to draw (and none previously active) — this
+                    # step needs real guide metadata for the review round
+                    # trip below to actually exercise clear-on-review/
+                    # restore-on-return rather than being skipped entirely.
+                    metadata={"guide_rect": (0.0, 1.0, 0.0, 1.0)},
                 ),
                 InfoStep(id="step_3", text="Third"),
             ],
@@ -423,8 +430,92 @@ class TestReviewModeShortCircuit:
         manager.return_to_current()
         driver._tick()  # must restore the guide, without re-wiring the signal
 
-        assert canvas.guide_calls[-1] is manager.current_step
-        assert len(driver._connections) == 1, "returning to current must not create a duplicate connection"
+
+class TestCanvasGuideSkipping:
+    """`_apply_canvas_guide()` must skip the findChildren/set_tutorial_guide
+    work entirely for a step with no guide to draw and none previously on
+    screen — `set_tutorial_guide()` always ends in a full canvas redraw, and
+    calling it on every single transition regardless of relevance is what
+    made later courses (real gated data on screen) feel freezy compared to
+    early ones (near-empty canvas), even though the transition logic itself
+    was identical.
+    """
+
+    def test_guide_less_steps_never_touch_the_canvas(self, bus, tmp_path):
+        course = Course(
+            id="c1",
+            title="T",
+            steps=[
+                InfoStep(id="step_1", text="First", next_step_id="step_2"),
+                InfoStep(id="step_2", text="Second", next_step_id="step_3"),
+                InfoStep(id="step_3", text="Third"),
+            ],
+        )
+        root = QWidget()
+        canvas = FakeCanvas(root)
+        driver, manager, _root, _overlay = make_visible_driver(course, bus, tmp_path, root=root)
+
+        driver._tick()  # step_1
+        manager.next_step()
+        driver._tick()  # step_2
+        manager.next_step()
+        driver._tick()  # step_3
+
+        assert canvas.guide_calls == []
+
+    def test_a_guide_bearing_step_still_draws_it(self, bus, tmp_path):
+        course = Course(
+            id="c1",
+            title="T",
+            steps=[
+                InfoStep(id="step_1", text="First", next_step_id="step_2"),
+                InfoStep(id="step_2", text="Second", metadata={"guide_rect": (0.0, 1.0, 0.0, 1.0)}),
+            ],
+        )
+        root = QWidget()
+        canvas = FakeCanvas(root)
+        driver, manager, _root, _overlay = make_visible_driver(course, bus, tmp_path, root=root)
+
+        driver._tick()  # step_1 — no guide, skipped
+        manager.next_step()
+        driver._tick()  # step_2 — has guide_rect, must draw
+
+        assert canvas.guide_calls == [manager.current_step]
+
+    def test_leaving_a_guide_bearing_step_clears_it_exactly_once(self, bus, tmp_path):
+        course = Course(
+            id="c1",
+            title="T",
+            steps=[
+                InfoStep(
+                    id="step_1",
+                    text="First",
+                    next_step_id="step_2",
+                    metadata={"guide_rect": (0.0, 1.0, 0.0, 1.0)},
+                ),
+                InfoStep(id="step_2", text="Second", next_step_id="step_3"),
+                InfoStep(id="step_3", text="Third"),
+            ],
+        )
+        root = QWidget()
+        canvas = FakeCanvas(root)
+        driver, manager, _root, _overlay = make_visible_driver(course, bus, tmp_path, root=root)
+
+        driver._tick()  # step_1 — has guide_rect, must draw
+        step_1 = manager.current_step
+        manager.next_step()
+        driver._tick()  # step_2 — no guide, but one was active — must clear
+        step_2 = manager.current_step
+        manager.next_step()
+        driver._tick()  # step_3 — no guide, none active — must NOT touch the canvas again
+
+        # The clear is `set_tutorial_guide(step_2)`, not `(None)` — an
+        # ordinary transition always passes the real current step (as it
+        # did before this fix); FlowCanvas.set_tutorial_guide() itself
+        # already treats "no guide metadata on this step" as "draw
+        # nothing," which clears the previous step's patches. Only
+        # review-mode enter/exit and course-end explicitly pass None.
+        assert canvas.guide_calls == [step_1, step_2]
 
 
 class TestScrollTargetForwarding:

@@ -36,6 +36,13 @@ repos:
         pass_filenames: false
         always_run: true
 
+      - id: license-compliance
+        name: License Compliance Check
+        entry: uv run python scripts/check_license_compliance.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
       - id: pytest
         name: Headless Unit Testing (Pytest)
         # E2E tests spin up full Qt event loops (~1s/test) and make the hook

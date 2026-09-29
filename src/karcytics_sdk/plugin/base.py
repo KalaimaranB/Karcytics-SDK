@@ -31,7 +31,7 @@ from .analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
 from .events import CentralEventBus
 from .signals import PluginSignals
 from .state import PluginState
-from .toast import STYLE_SUCCESS, STYLE_UPDATE, show_toast
+from .toast import STYLE_SUCCESS, STYLE_UPDATE, ToastManager
 from .worker_thread import OneShotWorkerThread
 
 if TYPE_CHECKING:
@@ -128,6 +128,30 @@ class PluginBase(QWidget):
 
         # Connect to global theme engine
         theme_manager.theme_changed.connect(self._apply_theme_styles)
+
+        # ── Toast anchoring & Ready Gate deferral ───────────────────────
+        # A private manager (not the shared module-level `toast_manager`)
+        # so this plugin's own toasts never mix into another window's
+        # stack, and so "bottom-left" only applies here rather than
+        # globally (the Hub's own SYSTEM_WARNING toasts stay bottom-right).
+        self._toast_manager = ToastManager(corner="bottom-left")
+
+        # A toast fired while the two-phase loading protocol's overlay
+        # (the Hub's crossfade loader, or an isolated module's
+        # GalacticLoader) is still covering this widget would show and
+        # fade out entirely underneath it — invisible for the whole time a
+        # workflow is loading, since that overlay paints above this panel
+        # regardless of the toast's own stacking order within it. Buffer
+        # any toast requested before the panel actually signals it's ready
+        # to be seen, and flush them once it does. Panels that don't
+        # implement the protocol at all have nothing masking them, so they
+        # get toasts immediately, same as before.
+        self._toast_gate_ready = not hasattr(self, "panel_ready")
+        self._pending_toasts: list[tuple[str, str, str, int]] = []
+        if hasattr(self, "data_ready"):
+            self.data_ready.connect(self._release_pending_toasts)
+        elif hasattr(self, "panel_ready"):
+            self.panel_ready.connect(self._release_pending_toasts)
 
     @property
     def history(self):
@@ -382,14 +406,32 @@ class PluginBase(QWidget):
         color: str = "#5C9EE5",
         duration_ms: int = 4000,
     ) -> None:
-        """Show a non-intrusive toast notification anchored to this plugin's window.
+        """Show a non-intrusive toast notification anchored to this plugin's own widget.
 
-        Uses the same bottom-right, auto-fading popup the Hub uses for its
-        own system warnings (see ``karcytics_sdk.plugin.toast``). Works
-        identically whether this plugin runs in-process or isolated, since
-        each owns its own ``QApplication``.
+        Uses the same auto-fading popup the Hub uses for its own system
+        warnings (see ``karcytics_sdk.plugin.toast``), pinned to the
+        bottom-left of *this widget* — not ``self.window()`` — so it tracks
+        the module's actual on-screen area (including its own resizes) even
+        when that's a panel embedded in the Hub's layout rather than the
+        Hub's whole window. Works identically whether this plugin runs
+        in-process or isolated, since each owns its own ``QApplication``.
+
+        If the panel implements the two-phase loading protocol
+        (``panel_ready``/``data_ready``) and hasn't signaled ready yet, the
+        toast is held until it does, rather than fading out unseen behind
+        the loading overlay.
         """
-        show_toast(message, icon=icon, color=color, duration_ms=duration_ms)
+        if not self._toast_gate_ready:
+            self._pending_toasts.append((message, icon, color, duration_ms))
+            return
+        self._toast_manager.show(message, icon=icon, color=color, duration_ms=duration_ms, window=self)
+
+    def _release_pending_toasts(self) -> None:
+        """Flush any toasts buffered while the loading overlay was up (see `show_toast`)."""
+        self._toast_gate_ready = True
+        pending, self._pending_toasts = self._pending_toasts, []
+        for message, icon, color, duration_ms in pending:
+            self._toast_manager.show(message, icon=icon, color=color, duration_ms=duration_ms, window=self)
 
     # ── Workflow autosave ────────────────────────────────────────────────
 

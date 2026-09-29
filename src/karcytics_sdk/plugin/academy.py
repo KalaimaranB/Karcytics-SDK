@@ -210,9 +210,20 @@ class AcademyManager:
         self._cancel_wait_subscription()
 
         next_id = specific_step_id or self.current_step.next_step_id
+        self._advance_to(next_id)
+
+    def _advance_to(self, next_id: str | None) -> None:
+        """Resolves `next_id` per its three special forms — a real step id,
+        `"__abandon__"`, or falsy/`"__complete__"` — and applies it. Split
+        out of `next_step()` to keep that method's own branching (the
+        guard clauses above) under the complexity limit.
+        """
+        if next_id == "__abandon__":
+            self.abandon_course()
+            return
 
         if next_id and next_id != "__complete__":
-            self.current_step = self.active_course.get_step(next_id)
+            self.current_step = self.active_course.get_step(next_id) if self.active_course else None
             if self.current_step:
                 # Reset subtask progress for the new step
                 if isinstance(self.current_step, ForcedInteractionStep):
@@ -289,6 +300,23 @@ class AcademyManager:
             self._save_progress()
 
             self._event_bus.emit(ACADEMY_COURSE_COMPLETED, course_id, self.active_course.badge_reward)
+
+    def abandon_course(self) -> None:
+        """Leaves the active course without marking it complete or awarding
+        a badge — the `next_step_id="__abandon__"` counterpart to
+        `complete_course()`'s `"__complete__"`/`None` sentinel, for a step
+        that has nowhere useful to send the user (e.g. a "you haven't
+        finished the prerequisite course yet" screen). Progress is not
+        saved, matching `build_academy_overlay`'s close-button handler
+        (`_on_skip`) in `academy_driver.py`, which this mirrors exactly —
+        so relaunching the course later starts over from the beginning.
+        """
+        if self.is_reviewing:
+            return
+        self._cancel_wait_subscription()
+        self.active_course = None
+        self.current_step = None
+        self._emit_step_changed()
 
     def reset_course(self, course_id: str) -> None:
         """Clears progress for a specific course, allowing the user to start over."""

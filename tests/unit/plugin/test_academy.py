@@ -139,6 +139,67 @@ class TestNextStep:
         manager.next_step()
         assert manager.current_step is None
 
+    def test_next_step_with_abandon_sentinel_exits_without_completing(self, manager, bus):
+        # A step with nowhere useful to send the user (e.g. a "prerequisite
+        # course not finished" screen) uses next_step_id="__abandon__"
+        # instead of looping or leaving next_step_id unset — the latter
+        # would fall into the same "no next_id" branch as a real course
+        # finish and award the badge for never doing anything.
+        course = Course(
+            id="course_1",
+            title="Test Course",
+            badge_reward="Test Badge",
+            badge_icon="🏅",
+            steps=[InfoStep(id="step_1", text="First", next_step_id="__abandon__")],
+        )
+        manager.register_storyboard("m", course)
+        manager.start_course_confirmed("course_1")
+
+        manager.next_step()
+
+        assert manager.current_step is None
+        assert manager.active_course is None
+        assert "course_1" not in manager.completed_courses
+        assert manager.badges == []
+        assert all(e[0] != ACADEMY_COURSE_COMPLETED for e in bus.emitted)
+
+
+class TestAbandonCourse:
+    def test_abandon_course_clears_active_course_and_current_step(self, manager, bus):
+        course = make_two_step_course()
+        manager.register_storyboard("m", course)
+        manager.start_course_confirmed("course_1")
+
+        manager.abandon_course()
+
+        assert manager.active_course is None
+        assert manager.current_step is None
+        assert (ACADEMY_STEP_CHANGED, (None,)) in bus.emitted
+
+    def test_abandon_course_does_not_complete_or_award_a_badge(self, manager, bus):
+        course = make_two_step_course()
+        manager.register_storyboard("m", course)
+        manager.start_course_confirmed("course_1")
+
+        manager.abandon_course()
+
+        assert "course_1" not in manager.completed_courses
+        assert manager.badges == []
+        assert all(e[0] != ACADEMY_COURSE_COMPLETED for e in bus.emitted)
+
+    def test_abandon_course_is_a_noop_while_reviewing(self, manager, bus):
+        course = make_two_step_course()
+        manager.register_storyboard("m", course)
+        manager.start_course_confirmed("course_1")
+        manager.next_step()  # -> step_2, gives history 2 entries so review_previous can engage
+        manager.review_previous()
+        bus.emitted.clear()
+
+        manager.abandon_course()
+
+        assert manager.active_course is course
+        assert bus.emitted == []
+
 
 class TestForcedInteractionStep:
     def test_next_step_blocked_until_all_subtasks_complete(self, manager):

@@ -215,9 +215,35 @@ class ModuleStatusWidget(QWidget):
         self._action_button = QPushButton()
         self._action_button.clicked.connect(self._on_action_clicked)
 
+        # Secondary action shown only in the Crashed state — lets the user
+        # dismiss the overlay and return to the project view without
+        # reopening the module.  Reuses cancel() which already transitions
+        # the widget to STATE_CLOSED; the host's state_changed handler
+        # (plugin_loader._on_overlay_state_changed) hides this overlay on
+        # STATE_CLOSED, so no extra wiring is needed here.
+        self._return_button = QPushButton("Return to Project View")
+        self._return_button.setVisible(False)
+        self._return_button.clicked.connect(self.cancel)
+        self._return_button.setStyleSheet(
+            "QPushButton {"
+            "  color: rgba(200, 200, 210, 0.75);"
+            "  background: transparent;"
+            "  border: 1px solid rgba(255, 255, 255, 30);"
+            "  border-radius: 6px;"
+            "  padding: 5px 16px;"
+            "  font-size: 12px;"
+            "}"
+            "QPushButton:hover {"
+            "  color: #f2f2f2;"
+            "  border-color: rgba(255, 255, 255, 70);"
+            "  background: rgba(255, 255, 255, 8);"
+            "}"
+        )
+
         card_layout.addWidget(self._status_label)
         card_layout.addWidget(self._progress_bar, alignment=Qt.AlignmentFlag.AlignHCenter)
         card_layout.addWidget(self._action_button, alignment=Qt.AlignmentFlag.AlignHCenter)
+        card_layout.addWidget(self._return_button, alignment=Qt.AlignmentFlag.AlignHCenter)
 
         outer.addWidget(card)
 
@@ -255,6 +281,8 @@ class ModuleStatusWidget(QWidget):
             self._progress_bar.show()
         else:
             self._progress_bar.hide()
+        # Show the "Return" escape hatch only when the module has crashed.
+        self._return_button.setVisible(self._state == self.STATE_CRASHED)
 
     def _set_state(self, state: str, error_message: str | None = None) -> None:
         self._state = state

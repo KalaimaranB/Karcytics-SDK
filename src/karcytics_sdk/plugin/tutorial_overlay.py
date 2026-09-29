@@ -366,7 +366,13 @@ class TutorialOverlay(QWidget):
         # of a forced hide_bubble_after_ms timer — the timer hides Cyto's
         # bubble on its own schedule whether or not the user finished
         # reading it; this button hides on the user's own schedule instead.
-        self.btn_dismiss_bubble = QPushButton("Got it, I'll take it from here →")
+        # Kept short (not "Got it, I'll take it from here →") so it still
+        # fits alongside "← Previous" within CONTENT_WIDTH once a step has
+        # both buttons visible — the longer label overflowed the fixed-width
+        # bubble and got clipped (_adjust_progress_bar_width can shrink the
+        # progress bar to make room, but has no equivalent fallback for the
+        # buttons themselves, which use a Fixed size policy).
+        self.btn_dismiss_bubble = QPushButton("Got it →")
         theme_manager.apply_style(
             self.btn_dismiss_bubble,
             "background-color: transparent; color: {FG_SECONDARY};"
@@ -374,7 +380,6 @@ class TutorialOverlay(QWidget):
             "padding: 6px 10px;",
         )
         self.btn_dismiss_bubble.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_dismiss_bubble.clicked.connect(self._dismiss_bubble)
         self.btn_dismiss_bubble.clicked.connect(self._dismiss_bubble)
         self.btn_dismiss_bubble.hide()
 
@@ -664,26 +669,47 @@ class TutorialOverlay(QWidget):
         # dragged Cyto/the bubble around on the previous step.
         self._user_positioned = False
         self._force_resize()
-        self._update_mask()
+        # Reposition BEFORE masking, not after: _update_mask() reads Cyto's
+        # and the bubble's CURRENT geometry to punch them back out of the
+        # dimmed region as their own "solid, click-owning" holes. Masking
+        # first and moving second leaves the mask referencing wherever they
+        # used to sit — a stale rectangle that's neither part of the new
+        # spotlight (paintEvent() correctly treats it as inside target_rects
+        # and skips dimming it) nor actually covered by Cyto/the bubble
+        # anymore, so it just sits there showing whatever was painted there
+        # last (WA_NoSystemBackground means nothing auto-clears it) until
+        # some unrelated event forces a full repaint. Reported live as a
+        # stray dark patch inside an otherwise-correct spotlight, fixed by
+        # switching apps and back (which forces exactly that full repaint).
         self._reposition_cyto_and_bubble(getattr(self, "target_rects", []))
+        self._update_mask()
 
-        # Freshly-added checklist widgets (ForcedInteractionStep) don't always
+        # Freshly-added checklist/branching/consent/waiting-indicator content
+        # (added to dynamic_content just above, per step type) doesn't always
         # report a settled sizeHint() on this same synchronous pass, which can
-        # leave bubble_container undersized and the checklist overlapping the
+        # leave bubble_container undersized and that content overlapping the
         # header text. A deferred follow-up, once the event loop has caught
         # up, corrects any residual sizing/position drift — same "allow
         # layout to settle" pattern used for the very first render below.
-        from PyQt6.QtCore import QTimer
+        # Skipped entirely for the common case (plain InfoStep/
+        # VerificationStep/InteractionStep, nothing added to dynamic_content)
+        # — for those the synchronous pass above is already fully correct,
+        # so this would just be a second, redundant _force_resize() (a real
+        # QTextDocument layout pass) and _update_mask() (a real native
+        # window-shape change) doing nothing new, on every single step
+        # transition.
+        if self.dynamic_content.count() > 0:
+            from PyQt6.QtCore import QTimer
 
-        def _settle() -> None:
-            if not self._is_alive():
-                return
-            self._force_resize()
-            self._update_mask()
-            if not self._user_positioned:
-                self._reposition_cyto_and_bubble(getattr(self, "target_rects", []))
+            def _settle() -> None:
+                if not self._is_alive():
+                    return
+                self._force_resize()
+                if not self._user_positioned:
+                    self._reposition_cyto_and_bubble(getattr(self, "target_rects", []))
+                self._update_mask()
 
-        QTimer.singleShot(0, _settle)
+            QTimer.singleShot(0, _settle)
 
         hide_after = getattr(step, "hide_bubble_after_ms", None)
         if hide_after is not None:
@@ -742,8 +768,10 @@ class TutorialOverlay(QWidget):
 
         self._user_positioned = False
         self._force_resize()
-        self._update_mask()
+        # Reposition before masking — see the same-shaped comment in
+        # render_step() for why the order matters.
         self._reposition_cyto_and_bubble([])
+        self._update_mask()
 
     def _apply_review_indicator(self, is_reviewing: bool) -> None:
         """Toggles the standing "reviewing, read-only" banner + bubble accent."""
@@ -1030,6 +1058,59 @@ class TutorialOverlay(QWidget):
 
     def _update_mask(self) -> None:
         """Build a widget mask so mouse events pass through to target areas."""
+        # Callers always assign self.target_rects *before* calling this, so
+        # by the time we're running, it already holds the NEW value — the
+        # only place the previous value survives is this field from the last
+        # time this method ran, captured here before it's overwritten below.
+        old_rects = getattr(self, "_last_painted_target_rects", [])
+        try:
+            self._update_mask_impl()
+        finally:
+            # setMask()/clearMask() above only change which pixels are
+            # click-through — they don't by themselves guarantee paintEvent()
+            # (which reads target_rects to decide what to actually dim) runs
+            # again soon. This overlay lives embedded inside the host app's
+            # own window rather than as its own top-level Qt window, and
+            # queuing a plain update() here was observed to sometimes sit
+            # uncollected for a long time — visually "stuck" showing
+            # whichever target_rects were current at the last real paint,
+            # correcting itself only once something else (reported live:
+            # switching to another app and back) forced a full repaint of
+            # the host window. repaint() forces paintEvent() to run
+            # synchronously, right now, with whatever target_rects this call
+            # just computed, instead of leaving it to Qt's own update-request
+            # coalescing to eventually get around to it.
+            self.repaint()
+
+            # repaint() above only re-runs THIS widget's own paintEvent,
+            # which — being masked — explicitly skips drawing inside the
+            # holes at all. It does nothing to make the real widget *behind*
+            # a hole redraw itself, and Qt does not do that automatically
+            # just because a sibling's mask moved: painting is clipped
+            # child-to-parent, not the other way around, so a masked child
+            # repainting itself is never sufficient to refresh what a
+            # differently-shaped hole now exposes underneath it — only the
+            # parent (or the sibling itself) repainting can do that. That's
+            # exactly the bug reported live: a spotlight hole moves to a new
+            # widget, but the pixels showing through it are stale — whatever
+            # was last actually drawn there — until an unrelated event (e.g.
+            # switching apps and back) forces the whole host window through
+            # a real repaint. Explicitly repainting the parent, scoped to
+            # the union of the old+new hole rects (the only region whose
+            # "what's really underneath" answer could have changed), fixes
+            # this without paying for a full-panel repaint on every step.
+            parent = self.parentWidget()
+            if parent is not None:
+                dirty = QRegion()
+                for r in old_rects:
+                    dirty = dirty.united(QRegion(r))
+                for r in self.target_rects:
+                    dirty = dirty.united(QRegion(r))
+                if not dirty.isEmpty():
+                    parent.repaint(dirty)
+            self._last_painted_target_rects = list(self.target_rects)
+
+    def _update_mask_impl(self) -> None:
         if self._is_reviewing:
             # Full lock regardless of the live step's own allow_interaction —
             # reviewing a past step must never let clicks reach anything.

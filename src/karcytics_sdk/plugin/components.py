@@ -5,6 +5,8 @@ and maintain visual consistency across all plugins.
 """
 
 import sys
+from collections.abc import Sequence
+from typing import Any
 
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
@@ -614,6 +616,53 @@ class BioComboBox(QComboBox):
                 color: {selection_text_color};
             }}
         """)
+
+
+def repopulate_combo(
+    combo: QComboBox,
+    items: Sequence[tuple[str, Any]],
+    *,
+    restore_data: Any = None,
+) -> None:
+    """Rebuild a combo box's items and restore a selection, without spurious signals.
+
+    Replaces the repeated ``blockSignals(True)`` / ``clear()`` / ``addItem()``
+    loop / ``findData`` restore / ``blockSignals(False)`` dance that tends to
+    get duplicated at every combo-populate call site across plugins. No-ops
+    entirely (touches the combo not at all) when both the item set and the
+    resolved selection already match what's there — the common case where an
+    unrelated refresh (e.g. a tab switch) re-triggers a combo populate call
+    with nothing to actually change.
+
+    Args:
+        combo: The QComboBox to repopulate.
+        items: Ordered (label, data) pairs for every item to show.
+        restore_data: The `data` value to reselect if still present in
+            `items` after rebuilding — typically the combo's own
+            `currentData()` captured before calling this. `None` leaves
+            the current index wherever `clear()`/`addItem()` land it.
+
+    Returns:
+        None.
+    """
+    items = list(items)
+    current = [(combo.itemText(i), combo.itemData(i)) for i in range(combo.count())]
+    items_unchanged = current == items
+    selection_already_right = restore_data is None or combo.currentData() == restore_data
+
+    if items_unchanged and selection_already_right:
+        return
+
+    combo.blockSignals(True)
+    if not items_unchanged:
+        combo.clear()
+        for label, data in items:
+            combo.addItem(label, data)
+    if restore_data is not None:
+        idx = combo.findData(restore_data)
+        if idx >= 0:
+            combo.setCurrentIndex(idx)
+    combo.blockSignals(False)
 
 
 class BioSpinBox(QSpinBox):

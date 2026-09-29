@@ -57,3 +57,6 @@ site/
 *.key
 dev_private_key.pem
 dev_cert.bin
+
+# Claude Code local settings (can contain machine-specific absolute paths)
+.claude/

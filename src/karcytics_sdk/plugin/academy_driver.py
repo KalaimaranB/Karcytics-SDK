@@ -85,6 +85,7 @@ class AcademyStepDriver(QObject):
         self._stuck_hint_shown = False
         self._failure_hint_shown = False
         self._was_reviewing = False
+        self._last_canvas_guide_active = False
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
@@ -105,12 +106,32 @@ class AcademyStepDriver(QObject):
         if self._handle_reviewing_state(step):
             return
 
-        if step.id != self._last_step_id:
+        is_new_step = step.id != self._last_step_id
+        if is_new_step:
+            # Reset before _update_targets() below, not after — see that
+            # call's own comment for why the ordering here matters.
+            self._overlay._user_positioned = False  # noqa: SLF001
+
+        # Resolved once per tick, before render_step() (if this is a step
+        # change) rather than after: render_step() unconditionally ends
+        # with its own _update_mask()/_reposition_cyto_and_bubble() call
+        # using whatever self._overlay.target_rects currently holds — if
+        # that still held the *previous* step's rects because this call
+        # instead ran afterward, every single step transition produced a
+        # real, visible one-tick flash: the spotlight/Cyto briefly wrong
+        # (still the old step's target), immediately followed by the
+        # correct one — the "half spotlighted scenes for half seconds" and
+        # jump/freeze feeling reported from live use. This used to run
+        # last in _tick() instead; moving it here (rather than calling it
+        # twice — once early, once in its old spot) fixes the flash without
+        # doubling the findChildren() work every transition already does.
+        self._update_targets(step)
+
+        if is_new_step:
             self._handle_step_changed(step)
 
         self._dispatch_step_updates(step)
         self._maybe_show_stuck_hint(step)
-        self._update_targets(step)
 
     def _handle_no_active_step(self, step: Any | None) -> bool:
         """Hides the overlay and clears the canvas guide if there's nothing to show.
@@ -208,6 +229,22 @@ class AcademyStepDriver(QObject):
         if step.text != self._last_rendered_text:
             self._last_rendered_text = step.text
             self._overlay._update_text_rendering(step.text)  # noqa: SLF001
+            # _update_text_rendering() only swaps the label's HTML — it
+            # doesn't resize the bubble to fit it. render_step() (a real
+            # step change) always follows its own text update with
+            # _force_resize()/_update_mask(), but this in-place edit runs
+            # instead of render_step(), so without the same follow-up here
+            # the bubble stays sized for whatever shorter placeholder text
+            # (e.g. "Scanning your run's real numbers...") it started with —
+            # reported live as the real, dynamically-computed text (e.g.
+            # naming the actual winning cluster ID) getting cut off mid
+            # sentence once a validator rewrites its own step's text.
+            self._overlay._force_resize()  # noqa: SLF001
+            if not self._overlay._user_positioned:  # noqa: SLF001
+                self._overlay._reposition_cyto_and_bubble(  # noqa: SLF001
+                    getattr(self._overlay, "target_rects", [])
+                )
+            self._overlay._update_mask()  # noqa: SLF001
         self._verification_wait += 1
         if self._verification_wait > _VALIDATION_POLL_TICKS:
             self._verification_wait = 0
@@ -248,10 +285,35 @@ class AcademyStepDriver(QObject):
         tutorial's on-canvas polygon/rect/range/quadrant guide from ever
         appearing again — no exception, the call to draw it just never
         happened.
+
+        Skips the `findChildren`/`set_tutorial_guide` work entirely when
+        this step has no guide to draw AND the previous step didn't leave
+        one on screen to clear — `set_tutorial_guide()` always ends in a
+        full canvas redraw (`draw_idle()`), and the vast majority of steps
+        in any course never touch the canvas guide at all. Without this,
+        every single step transition paid that redraw regardless of
+        relevance — cheap early on when the canvas is empty, but a real,
+        visible stall once real gated data/overlays make that redraw
+        expensive (reported live: Course 2 feeling freezy between steps
+        where Course 1's identical transitions didn't).
         """
+        has_guide = self._step_has_canvas_guide(step)
+        if not has_guide and not self._last_canvas_guide_active:
+            return
+        self._last_canvas_guide_active = has_guide
+
         for canvas in self._search_root.findChildren(QWidget, "FlowCanvas"):
             if hasattr(canvas, "set_tutorial_guide"):
                 canvas.set_tutorial_guide(step)
+
+    @staticmethod
+    def _step_has_canvas_guide(step: Any | None) -> bool:
+        if step is None:
+            return False
+        if getattr(step, "guide_poly", None):
+            return True
+        metadata = getattr(step, "metadata", None) or {}
+        return any(metadata.get(key) for key in ("guide_data_poly", "guide_rect", "guide_range", "guide_quadrant"))
 
     def _wire_interaction_step(self, step: InteractionStep) -> None:
         # findChildren() only searches descendants, never search_root
