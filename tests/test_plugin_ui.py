@@ -502,18 +502,8 @@ def test_preferences_protocol_compliance():
     PreferenceManagerProtocol.clear(None)
 
 
-@pytest.mark.skip(
-    reason="Pre-existing, unrelated to Academy: PluginBase.history's fallback is a "
-    "try: from karcytics.core.history_manager import HistoryManager except ImportError: "
-    "MockHistoryManager(...) pattern, meant to trigger only in a genuinely isolated "
-    "plugin .venv. This repo's own tests run inside the Hub's shared dev venv (the Hub "
-    "installs karcytics-sdk as a plain editable dependency, not a separate .venv — see "
-    "docs/internal/27_Academy_Engine.md), where karcytics.core.history_manager really is "
-    "importable, so the try succeeds and this asserts against the wrong (real, not mock) "
-    "object. Same root cause as test_theme_fallback_colors below."
-)
 def test_plugin_base_coverage_extensions():
-    """Verify history manager creation fallbacks and C++ deleted object error handlers."""
+    """Verify the plugin-owned undo history and C++ deleted object error handlers."""
     from karcytics_sdk.plugin.base import PluginBase
     from karcytics_sdk.plugin.state import PluginState
 
@@ -534,15 +524,12 @@ def test_plugin_base_coverage_extensions():
 
     plugin = SimplePlugin("simple_plugin")
 
-    # Test fallback MockHistoryManager
-    h = plugin.history
-    assert h is not None
-    assert h.get_module_history("plugin").undo_stack == [1, 2]
+    # The history lives in the SDK (never the Hub's HistoryManager), so it
+    # works the same in an isolated plugin .venv as in this shared dev venv.
+    from karcytics_sdk.plugin.history import UndoHistory
 
-    # Set history explicitly to mock
-    mock_hm = MagicMock()
-    plugin.history = mock_hm
-    assert plugin.history == mock_hm
+    assert isinstance(plugin.undo_history, UndoHistory)
+    assert plugin.can_undo() is False
 
     # Test fallback ResourceInspector during cleanup
     # We trigger ImportError fallback by letting cleanup run naturally

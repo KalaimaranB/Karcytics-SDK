@@ -362,6 +362,18 @@ def _build_menu_bar(window: QMainWindow, logger: Any) -> None:
     close_action.triggered.connect(window.close)
     builder.add_file_menu([close_action])
 
+    # Edit -> Undo/Redo exist from the start (disabled) so the menu layout
+    # never shifts; _wire_undo_menu() connects them once the panel exists.
+    builder.add_edit_menu(
+        undo_cb=lambda: _step_undo(window, "undo"),
+        redo_cb=lambda: _step_undo(window, "redo"),
+    )
+    for action in (builder.undo_action, builder.redo_action):
+        if action is not None:
+            action.setEnabled(False)
+    window._undo_action = builder.undo_action  # type: ignore[attr-defined]
+    window._redo_action = builder.redo_action  # type: ignore[attr-defined]
+
     port = os.environ.get("KARCYTICS_CORE_SERVICES_PORT")
     token = os.environ.get("KARCYTICS_CORE_SERVICES_TOKEN")
 
@@ -404,6 +416,70 @@ def _build_menu_bar(window: QMainWindow, logger: Any) -> None:
         academy_action.setMenuRole(QAction.MenuRole.NoRole)
         help_menu.addAction(academy_action)
         window._academy_menu_action = academy_action  # type: ignore[attr-defined]
+
+
+def _focused_text_editor() -> Any | None:
+    """The focused widget if it has its own text undo stack, else None.
+
+    Qt normally lets a focused QLineEdit/QTextEdit claim Cmd/Ctrl+Z through
+    a ShortcutOverride event before any QAction sees it, but a menu-bar
+    action can still be triggered with the text field focused (clicking
+    Edit -> Undo, or a platform menu integration that bypasses the override).
+    Routing to the text field in that case keeps "undo my typing" from
+    unexpectedly reverting a workspace step instead.
+    """
+    from PyQt6.QtWidgets import QComboBox, QLineEdit, QPlainTextEdit, QTextEdit
+
+    widget = QApplication.focusWidget()
+    if isinstance(widget, QComboBox) and widget.isEditable():
+        return widget.lineEdit()
+    if isinstance(widget, QLineEdit) and not widget.isReadOnly():
+        return widget
+    if isinstance(widget, (QTextEdit, QPlainTextEdit)) and not widget.isReadOnly():
+        return widget
+    return None
+
+
+def _step_undo(window: QMainWindow, direction: str) -> None:
+    """Edit -> Undo/Redo: text field first, then the panel's own history."""
+    editor = _focused_text_editor()
+    if editor is not None:
+        getattr(editor, direction)()
+        return
+    target = getattr(window, "_undo_target", None)
+    if target is not None:
+        getattr(target, direction)()
+
+
+def _wire_undo_menu(window: QMainWindow, panel: QWidget, logger: Any) -> None:
+    """Connect Edit -> Undo/Redo (built by `_build_menu_bar`) to `panel`.
+
+    Any panel exposing `undo()`/`redo()`/`can_undo()`/`can_redo()` (every
+    `PluginBase` does) is wired; the actions' enabled state and text
+    ("Undo Delete Gate") follow its `undo_state_changed` signal.
+    """
+    undo_action = getattr(window, "_undo_action", None)
+    redo_action = getattr(window, "_redo_action", None)
+    if undo_action is None or redo_action is None:
+        return
+    if not all(callable(getattr(panel, name, None)) for name in ("undo", "redo", "can_undo", "can_redo")):
+        return
+
+    window._undo_target = panel  # type: ignore[attr-defined]
+
+    def _sync() -> None:
+        undo_action.setEnabled(bool(panel.can_undo()))  # type: ignore[attr-defined]
+        redo_action.setEnabled(bool(panel.can_redo()))  # type: ignore[attr-defined]
+        undo_text = getattr(panel, "undo_text", None)
+        redo_text = getattr(panel, "redo_text", None)
+        undo_action.setText(undo_text() if callable(undo_text) else "Undo")
+        redo_action.setText(redo_text() if callable(redo_text) else "Redo")
+
+    signal = getattr(panel, "undo_state_changed", None)
+    if signal is not None:
+        signal.connect(_sync)
+    _sync()
+    logger.debug("Undo menu wired.", extra={"log_event": "undo_menu_wired"})
 
 
 def _wire_academy_menu(window: QMainWindow, panel: QWidget, logger: Any) -> None:
@@ -908,6 +984,7 @@ def run(  # noqa: C901, PLR0913, PLR0915
         panel.data_ready.connect(lambda: send_event("panel_data_ready", {}))
 
     _wire_academy_menu(window, panel, logger)
+    _wire_undo_menu(window, panel, logger)
     if on_panel_ready is not None:
         try:
             on_panel_ready(window, panel)

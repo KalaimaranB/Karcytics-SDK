@@ -17,7 +17,7 @@ class PluginState(ABC):
     """Base state class for plugin analysis state.
 
     Subclass this in your plugin and use @dataclass for automatic serialization.
-    Enables undo/redo integration via Karcytics's HistoryManager.
+    Enables undo/redo via `PluginBase.push_state()` and `UndoHistory`.
 
     All fields in your state should be simple types (str, int, float, list, dict)
     to ensure proper serialization. Complex objects should be stored as paths

@@ -49,6 +49,7 @@ from .dialogs import (
     show_warning,
 )
 from .events import CentralEventBus
+from .history import HistoryEntry, UndoHistory
 from .interfaces import KarcyticsPlugin
 from .io import PluginConfig, PluginPreferenceManager, load_json, save_json
 from .logging import get_logger
@@ -141,6 +142,8 @@ __all__ = [
     "CytoWidget",
     "CourseCompleteOverlay",
     "CentralEventBus",
+    "HistoryEntry",
+    "UndoHistory",
     "PreferenceManagerProtocol",
     # Toasts
     "STYLE_ERROR",

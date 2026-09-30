@@ -29,6 +29,7 @@ except ImportError:
 
 from .analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
 from .events import CentralEventBus
+from .history import UndoHistory
 from .signals import PluginSignals
 from .state import PluginState
 from .toast import STYLE_SUCCESS, STYLE_UPDATE, ToastManager
@@ -113,8 +114,8 @@ class PluginBase(QWidget):
 
         self.logger = get_logger(f"plugin.{plugin_id}", plugin_id)
 
-        self._history = None
-        self._current_state = None
+        self._undo_history: UndoHistory[Any] | None = None
+        self._undo_restore: Callable[[Any], None] | None = None
 
         # Isolated plugins have no automatic route back to the Hub's
         # diagnostics engine (in-process plugins get one for free via
@@ -154,43 +155,45 @@ class PluginBase(QWidget):
             self.panel_ready.connect(self._release_pending_toasts)
 
     @property
-    def history(self):
-        """Lazy-loaded HistoryManager to avoid circular dependencies."""
-        if not hasattr(self, "_history") or self._history is None:
-            try:
-                from karcytics.core.history_manager import HistoryManager
+    def undo_history(self) -> UndoHistory[Any]:
+        """This plugin's undo/redo history, created on first use.
 
-                self._history = HistoryManager()
-            except ImportError:
+        Owned by the plugin's own process — never the Hub's `HistoryManager`,
+        which an isolated plugin can't import. By default each step is a
+        `get_state().to_dict()` snapshot restored through `set_state()`; a
+        plugin with its own state store swaps that out with
+        `bind_undo_history()`.
+        """
+        if self._undo_history is None:
+            self.bind_undo_history(UndoHistory(), self._restore_state_dict)
+        assert self._undo_history is not None
+        return self._undo_history
 
-                class MockHistoryManager:
-                    def get_module_history(self, *args, **kwargs):
-                        class MockHistory:
-                            def push(self, *args):
-                                pass
+    def bind_undo_history(self, history: UndoHistory[Any], restore: Callable[[Any], None]) -> None:
+        """Use `history` for undo/redo, restoring each snapshot via `restore(snapshot)`.
 
-                            def undo(self):
-                                return None
+        `restore` must bring the plugin's live state (and the UI showing it)
+        back to exactly what `snapshot` describes. Also re-emits
+        `undo_available`/`redo_available`/`undo_state_changed` whenever the
+        history changes, which is what keeps Edit → Undo/Redo in sync.
+        """
+        if self._undo_history is not None:
+            self._undo_history.remove_listener(self._on_undo_history_changed)
+        self._undo_history = history
+        self._undo_restore = restore
+        history.add_listener(self._on_undo_history_changed)
+        self._on_undo_history_changed()
 
-                            def redo(self):
-                                return None
+    def _on_undo_history_changed(self) -> None:
+        history = self._undo_history
+        if history is None:
+            return
+        self.signals.undo_available.emit(history.can_undo())
+        self.signals.redo_available.emit(history.can_redo())
+        self.signals.undo_state_changed.emit()
 
-                            @property
-                            def undo_stack(self):
-                                return [1, 2]
-
-                            @property
-                            def redo_stack(self):
-                                return []
-
-                        return MockHistory()
-
-                self._history = MockHistoryManager()
-        return self._history
-
-    @history.setter
-    def history(self, value):
-        self._history = value
+    def _restore_state_dict(self, snapshot: dict[str, Any]) -> None:
+        self.set_state(self.get_state().__class__.from_dict(snapshot))
 
     def publish_event(self, topic: str, data: Any = None) -> None:
         """Publish an event to the Central Event Bus."""
@@ -234,52 +237,57 @@ class PluginBase(QWidget):
         """
         pass
 
-    def push_state(self) -> None:
-        """Save current state to undo history.
+    def push_state(self, label: str = "") -> None:
+        """Record the current state as one undoable step named `label`.
 
-        Call this whenever the user makes a destructive edit (e.g., changing
-        a parameter, drawing on an image). Karcytics will emit state_changed signal
-        and automatically capture this state for undo/redo.
+        Call this after each completed user action (not on every intermediate
+        tick of a drag). The first call only sets the baseline.
         """
-        state_dict = self.get_state().to_dict()
-        self.history.get_module_history(self.plugin_id).push(state_dict)
+        self.undo_history.record(label, self.get_state().to_dict())
         self.state_changed.emit()
 
-    def undo(self) -> None:
-        """Undo to previous state."""
-        history = self.history.get_module_history(self.plugin_id)
-        prev_state_dict = history.undo()
-        if prev_state_dict:
-            state = self.get_state().__class__.from_dict(prev_state_dict)
-            self.set_state(state)
-            self.state_changed.emit()
+    def undo(self) -> bool:
+        """Revert the most recent step. Returns True if a step was undone."""
+        return self._step(self.undo_history.undo, self.undo_history.redo)
 
-    def redo(self) -> None:
-        """Redo to next state."""
-        history = self.history.get_module_history(self.plugin_id)
-        next_state_dict = history.redo()
-        if next_state_dict:
-            state = self.get_state().__class__.from_dict(next_state_dict)
-            self.set_state(state)
-            self.state_changed.emit()
+    def redo(self) -> bool:
+        """Re-apply the most recently undone step. Returns True if one was redone."""
+        return self._step(self.undo_history.redo, self.undo_history.undo)
+
+    def _step(self, move: Callable[[], Any], move_back: Callable[[], Any]) -> bool:
+        snapshot = move()
+        if snapshot is None:
+            return False
+        assert self._undo_restore is not None
+        try:
+            self._undo_restore(snapshot)
+        except Exception:
+            # Keep the history pointer matching the live state: a snapshot
+            # that couldn't be restored must not count as the current one.
+            move_back()
+            self.logger.exception("Failed to restore undo snapshot.")
+            self.status_message.emit("Undo/redo failed — see the log for details.")
+            return False
+        self.state_changed.emit()
+        return True
 
     def can_undo(self) -> bool:
-        """Check if undo is available.
-
-        Returns:
-            True if there are states to undo to
-        """
-        history = self.history.get_module_history(self.plugin_id)
-        return len(history.undo_stack) > 1
+        """Check if undo is available."""
+        return self.undo_history.can_undo()
 
     def can_redo(self) -> bool:
-        """Check if redo is available.
+        """Check if redo is available."""
+        return self.undo_history.can_redo()
 
-        Returns:
-            True if there are states to redo to
-        """
-        history = self.history.get_module_history(self.plugin_id)
-        return len(history.redo_stack) > 0
+    def undo_text(self) -> str:
+        """Menu text for Edit → Undo, e.g. "Undo Delete Gate"."""
+        label = self.undo_history.undo_label()
+        return f"Undo {label}" if label else "Undo"
+
+    def redo_text(self) -> str:
+        """Menu text for Edit → Redo, e.g. "Redo Delete Gate"."""
+        label = self.undo_history.redo_label()
+        return f"Redo {label}" if label else "Redo"
 
     # ── Resource Lifecycle (RAII) ────────────────────────────────────
 

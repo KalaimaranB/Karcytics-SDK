@@ -17,6 +17,8 @@ class StandardMenuBuilder:
         self.edit_menu: QMenu | None = None
         self.view_menu: QMenu | None = None
         self.help_menu: QMenu | None = None
+        self.undo_action: QAction | None = None
+        self.redo_action: QAction | None = None
 
     def add_file_menu(self, extra_actions: list[QAction] | None = None) -> QMenu:
         if not self.file_menu:
@@ -38,20 +40,26 @@ class StandardMenuBuilder:
         if not self.edit_menu:
             self.edit_menu = self.menubar.addMenu("&Edit")
 
+        # setShortcuts(StandardKey) rather than setShortcut(): the latter
+        # keeps only the platform's first binding, which on Windows/Linux
+        # drops Ctrl+Shift+Z for Redo (leaving only Ctrl+Y).
         if undo_cb:
             undo_action = QAction("&Undo", self.window)
-            undo_action.setShortcut(QKeySequence.StandardKey.Undo)
+            undo_action.setShortcuts(QKeySequence.StandardKey.Undo)
             undo_action.triggered.connect(undo_cb)
             self.edit_menu.addAction(undo_action)
+            self.undo_action = undo_action
 
         if redo_cb:
             redo_action = QAction("&Redo", self.window)
-            redo_action.setShortcut(QKeySequence.StandardKey.Redo)
+            redo_action.setShortcuts(QKeySequence.StandardKey.Redo)
             redo_action.triggered.connect(redo_cb)
             self.edit_menu.addAction(redo_action)
+            self.redo_action = redo_action
 
         if pref_cb:
-            if undo_cb or redo_cb:
+            # Also true when undo/redo were added by an earlier call.
+            if not self.edit_menu.isEmpty():
                 self.edit_menu.addSeparator()
             pref_action = QAction(pref_action_name, self.window)
             pref_action.setMenuRole(QAction.MenuRole.PreferencesRole)
