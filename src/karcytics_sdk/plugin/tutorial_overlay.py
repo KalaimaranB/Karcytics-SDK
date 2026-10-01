@@ -18,9 +18,10 @@ import math
 from collections.abc import Callable
 from typing import Any
 
-from PyQt6.QtCore import QPoint, QRect, Qt, QUrl, pyqtSignal
+from PyQt6.QtCore import QPoint, QRect, Qt, QTimer, QUrl, pyqtSignal
 from PyQt6.QtGui import QColor, QDesktopServices, QPainter, QPen, QRegion
 from PyQt6.QtWidgets import (
+    QGridLayout,
     QHBoxLayout,
     QLabel,
     QProgressBar,
@@ -56,6 +57,9 @@ from .tutorial_models import (
 # We will use Colors dynamically in the UI code rather than hardcoded hex codes.
 
 CONTENT_WIDTH: int = 392
+# Narrowest the footer progress bar may get beside the buttons before the
+# footer switches to stacked mode (bar on its own row above the buttons).
+_MIN_INLINE_PROGRESS_WIDTH: int = 60
 _HEADER_TEXT_HEIGHT_BUFFER: int = 48
 
 
@@ -73,6 +77,10 @@ class _DraggableBubble(QWidget, DraggableMixin):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        # A plain QWidget subclass ignores stylesheet background/border
+        # unless this is set — without it the #BubbleContainer style never
+        # paints and the bubble renders see-through over the host UI.
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         self._init_draggable()
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
@@ -173,7 +181,6 @@ class TutorialOverlay(QWidget):
         self._populate_default_buttons()
 
         # Initialize with the current state of the tutorial manager
-        from PyQt6.QtCore import QTimer
 
         if getattr(self._academy_manager, "current_step", None):
             # Defer rendering slightly to allow layout to settle
@@ -324,8 +331,17 @@ class TutorialOverlay(QWidget):
             "  border-top: 1px solid {BORDER};"
             "}",
         )
-        self.footer_layout = QHBoxLayout(self.footer_container)
+        # A grid rather than a plain HBox so the footer can reflow: the
+        # progress bar normally sits beside the buttons, but a button row too
+        # wide to share the line (e.g. a ConsentStep's Previous + two long
+        # labels) moves the bar onto its own row above — see
+        # _set_footer_stacked().
+        self.footer_layout = QGridLayout(self.footer_container)
         self.footer_layout.setContentsMargins(14, 12, 14, 12)
+        self.footer_layout.setHorizontalSpacing(16)
+        self.footer_layout.setVerticalSpacing(12)
+        self.footer_layout.setColumnStretch(0, 1)
+        self._footer_stacked = False
         self.bubble_layout.addWidget(self.footer_container)
 
         # Progress bar (moved to footer)
@@ -341,8 +357,7 @@ class TutorialOverlay(QWidget):
             "QProgressBar { background-color: {BG_DARKER}; border-radius: 3px; }"
             "QProgressBar::chunk { background-color: {ACCENT_PRIMARY}; border-radius: 3px; }",
         )
-        self.footer_layout.addWidget(self.progress_bar, stretch=1)
-        self.footer_layout.addSpacing(16)
+        self.footer_layout.addWidget(self.progress_bar, 0, 0, Qt.AlignmentFlag.AlignVCenter)
 
         # Button row
         self.btn_container = QWidget()
@@ -350,7 +365,7 @@ class TutorialOverlay(QWidget):
         self.btn_layout = QHBoxLayout(self.btn_container)
         self.btn_layout.setContentsMargins(0, 0, 0, 0)
         self.btn_layout.setSpacing(6)  # tighter than most styles' default gap
-        self.footer_layout.addWidget(self.btn_container)
+        self.footer_layout.addWidget(self.btn_container, 0, 1)
 
         self.btn_next = QPushButton("Next →")
         theme_manager.apply_style(
@@ -369,9 +384,9 @@ class TutorialOverlay(QWidget):
         # Kept short (not "Got it, I'll take it from here →") so it still
         # fits alongside "← Previous" within CONTENT_WIDTH once a step has
         # both buttons visible — the longer label overflowed the fixed-width
-        # bubble and got clipped (_adjust_progress_bar_width can shrink the
-        # progress bar to make room, but has no equivalent fallback for the
-        # buttons themselves, which use a Fixed size policy).
+        # bubble and got clipped (_adjust_progress_bar_width now stacks the
+        # progress bar above an over-wide button row, but a short label
+        # keeps the footer on one line).
         self.btn_dismiss_bubble = QPushButton("Got it →")
         theme_manager.apply_style(
             self.btn_dismiss_bubble,
@@ -533,7 +548,6 @@ class TutorialOverlay(QWidget):
         """
         if not self._is_alive():
             return
-        from PyQt6.QtCore import QTimer
 
         bg = Colors.ACCENT_DANGER if is_error else Colors.BG_MEDIUM
         label = QLabel(text, self)
@@ -699,7 +713,6 @@ class TutorialOverlay(QWidget):
         # window-shape change) doing nothing new, on every single step
         # transition.
         if self.dynamic_content.count() > 0:
-            from PyQt6.QtCore import QTimer
 
             def _settle() -> None:
                 if not self._is_alive():
@@ -1108,7 +1121,35 @@ class TutorialOverlay(QWidget):
                     dirty = dirty.united(QRegion(r))
                 if not dirty.isEmpty():
                     parent.repaint(dirty)
+                    self._update_opaque_widgets_under(parent, dirty)
             self._last_painted_target_rects = list(self.target_rects)
+
+    def _update_opaque_widgets_under(self, parent: QWidget, region: QRegion) -> None:
+        """Asks opaque widgets under `region` to repaint themselves.
+
+        parent.repaint(region) above repaints the parent, but Qt does not
+        repaint an opaque child (WA_OpaquePaintEvent — every matplotlib
+        canvas) sitting in that region: its pixels are left as they were,
+        i.e. still showing this overlay's dim from the previous step. Inside
+        a new spotlight hole that leaves the target mostly dimmed, fresh
+        only where Cyto/the bubble moved away from (reported live on a
+        histogram FlowCanvas; steps with a canvas guide shape didn't show it
+        because drawing the guide redraws the canvas anyway). The widget's
+        own update() does repaint it.
+        """
+        for widget in parent.findChildren(QWidget):
+            if (
+                widget is self
+                or self.isAncestorOf(widget)
+                or widget.isWindow()
+                or not widget.isVisible()
+                or not widget.testAttribute(Qt.WidgetAttribute.WA_OpaquePaintEvent)
+            ):
+                continue
+            top_left = widget.mapTo(parent, QPoint(0, 0))
+            local = region.intersected(QRect(top_left, widget.size())).translated(-top_left)
+            if not local.isEmpty():
+                widget.update(local)
 
     def _update_mask_impl(self) -> None:
         if self._is_reviewing:
@@ -1204,6 +1245,7 @@ class TutorialOverlay(QWidget):
             # Use default argument capture for target_id inside the lambda
             btn.clicked.connect(lambda _checked, tid=target_id: self._academy_manager.next_step(tid))
             self.btn_layout.addWidget(btn)
+            btn.show()  # see _render_consent_options
 
     def _render_waiting_indicator(self) -> None:
         """Add a static 'waiting' label in the footer button slot (where Next normally sits)."""
@@ -1230,6 +1272,11 @@ class TutorialOverlay(QWidget):
                 lambda _checked, tid=step.on_decline_step_id: self._academy_manager.next_step(tid)
             )
         self.btn_layout.addWidget(btn_decline)
+        # Explicit show(): a fresh child of an already-visible container only
+        # gets shown by a *deferred* event, and until then the layout treats
+        # it as hidden — so _adjust_progress_bar_width() would measure the
+        # row without it and never make room, clipping the labels.
+        btn_decline.show()
 
         btn_accept = QPushButton(step.accept_text)
         theme_manager.apply_style(
@@ -1242,6 +1289,7 @@ class TutorialOverlay(QWidget):
                 lambda _checked, tid=step.on_accept_step_id: self._academy_manager.next_step(tid)
             )
         self.btn_layout.addWidget(btn_accept)
+        btn_accept.show()
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
@@ -1301,6 +1349,12 @@ class TutorialOverlay(QWidget):
             getattr(self, "btn_previous", None),
             getattr(self, "btn_return_to_current", None),
         )
+        # _set_footer_stacked() may have lifted Previous out of the button
+        # row into the footer grid; detach it so the next render can re-add it.
+        if hasattr(self, "btn_previous") and self.footer_layout.indexOf(self.btn_previous) != -1:
+            self.footer_layout.removeWidget(self.btn_previous)
+            self.btn_previous.hide()
+            self.btn_previous.setParent(None)  # type: ignore[arg-type]
         while self.btn_layout.count():
             item = self.btn_layout.takeAt(0)
             if item is None:
@@ -1311,6 +1365,7 @@ class TutorialOverlay(QWidget):
                     w.hide()
                     w.setParent(None)  # type: ignore[arg-type]
                 else:
+                    w.hide()  # deleteLater is deferred; don't paint stale buttons meanwhile
                     w.deleteLater()
 
     def _dismiss_bubble(self) -> None:
@@ -1377,6 +1432,51 @@ class TutorialOverlay(QWidget):
         self.btn_layout.activate()
         buttons_width = self.btn_container.sizeHint().width()
         margins = self.footer_layout.contentsMargins()
-        spacing_between = 16  # matches the addSpacing() after the progress bar
-        available = self.bubble_container.width() - margins.left() - margins.right() - spacing_between - buttons_width
-        self.progress_bar.setMaximumWidth(max(24, available))
+        full_width = self.bubble_container.width() - margins.left() - margins.right()
+        beside_buttons = full_width - self.footer_layout.horizontalSpacing() - buttons_width
+        # Squeezing the bar below a usable width isn't enough on its own once
+        # the buttons alone nearly fill the row — the buttons use a Fixed
+        # size policy, so they'd get clipped instead. Stack them instead.
+        stacked = beside_buttons < _MIN_INLINE_PROGRESS_WIDTH
+        # Still too wide on a row of its own (long labels, large system
+        # font): lift "← Previous" up beside the progress bar too.
+        # (Already lifted by an earlier layout pass of this same step, e.g.
+        # a theme change re-render — keep it there.)
+        already_lifted = self.footer_layout.indexOf(self.btn_previous) != -1
+        previous_in_row = self.btn_layout.indexOf(self.btn_previous) != -1 and not self.btn_previous.isHidden()
+        lift_previous = already_lifted or (stacked and previous_in_row and buttons_width > full_width)
+        stacked = stacked or lift_previous
+        self._set_footer_stacked(stacked, lift_previous)
+        if lift_previous:
+            bar_width = full_width - self.footer_layout.horizontalSpacing() - self.btn_previous.sizeHint().width()
+        else:
+            bar_width = full_width if stacked else beside_buttons
+        self.progress_bar.setMaximumWidth(max(24, bar_width))
+
+    def _set_footer_stacked(self, stacked: bool, lift_previous: bool = False) -> None:
+        """Lays the footer out in one of three arrangements.
+
+        Arrangements:
+
+        - inline:  [progress bar][buttons]
+        - stacked: [progress bar] / [buttons]
+        - stacked + lifted: [progress bar][← Previous] / [other buttons]
+        """
+        newly_lifted = lift_previous and self.footer_layout.indexOf(self.btn_previous) == -1
+        if newly_lifted:
+            self.btn_layout.removeWidget(self.btn_previous)
+            self.footer_layout.addWidget(self.btn_previous, 0, 1)
+            self.btn_previous.show()  # re-parenting hides it until a deferred show; see _render_consent_options
+        if stacked == self._footer_stacked and not newly_lifted:
+            return
+        self._footer_stacked = stacked
+        self.footer_layout.removeWidget(self.progress_bar)
+        self.footer_layout.removeWidget(self.btn_container)
+        if stacked:
+            bar_span = 1 if lift_previous else 2
+            self.footer_layout.addWidget(self.progress_bar, 0, 0, 1, bar_span, Qt.AlignmentFlag.AlignVCenter)
+            self.footer_layout.addWidget(self.btn_container, 1, 0, 1, 2)
+        else:
+            self.footer_layout.addWidget(self.progress_bar, 0, 0, Qt.AlignmentFlag.AlignVCenter)
+            self.footer_layout.addWidget(self.btn_container, 0, 1)
+        self.footer_layout.activate()
