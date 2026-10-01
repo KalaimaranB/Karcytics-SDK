@@ -134,3 +134,19 @@ class TestAutosaveWorkflowsPreferencesPage:
         page._checkbox.setChecked(True)
 
         controller.set_enabled.assert_called_once_with(True)
+
+
+def test_dialog_exposes_stable_names_and_current_page_title_for_academy_courses(qapp):  # noqa: ARG001
+    from PyQt6.QtWidgets import QWidget
+
+    from karcytics_sdk.plugin.ui_preferences import PREFERENCES_DIALOG_OBJECT_NAME
+
+    dialog = SDKPreferencesDialog()
+    dialog.add_page("Theme", QWidget())
+    dialog.add_page("Workspace", QWidget())
+
+    assert dialog.objectName() == PREFERENCES_DIALOG_OBJECT_NAME
+    assert dialog.nav_list.objectName() == "PreferencesNavList"
+    assert dialog.current_page_title() == "Theme"
+    dialog.nav_list.setCurrentRow(1)
+    assert dialog.current_page_title() == "Workspace"

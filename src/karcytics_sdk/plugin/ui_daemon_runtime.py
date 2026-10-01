@@ -361,7 +361,31 @@ def _open_preferences(window: QMainWindow, client: Any) -> None:
     if hasattr(panel, "populate_preferences"):
         panel.populate_preferences(dialog)
 
+    _dock_left_if_academy_active(window, dialog)
     dialog.exec()
+
+
+def _dock_left_if_academy_active(window: QMainWindow, dialog: QWidget) -> None:
+    """Opens `dialog` against the window's left edge while an Academy course
+    is on screen, instead of centred.
+
+    Centred, it lands exactly where the overlay puts Cyto and the bubble for
+    a step with no in-window target — and the overlay (a child of the main
+    window) can't draw on top of a separate dialog, so a course walking the
+    user through this dialog would be unreadable. Docked left, the course's
+    guidance has the rest of the window beside it (see
+    AcademyStepDriver._find_in_other_windows).
+    """
+    from .tutorial_overlay import TutorialOverlay
+
+    if not any(o.isVisible() for o in window.findChildren(TutorialOverlay)):
+        return
+    dialog.adjustSize()
+    frame = window.frameGeometry()
+    margin = 40
+    x = frame.x() + margin
+    y = frame.y() + max(margin, (frame.height() - dialog.height()) // 2)
+    dialog.move(x, y)
 
 
 def _build_menu_bar(window: QMainWindow, logger: Any) -> None:

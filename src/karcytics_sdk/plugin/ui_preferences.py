@@ -23,6 +23,9 @@ if TYPE_CHECKING:
     from .autosave import WorkflowAutosaveController
 
 
+PREFERENCES_DIALOG_OBJECT_NAME = "PreferencesDialog"
+
+
 class SDKPreferencesDialog(QDialog):
     """A Preferences Dialog that plugins can extend.
 
@@ -36,6 +39,10 @@ class SDKPreferencesDialog(QDialog):
     def __init__(self, parent=None, client=None):
         super().__init__(parent)
         self.setWindowTitle("Preferences")
+        # Stable object names so an Academy course can find this dialog (and
+        # its pages) from the plugin process — see AcademyStepDriver's
+        # top-level-window target lookup.
+        self.setObjectName(PREFERENCES_DIALOG_OBJECT_NAME)
         self.setMinimumSize(600, 400)
         self.client = client
 
@@ -50,6 +57,7 @@ class SDKPreferencesDialog(QDialog):
 
         # Left panel: Navigation list
         self.nav_list = QListWidget()
+        self.nav_list.setObjectName("PreferencesNavList")
         self.nav_list.setFixedWidth(200)
         self.nav_list.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         main_layout.addWidget(self.nav_list)
@@ -76,6 +84,11 @@ class SDKPreferencesDialog(QDialog):
         main_layout.addWidget(right_container, stretch=1)
 
         self.nav_list.currentRowChanged.connect(self.stack.setCurrentIndex)
+
+    def current_page_title(self) -> str:
+        """The nav-list title of the page currently showing ("" if none)."""
+        item = self.nav_list.currentItem()
+        return item.text() if item is not None else ""
 
     def add_page(self, title: str, widget: QWidget):
         """Allow plugins to inject their own preference pages."""
@@ -230,6 +243,7 @@ class AutosaveWorkflowsPreferencesPage(QWidget):
         layout.addWidget(title_label)
 
         self._checkbox = QCheckBox("Autosave workflows every 15 minutes")
+        self._checkbox.setObjectName("AutosaveWorkflowsCheckbox")
         self._checkbox.setChecked(controller.enabled)
         self._checkbox.toggled.connect(controller.set_enabled)
         layout.addWidget(self._checkbox)

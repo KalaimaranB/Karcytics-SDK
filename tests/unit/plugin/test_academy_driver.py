@@ -643,3 +643,28 @@ class TestScrollTargetForwarding:
         overlay.wheelEvent(wheel_event)
 
         assert bar.value() != 0, "scrolling over the dimmed overlay must move the real sidebar"
+
+
+class TestTargetsInOtherWindows:
+    """A step can target a widget in a separate top-level window (e.g. the
+    SDK Preferences dialog) — it's found and mapped in so Cyto and the
+    bubble move out from behind that window.
+    """
+
+    def test_finds_visible_widget_in_another_top_level_window(self, bus, tmp_path):
+        course = Course(id="c1", title="T", steps=[InfoStep(id="s", text="x", target_widget_names=["NavInDialog"])])
+        driver, _manager, _banners = make_driver(course, bus, tmp_path)
+
+        dialog = QWidget()
+        dialog.setObjectName("SomeDialog")
+        nav = QWidget(dialog)
+        nav.setObjectName("NavInDialog")
+        dialog.show()
+        try:
+            # The containing window comes along too, so Cyto avoids all of it.
+            assert driver._find_in_other_windows("NavInDialog") == [nav, dialog]
+            assert driver._find_in_other_windows("SomeDialog") == [dialog]
+            dialog.hide()
+            assert driver._find_in_other_windows("NavInDialog") == []
+        finally:
+            dialog.close()
