@@ -51,6 +51,9 @@ class WorkflowAutosaveController(QObject):
 
     Call `notify_saved()` after any *manual* save so the countdown restarts
     from that point instead of firing again moments later.
+
+    Given `has_unsaved_changes`, a tick where it returns False does nothing
+    at all — no redundant save, no "unsaved" reminder.
     """
 
     def __init__(  # noqa: PLR0913 - a small DI-style constructor; each param is a distinct collaborator, not a group that bundles cleanly
@@ -62,11 +65,13 @@ class WorkflowAutosaveController(QObject):
         config: PreferenceManagerProtocol | None = None,
         interval_ms: int = DEFAULT_INTERVAL_MS,
         parent: QObject | None = None,
+        has_unsaved_changes: Callable[[], bool] | None = None,
     ) -> None:
         super().__init__(parent)
         self._plugin_id = plugin_id
         self._has_saved_once = has_saved_once
         self._save = save
+        self._has_unsaved_changes = has_unsaved_changes
         # Reuses the plugin's own PluginConfig instance for this plugin_id
         # (see PluginConfig.__new__) rather than risking a second, divergent
         # in-memory copy of the same JSON file.
@@ -104,6 +109,9 @@ class WorkflowAutosaveController(QObject):
     # ── Tick handling ───────────────────────────────────────────────
 
     def _on_tick(self) -> None:
+        # Nothing to save: neither re-write an identical file nor nag.
+        if self._has_unsaved_changes is not None and not self._has_unsaved_changes():
+            return
         if self.enabled and self._has_saved_once():
             try:
                 self._save(self._on_autosave_result)

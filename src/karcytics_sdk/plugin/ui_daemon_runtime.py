@@ -204,6 +204,9 @@ class ClosableMainWindow(QMainWindow):
         self._suppress_close_callback = False
         self._close_notified = False
         self._overlay: QWidget | None = None
+        # The hosted panel; if it has `confirm_close() -> bool`, a user
+        # close (not a Hub-requested one) only proceeds when it returns True.
+        self._close_guard: Any | None = None
 
     def close_without_notifying_hub(self) -> bool:
         """Close as a direct consequence of a Hub request, not a user action."""
@@ -227,6 +230,15 @@ class ClosableMainWindow(QMainWindow):
         self._sync_overlay_geometry()
 
     def closeEvent(self, event: Any) -> None:  # noqa: N802
+        # A user-initiated close asks the panel first (unsaved changes): a
+        # panel exposing `confirm_close() -> bool` can veto it. A close the
+        # Hub requested is never vetoed — it's already been answered "ok".
+        guard = getattr(self, "_close_guard", None)
+        if not self._suppress_close_callback and not self._close_notified and guard is not None:
+            confirm = getattr(guard, "confirm_close", None)
+            if callable(confirm) and not confirm():
+                event.ignore()
+                return
         # Qt doesn't delete a widget on close() by default, so a second
         # close() (e.g. the Hub's `exit` request racing a user click) would
         # otherwise fire closeEvent — and this callback — a second time for
@@ -985,6 +997,7 @@ def run(  # noqa: C901, PLR0913, PLR0915
 
     _wire_academy_menu(window, panel, logger)
     _wire_undo_menu(window, panel, logger)
+    window._close_guard = panel  # type: ignore[attr-defined]
     if on_panel_ready is not None:
         try:
             on_panel_ready(window, panel)

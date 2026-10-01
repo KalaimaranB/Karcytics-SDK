@@ -449,6 +449,7 @@ class PluginBase(QWidget):
         save: Callable[[Callable[[bool], None]], None],
         *,
         interval_ms: int | None = None,
+        has_unsaved_changes: Callable[[], bool] | None = None,
     ) -> WorkflowAutosaveController:
         """Opt this plugin into the SDK's shared workflow-autosave loop.
 
@@ -457,7 +458,8 @@ class PluginBase(QWidget):
         applies after that — it's what gives a workflow a name). `save`
         should perform a *quiet* save (no blocking dialogs — the controller
         shows its own toast) and call the callback it's given with whether
-        that save succeeded.
+        that save succeeded. `has_unsaved_changes`, if given, lets a tick
+        with nothing to save do nothing at all.
 
         Building the `WorkflowAutosaveController` here — rather than each
         plugin constructing one itself — is what makes `populate_preferences`
@@ -473,6 +475,7 @@ class PluginBase(QWidget):
             save,
             interval_ms=interval_ms if interval_ms is not None else DEFAULT_INTERVAL_MS,
             parent=self,
+            has_unsaved_changes=has_unsaved_changes,
         )
         self._workflow_autosave_controller = controller
         controller.start()

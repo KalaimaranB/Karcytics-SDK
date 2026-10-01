@@ -155,3 +155,37 @@ class TestLifecycle:
         controller.notify_saved()  # must not raise or start the timer
 
         assert controller._timer.isActive() is False
+
+
+class TestNothingToSave:
+    """`has_unsaved_changes` returning False makes a tick a no-op."""
+
+    def _make(self, config, dirty: bool, saves: list):
+        def save(on_done):
+            saves.append(True)
+            on_done(True)
+
+        return WorkflowAutosaveController(
+            "autosave_test_plugin",
+            lambda: True,
+            save,
+            config=config,
+            has_unsaved_changes=lambda: dirty,
+        )
+
+    def test_clean_workspace_neither_saves_nor_nags(self, config, qapp):  # noqa: ARG002
+        saves: list = []
+        controller = self._make(config, dirty=False, saves=saves)
+        controller.set_enabled(True)
+        with patch("karcytics_sdk.plugin.autosave.show_toast") as toast:
+            controller._on_tick()
+        assert saves == []
+        toast.assert_not_called()
+
+    def test_dirty_workspace_still_autosaves(self, config, qapp):  # noqa: ARG002
+        saves: list = []
+        controller = self._make(config, dirty=True, saves=saves)
+        controller.set_enabled(True)
+        with patch("karcytics_sdk.plugin.autosave.show_toast"):
+            controller._on_tick()
+        assert saves == [True]
