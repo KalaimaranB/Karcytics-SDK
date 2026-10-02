@@ -1,12 +1,8 @@
 """SOLID models and interfaces for the Karcytics Academy tutorial engine.
 
-Vendored from the Hub's `karcytics.core.models.tutorial_models` — these are
-pure dataclasses/interfaces with zero dependency on the Hub itself (only
-`abc`/`dataclasses`/`typing`), so a plugin building its own Academy course
-content can depend on this permanent, real copy directly rather than an
-unimportable Hub-internal path. Any plugin author writing course content
-imports from here; the Hub's own copy is the authoritative implementation
-these mirror.
+Originally vendored from the Hub; this is now the only copy. Pure
+dataclasses/interfaces with no dependency on the Hub (only
+`abc`/`dataclasses`/`typing`), so plugin course content imports from here.
 """
 
 from abc import ABC, abstractmethod
@@ -206,6 +202,86 @@ class ConsentStep(BaseStep):
     on_decline_step_id: str | None = None
 
 
+QUESTION_CHECK = "check"
+QUESTION_PREDICT = "predict"
+
+
+@dataclass
+class AnswerChoice:
+    """One answer to a `QuestionStep`.
+
+    `feedback` is shown when the learner picks this choice: for a wrong
+    choice it says *why* it's wrong (required for "check" questions), for a
+    correct one it can add a short confirmation.
+    """
+
+    text: str
+    correct: bool = False
+    feedback: str = ""
+
+
+@dataclass
+class QuestionStep(BaseStep):
+    """A question answered in Cyto's bubble; `text` is the question.
+
+    Two kinds:
+
+    - ``"check"`` (default): the learner must select the correct choice(s)
+      to continue. A wrong pick shows its feedback; after
+      `reveal_after_attempts` wrong tries the correct choice(s) are
+      outlined — they still have to select them.
+    - ``"predict"``: any answer is accepted and recorded under
+      `question_id`, so a later step can reveal it (``{answer:<id>}`` in a
+      step's text is replaced with the learner's choice, across courses).
+
+    `multi_select` makes it "select all that apply": correct only when the
+    selection is exactly the set of correct choices. `explanation` is shown
+    once answered, before Continue.
+    """
+
+    choices: list[AnswerChoice] = field(default_factory=list)
+    multi_select: bool = False
+    kind: str = QUESTION_CHECK
+    question_id: str = ""
+    explanation: str = ""
+    reveal_after_attempts: int = 2
+
+    def __post_init__(self) -> None:
+        """Rejects questions that can't be answered (or can't teach)."""
+        if self.kind not in (QUESTION_CHECK, QUESTION_PREDICT):
+            raise ValueError(f"{self.id}: kind must be 'check' or 'predict', got {self.kind!r}")
+        if len(self.choices) < 2:  # noqa: PLR2004
+            raise ValueError(f"{self.id}: a question needs at least 2 choices")
+        if self.kind == QUESTION_PREDICT:
+            if not self.question_id:
+                raise ValueError(f"{self.id}: a prediction needs a question_id to reveal it later")
+            return
+        n_correct = sum(c.correct for c in self.choices)
+        if self.multi_select and n_correct < 1:
+            raise ValueError(f"{self.id}: select-all question needs at least one correct choice")
+        if not self.multi_select and n_correct != 1:
+            raise ValueError(f"{self.id}: single-choice question needs exactly one correct choice")
+        missing = [c.text for c in self.choices if not c.correct and not c.feedback]
+        if missing:
+            raise ValueError(f"{self.id}: wrong choices need feedback explaining why: {missing}")
+
+    @property
+    def correct_indices(self) -> frozenset[int]:
+        """Indices of the correct choices (empty for a prediction)."""
+        return frozenset(i for i, c in enumerate(self.choices) if c.correct)
+
+    def is_correct(self, selected: set[int] | frozenset[int]) -> bool:
+        """Whether `selected` (choice indices) answers the question.
+
+        Any non-empty selection answers a prediction.
+        """
+        if not selected:
+            return False
+        if self.kind == QUESTION_PREDICT:
+            return True
+        return frozenset(selected) == self.correct_indices
+
+
 @dataclass
 class Course:
     """A collection of polymorphic steps representing a guided tutorial course."""
@@ -284,5 +360,9 @@ __all__ = [
     "SubplotCheckStep",
     "WaitForEventStep",
     "ConsentStep",
+    "QUESTION_CHECK",
+    "QUESTION_PREDICT",
+    "AnswerChoice",
+    "QuestionStep",
     "Course",
 ]
