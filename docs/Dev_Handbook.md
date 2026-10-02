@@ -78,7 +78,7 @@ class NormalizationState(PluginState):
 ### 2. The UI Controller (`PluginBase`)
 The primary UI widget class must subclass `PluginBase`. By inheriting from `PluginBase`, you automatically gain:
 *   **Automatic Theme Adaptation:** Refreshes and repaints stylesheets dynamically.
-*   **Undo/Redo History Checkpoints:** Just call `self.push_state()` after key user actions!
+*   **Undo/Redo History Checkpoints:** Call `self.push_state("Change Threshold")` after each completed user action. The history lives in your plugin's own process (`karcytics_sdk.plugin.UndoHistory`), and the isolated window's **Edit → Undo/Redo** (Cmd/Ctrl+Z, Cmd+Shift+Z / Ctrl+Y) are wired to it automatically. A plugin with its own state store can call `self.bind_undo_history(history, restore)` instead.
 *   **Decoupled Worker Factories:** Create non-blocking calculations via `self.create_worker()`.
 
 ```python

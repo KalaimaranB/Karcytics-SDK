@@ -204,6 +204,9 @@ class ClosableMainWindow(QMainWindow):
         self._suppress_close_callback = False
         self._close_notified = False
         self._overlay: QWidget | None = None
+        # The hosted panel; if it has `confirm_close() -> bool`, a user
+        # close (not a Hub-requested one) only proceeds when it returns True.
+        self._close_guard: Any | None = None
 
     def close_without_notifying_hub(self) -> bool:
         """Close as a direct consequence of a Hub request, not a user action."""
@@ -227,6 +230,15 @@ class ClosableMainWindow(QMainWindow):
         self._sync_overlay_geometry()
 
     def closeEvent(self, event: Any) -> None:  # noqa: N802
+        # A user-initiated close asks the panel first (unsaved changes): a
+        # panel exposing `confirm_close() -> bool` can veto it. A close the
+        # Hub requested is never vetoed — it's already been answered "ok".
+        guard = getattr(self, "_close_guard", None)
+        if not self._suppress_close_callback and not self._close_notified and guard is not None:
+            confirm = getattr(guard, "confirm_close", None)
+            if callable(confirm) and not confirm():
+                event.ignore()
+                return
         # Qt doesn't delete a widget on close() by default, so a second
         # close() (e.g. the Hub's `exit` request racing a user click) would
         # otherwise fire closeEvent — and this callback — a second time for
@@ -349,7 +361,31 @@ def _open_preferences(window: QMainWindow, client: Any) -> None:
     if hasattr(panel, "populate_preferences"):
         panel.populate_preferences(dialog)
 
+    _dock_left_if_academy_active(window, dialog)
     dialog.exec()
+
+
+def _dock_left_if_academy_active(window: QMainWindow, dialog: QWidget) -> None:
+    """Opens `dialog` against the window's left edge while an Academy course
+    is on screen, instead of centred.
+
+    Centred, it lands exactly where the overlay puts Cyto and the bubble for
+    a step with no in-window target — and the overlay (a child of the main
+    window) can't draw on top of a separate dialog, so a course walking the
+    user through this dialog would be unreadable. Docked left, the course's
+    guidance has the rest of the window beside it (see
+    AcademyStepDriver._find_in_other_windows).
+    """
+    from .tutorial_overlay import TutorialOverlay
+
+    if not any(o.isVisible() for o in window.findChildren(TutorialOverlay)):
+        return
+    dialog.adjustSize()
+    frame = window.frameGeometry()
+    margin = 40
+    x = frame.x() + margin
+    y = frame.y() + max(margin, (frame.height() - dialog.height()) // 2)
+    dialog.move(x, y)
 
 
 def _build_menu_bar(window: QMainWindow, logger: Any) -> None:
@@ -361,6 +397,18 @@ def _build_menu_bar(window: QMainWindow, logger: Any) -> None:
     close_action = QAction("&Close Window", window)
     close_action.triggered.connect(window.close)
     builder.add_file_menu([close_action])
+
+    # Edit -> Undo/Redo exist from the start (disabled) so the menu layout
+    # never shifts; _wire_undo_menu() connects them once the panel exists.
+    builder.add_edit_menu(
+        undo_cb=lambda: _step_undo(window, "undo"),
+        redo_cb=lambda: _step_undo(window, "redo"),
+    )
+    for action in (builder.undo_action, builder.redo_action):
+        if action is not None:
+            action.setEnabled(False)
+    window._undo_action = builder.undo_action  # type: ignore[attr-defined]
+    window._redo_action = builder.redo_action  # type: ignore[attr-defined]
 
     port = os.environ.get("KARCYTICS_CORE_SERVICES_PORT")
     token = os.environ.get("KARCYTICS_CORE_SERVICES_TOKEN")
@@ -404,6 +452,70 @@ def _build_menu_bar(window: QMainWindow, logger: Any) -> None:
         academy_action.setMenuRole(QAction.MenuRole.NoRole)
         help_menu.addAction(academy_action)
         window._academy_menu_action = academy_action  # type: ignore[attr-defined]
+
+
+def _focused_text_editor() -> Any | None:
+    """The focused widget if it has its own text undo stack, else None.
+
+    Qt normally lets a focused QLineEdit/QTextEdit claim Cmd/Ctrl+Z through
+    a ShortcutOverride event before any QAction sees it, but a menu-bar
+    action can still be triggered with the text field focused (clicking
+    Edit -> Undo, or a platform menu integration that bypasses the override).
+    Routing to the text field in that case keeps "undo my typing" from
+    unexpectedly reverting a workspace step instead.
+    """
+    from PyQt6.QtWidgets import QComboBox, QLineEdit, QPlainTextEdit, QTextEdit
+
+    widget = QApplication.focusWidget()
+    if isinstance(widget, QComboBox) and widget.isEditable():
+        return widget.lineEdit()
+    if isinstance(widget, QLineEdit) and not widget.isReadOnly():
+        return widget
+    if isinstance(widget, (QTextEdit, QPlainTextEdit)) and not widget.isReadOnly():
+        return widget
+    return None
+
+
+def _step_undo(window: QMainWindow, direction: str) -> None:
+    """Edit -> Undo/Redo: text field first, then the panel's own history."""
+    editor = _focused_text_editor()
+    if editor is not None:
+        getattr(editor, direction)()
+        return
+    target = getattr(window, "_undo_target", None)
+    if target is not None:
+        getattr(target, direction)()
+
+
+def _wire_undo_menu(window: QMainWindow, panel: QWidget, logger: Any) -> None:
+    """Connect Edit -> Undo/Redo (built by `_build_menu_bar`) to `panel`.
+
+    Any panel exposing `undo()`/`redo()`/`can_undo()`/`can_redo()` (every
+    `PluginBase` does) is wired; the actions' enabled state and text
+    ("Undo Delete Gate") follow its `undo_state_changed` signal.
+    """
+    undo_action = getattr(window, "_undo_action", None)
+    redo_action = getattr(window, "_redo_action", None)
+    if undo_action is None or redo_action is None:
+        return
+    if not all(callable(getattr(panel, name, None)) for name in ("undo", "redo", "can_undo", "can_redo")):
+        return
+
+    window._undo_target = panel  # type: ignore[attr-defined]
+
+    def _sync() -> None:
+        undo_action.setEnabled(bool(panel.can_undo()))  # type: ignore[attr-defined]
+        redo_action.setEnabled(bool(panel.can_redo()))  # type: ignore[attr-defined]
+        undo_text = getattr(panel, "undo_text", None)
+        redo_text = getattr(panel, "redo_text", None)
+        undo_action.setText(undo_text() if callable(undo_text) else "Undo")
+        redo_action.setText(redo_text() if callable(redo_text) else "Redo")
+
+    signal = getattr(panel, "undo_state_changed", None)
+    if signal is not None:
+        signal.connect(_sync)
+    _sync()
+    logger.debug("Undo menu wired.", extra={"log_event": "undo_menu_wired"})
 
 
 def _wire_academy_menu(window: QMainWindow, panel: QWidget, logger: Any) -> None:
@@ -908,6 +1020,8 @@ def run(  # noqa: C901, PLR0913, PLR0915
         panel.data_ready.connect(lambda: send_event("panel_data_ready", {}))
 
     _wire_academy_menu(window, panel, logger)
+    _wire_undo_menu(window, panel, logger)
+    window._close_guard = panel  # type: ignore[attr-defined]
     if on_panel_ready is not None:
         try:
             on_panel_ready(window, panel)

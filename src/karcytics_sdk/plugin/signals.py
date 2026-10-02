@@ -19,6 +19,8 @@ class PluginSignals(QObject):
         state_changed: Emitted when plugin state changes
         undo_available: Emitted with bool indicating if undo is available
         redo_available: Emitted with bool indicating if redo is available
+        undo_state_changed: Emitted after any change to the undo history —
+            availability, the undo/redo labels, or the clean (saved) state
         analysis_started: Emitted when analysis begins
         analysis_progress: Emitted with int (0-100) for progress
         analysis_complete: Emitted when analysis finishes
@@ -34,6 +36,7 @@ class PluginSignals(QObject):
     state_changed = pyqtSignal()  # Plugin state changed
     undo_available = pyqtSignal(bool)  # Whether undo is available
     redo_available = pyqtSignal(bool)  # Whether redo is available
+    undo_state_changed = pyqtSignal()  # Undo labels / availability / clean state changed
 
     # Analysis Results
     analysis_started = pyqtSignal()

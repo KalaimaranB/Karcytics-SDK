@@ -21,7 +21,7 @@ from collections.abc import Callable
 from typing import Any
 
 from PyQt6.QtCore import QObject, QRect, QTimer
-from PyQt6.QtWidgets import QScrollArea, QWidget
+from PyQt6.QtWidgets import QApplication, QScrollArea, QWidget
 
 from .academy import AcademyManager
 from .tutorial_models import (
@@ -455,9 +455,12 @@ class AcademyStepDriver(QObject):
                 if by_name:
                     targets.extend(by_name)
                 else:
-                    for w in self._search_root.findChildren(QWidget):
-                        if w.property("tutorial_id") == name and w.isVisible():
-                            targets.append(w)
+                    by_id = [
+                        w
+                        for w in self._search_root.findChildren(QWidget)
+                        if w.property("tutorial_id") == name and w.isVisible()
+                    ]
+                    targets.extend(by_id or self._find_in_other_windows(name))
         else:
             name = getattr(step, "target_widget_name", "")
             if name:
@@ -484,6 +487,30 @@ class AcademyStepDriver(QObject):
                 # widget that actually needs it.
                 scroll_target = scroll_area.viewport()
         self._overlay.set_scroll_target(scroll_target)
+
+    def _find_in_other_windows(self, name: str) -> list[QWidget]:
+        """Visible widgets named `name` in this process's *other* top-level
+        windows — e.g. the SDK Preferences dialog, a separate window parented
+        to the plugin's main window rather than living under `search_root`.
+
+        The overlay can't paint over another window, so such a target isn't
+        really spotlit — but mapping its rect in (via global coords, like any
+        other target) moves Cyto and the bubble out from behind it instead
+        of leaving them centred underneath where they can't be read. The
+        whole containing window is returned after the named widget(s) for
+        that reason: positioning only steers clear of target rects, so with
+        just (say) a nav list inside the dialog, Cyto would land right next
+        to it — still on top of the rest of the dialog.
+        """
+        own_window = self._search_root.window()
+        found: list[QWidget] = []
+        for top in QApplication.topLevelWidgets():
+            if top is own_window or not top.isVisible():
+                continue
+            matches = [w for w in top.findChildren(QWidget, name) if w.isVisible()]
+            if top.objectName() == name or matches:
+                found.extend([*matches, top])
+        return found
 
     def _collect_canvas_target_rects(self, step: Any) -> list[QRect]:
         """Duck-typed extension point, mirroring _apply_canvas_guide()'s

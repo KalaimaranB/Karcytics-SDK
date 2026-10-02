@@ -80,46 +80,63 @@ def test_plugin_event_bus():
 
 
 def test_plugin_undo_redo_history():
-    """Verify the history mechanisms (push, undo, redo, can_undo, can_redo)."""
+    """push_state records real, restorable steps in the plugin's own history."""
     plugin = MockPlugin(plugin_id="test_history")
-
-    # Mocking standard HistoryManager structures
-    mock_history = MagicMock()
-    mock_module_history = MagicMock()
-    mock_history.get_module_history.return_value = mock_module_history
-    plugin.history = mock_history
-
-    # Mock stack behaviors
-    mock_module_history.undo_stack = [1, 2]
-    mock_module_history.redo_stack = []
-
-    assert plugin.can_undo() is True
-    assert plugin.can_redo() is False
-
-    # Trigger state change
-    plugin.state.threshold = 0.95
-
-    # Set up signal spy
     spy = MagicMock()
     plugin.state_changed.connect(spy)
 
-    # Test Push State
-    plugin.push_state()
-    mock_history.get_module_history.assert_called_with("test_history")
-    mock_module_history.push.assert_called_once_with({"threshold": 0.95, "filter_type": "Gaussian", "heavy_data": None})
-    assert spy.call_count == 1
+    assert plugin.can_undo() is False
+    plugin.push_state()  # baseline
+    plugin.state.threshold = 0.95
+    plugin.push_state("Change threshold")
 
-    # Test Undo
-    mock_module_history.undo.return_value = {"threshold": 0.5, "filter_type": "Gaussian", "heavy_data": None}
-    plugin.undo()
+    assert plugin.can_undo() is True
+    assert plugin.can_redo() is False
+    assert plugin.undo_text() == "Undo Change threshold"
+
+    assert plugin.undo() is True
     assert plugin.state.threshold == 0.5
-    assert spy.call_count == 2
+    assert plugin.can_redo() is True
+    assert plugin.redo_text() == "Redo Change threshold"
 
-    # Test Redo
-    mock_module_history.redo.return_value = {"threshold": 0.95, "filter_type": "Gaussian", "heavy_data": None}
-    plugin.redo()
+    assert plugin.redo() is True
     assert plugin.state.threshold == 0.95
-    assert spy.call_count == 3
+    assert plugin.redo() is False
+    assert spy.call_count == 4  # two pushes, one undo, one redo
+
+
+def test_plugin_undo_restore_failure_keeps_history_consistent():
+    """A snapshot that fails to restore must not become the 'current' step."""
+    plugin = MockPlugin(plugin_id="test_history_fail")
+    plugin.push_state()
+    plugin.state.threshold = 0.95
+    plugin.push_state("Change threshold")
+
+    def _boom(_snapshot):
+        raise RuntimeError("restore failed")
+
+    plugin.bind_undo_history(plugin.undo_history, _boom)
+    assert plugin.undo() is False
+    assert plugin.can_undo() is True
+    assert plugin.can_redo() is False
+    assert plugin.undo_text() == "Undo Change threshold"
+
+
+def test_plugin_undo_signals_follow_history():
+    plugin = MockPlugin(plugin_id="test_history_signals")
+    undo_spy, redo_spy, changed_spy = MagicMock(), MagicMock(), MagicMock()
+    plugin.undo_available.connect(undo_spy)
+    plugin.redo_available.connect(redo_spy)
+    plugin.undo_state_changed.connect(changed_spy)
+
+    plugin.push_state()
+    plugin.state.threshold = 0.7
+    plugin.push_state("Edit")
+    assert undo_spy.call_args.args == (True,)
+    plugin.undo()
+    assert undo_spy.call_args.args == (False,)
+    assert redo_spy.call_args.args == (True,)
+    assert changed_spy.call_count >= 3
 
 
 @patch("karcytics_sdk.plugin.base.theme_manager")

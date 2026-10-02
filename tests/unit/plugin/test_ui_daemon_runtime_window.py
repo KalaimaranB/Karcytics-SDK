@@ -41,3 +41,46 @@ def test_programmatic_close_via_hub_request_skips_callback(qapp):  # noqa: ARG00
     window.close_without_notifying_hub()
 
     assert calls == []
+
+
+class _Guard:
+    def __init__(self, allow: bool) -> None:
+        self.allow = allow
+        self.asked = 0
+
+    def confirm_close(self) -> bool:
+        self.asked += 1
+        return self.allow
+
+
+def test_panel_can_veto_a_user_close(qapp):  # noqa: ARG001
+    """Unsaved changes + Cancel: the window stays open and the Hub isn't told."""
+    calls = []
+    window = ClosableMainWindow(on_close=lambda: calls.append(True))
+    window._close_guard = _Guard(allow=False)
+    window.show()
+
+    assert window.close() is False
+    assert window.isVisible()
+    assert calls == []
+
+    window._close_guard.allow = True
+    assert window.close() is True
+    assert calls == [True]
+
+
+def test_hub_requested_close_is_never_vetoed(qapp):  # noqa: ARG001
+    guard = _Guard(allow=False)
+    window = ClosableMainWindow(on_close=lambda: None)
+    window._close_guard = guard
+    window.show()
+
+    assert window.close_without_notifying_hub() is True
+    assert guard.asked == 0
+
+
+def test_panel_without_confirm_close_never_blocks(qapp):  # noqa: ARG001
+    window = ClosableMainWindow(on_close=lambda: None)
+    window._close_guard = object()
+    window.show()
+    assert window.close() is True
