@@ -89,6 +89,8 @@ class AcademyStepDriver(QObject):
         self._last_canvas_guide_active = False
         # In-window spotlights for targets in other windows (see _spotlight_rects).
         self._window_highlights: dict[QWidget, TutorialHighlight] = {}
+        # Step whose targets were last scrolled into view (see _update_targets).
+        self._revealed_step_id: str | None = None
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
@@ -471,6 +473,15 @@ class AcademyStepDriver(QObject):
                 if w and w.isVisible():
                     targets.append(w)
 
+        # A step's first tick with targets: scroll them into view. Otherwise one
+        # scrolled out of a sidebar is spotlit off-screen, Cyto and the bubble
+        # follow it there, and the learner sees only the dim. Once per step,
+        # so they can still scroll away afterwards. (Not before the targets
+        # exist: a popup the step points into may open a few ticks later.)
+        if targets and getattr(step, "id", None) != self._revealed_step_id:
+            self._revealed_step_id = getattr(step, "id", None)
+            _scroll_into_view(targets)
+
         rects = self._spotlight_rects(targets)
         rects.extend(self._collect_canvas_target_rects(step))
         self._overlay.set_targets(rects)
@@ -587,6 +598,16 @@ class AcademyStepDriver(QObject):
                 return parent
             parent = parent.parentWidget()
         return None
+
+
+def _scroll_into_view(widgets: list[QWidget]) -> None:
+    """Scrolls each widget's nearest `QScrollArea` so it shows — last
+    first, so when they don't all fit, the first-named one wins.
+    """
+    for w in reversed(widgets):
+        area = AcademyStepDriver._find_scroll_area_ancestor(w)
+        if area is not None:
+            area.ensureWidgetVisible(w, 0, 0)
 
 
 # ── Generic Academy launch — shared by any isolated plugin's own UI trigger ──

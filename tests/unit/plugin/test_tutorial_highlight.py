@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from PyQt6.QtCore import QRect
-from PyQt6.QtWidgets import QDialog, QPushButton, QWidget
+from PyQt6.QtWidgets import QDialog, QPushButton, QScrollArea, QWidget
 
 from karcytics_sdk.plugin.academy import AcademyManager
 from karcytics_sdk.plugin.academy_driver import AcademyStepDriver
@@ -97,3 +97,73 @@ def test_frames_expire_without_driver_refreshes(qtbot):
     qtbot.waitUntil(lambda: highlight.visible_count == 0, timeout=2000)
     host.close()
     host.deleteLater()
+
+
+def _scrolled_dialog(qtbot):
+    """A dialog whose target sits far down a scroll area, out of view."""
+    dialog = QDialog()
+    dialog.resize(300, 200)
+    area = QScrollArea(dialog)
+    area.setGeometry(0, 0, 300, 150)
+    content = QWidget()
+    content.resize(280, 1000)
+    target = QPushButton("Deep", content)
+    target.setObjectName("Deep")
+    target.setGeometry(10, 900, 100, 30)
+    area.setWidget(content)
+    footer = QPushButton("Close", dialog)
+    footer.setGeometry(200, 160, 80, 30)
+    dialog.show()
+    qtbot.addWidget(dialog)
+    return dialog, area, target
+
+
+def test_scrolled_out_target_gets_no_frame(qtbot):
+    dialog, _area, target = _scrolled_dialog(qtbot)
+    highlight = TutorialHighlight(dialog)
+    highlight.show_on([target])
+    assert highlight.visible_count == 0
+
+
+def test_dialog_target_is_scrolled_into_view_once_per_step(tmp_path):
+    driver, manager, _overlay, root, dialog = make(tmp_path, "Deep")
+    area = QScrollArea(dialog)
+    area.setGeometry(0, 0, 300, 150)
+    content = QWidget()
+    content.resize(280, 1000)
+    target = QPushButton("Deep", content)
+    target.setObjectName("Deep")
+    target.setGeometry(10, 900, 100, 30)
+    area.setWidget(content)
+    area.show()
+    try:
+        driver._update_targets(manager.current_step)
+        assert area.verticalScrollBar().value() > 0
+        assert driver._window_highlights[dialog].visible_count == 1
+
+        # The learner scrolls away; later ticks of the same step leave it.
+        area.verticalScrollBar().setValue(0)
+        driver._update_targets(manager.current_step)
+        assert area.verticalScrollBar().value() == 0
+        assert driver._window_highlights[dialog].visible_count == 0
+    finally:
+        teardown(driver, root, dialog)
+
+
+def test_panel_target_scrolled_out_of_a_sidebar_is_scrolled_into_view(tmp_path):
+    driver, manager, overlay, root, dialog = make(tmp_path, "Deep")
+    area = QScrollArea(root)
+    area.setGeometry(0, 100, 300, 150)
+    content = QWidget()
+    content.resize(280, 1000)
+    target = QPushButton("Deep", content)
+    target.setObjectName("Deep")
+    target.setGeometry(10, 900, 100, 30)
+    area.setWidget(content)
+    area.show()
+    try:
+        driver._update_targets(manager.current_step)
+        (rect,) = overlay.target_rects
+        assert overlay.rect().contains(rect)
+    finally:
+        teardown(driver, root, dialog)

@@ -21,6 +21,17 @@ _EXPIRE_MS = 400
 _PAD = 3
 
 
+def _visible_rect(widget: QWidget) -> QRect:
+    """`widget`'s own rect clipped by every ancestor (e.g. a scroll viewport)."""
+    rect = widget.rect()
+    child, parent = widget, widget.parentWidget()
+    while parent is not None and not child.isWindow():
+        offset = widget.mapTo(parent, QPoint(0, 0))
+        rect = rect.intersected(parent.rect().translated(-offset))
+        child, parent = parent, parent.parentWidget()
+    return rect
+
+
 class TutorialHighlight:
     """Accent frames over widgets inside `host` (a top-level window)."""
 
@@ -36,15 +47,21 @@ class TutorialHighlight:
         return sum(1 for f in self._frames if f.isVisible())
 
     def show_on(self, widgets: list[QWidget]) -> None:
-        """Frames exactly `widgets` (descendants of `host`); hides the rest."""
-        while len(self._frames) < len(widgets):
+        """Frames exactly `widgets` (descendants of `host`); hides the rest.
+
+        Only the part of each widget that's actually on screen is framed —
+        one scrolled out of its scroll area gets no frame, rather than one
+        drawn over whatever sits where it would be (a dialog's buttons).
+        """
+        shown = [(w, r) for w in widgets if not (r := _visible_rect(w)).isEmpty()]
+        while len(self._frames) < len(shown):
             self._frames.append(self._new_frame())
-        for frame, widget in zip(self._frames, widgets, strict=False):
-            top_left = widget.mapTo(self.host, QPoint(0, 0))
-            frame.setGeometry(QRect(top_left, widget.size()).adjusted(-_PAD, -_PAD, _PAD, _PAD))
+        for frame, (widget, rect) in zip(self._frames, shown, strict=False):
+            top_left = widget.mapTo(self.host, rect.topLeft())
+            frame.setGeometry(QRect(top_left, rect.size()).adjusted(-_PAD, -_PAD, _PAD, _PAD))
             frame.show()
             frame.raise_()
-        for frame in self._frames[len(widgets) :]:
+        for frame in self._frames[len(shown) :]:
             frame.hide()
         self._expiry.start(_EXPIRE_MS)
 

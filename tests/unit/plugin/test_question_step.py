@@ -270,3 +270,20 @@ class TestOverlay:
         assert footer_button(overlay).text() == "Let's find out →"
         footer_button(overlay).click()
         assert manager.recorded_answer("c1_mystery") == "Spleen"
+
+    def test_long_explanation_fits_in_the_bubble(self, tmp_path, qtbot):
+        step = dead_cells()
+        step.explanation = " ".join(["Damaged membranes let PI in, so dead cells glow."] * 3)
+        overlay, _ = overlay_for(tmp_path, step)
+        overlay.parentWidget().show()
+        qtbot.wait(50)  # showing re-renders the step
+        panel = overlay.question_panel
+        panel.rows[0].indicator.click()
+        footer_button(overlay).click()  # a short "wrong" line first…
+        qtbot.wait(50)
+        panel.rows[1].indicator.click()
+        footer_button(overlay).click()  # …then the long explanation replaces it
+        qtbot.wait(50)  # the deferred re-fit
+        assert panel.feedback.height() >= panel.feedback.heightForWidth(panel.feedback.width())
+        assert panel.height() >= panel.sizeHint().height()
+        overlay.parentWidget().close()

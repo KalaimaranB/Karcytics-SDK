@@ -1271,7 +1271,16 @@ class TutorialOverlay(QWidget):
         panel.content_changed.connect(self._on_question_content_changed)
 
     def _on_question_content_changed(self) -> None:
-        """Feedback appeared or grew: re-fit the bubble and re-punch the mask."""
+        """Feedback appeared or grew: re-fit the bubble and re-punch the mask.
+
+        Once now and once on the next event-loop turn: the panel's own layout
+        only settles after its pending LayoutRequest, and fitting to the stale
+        size hint squeezes the choices and clips the explanation's last lines.
+        """
+        self._refit_for_question()
+        QTimer.singleShot(0, self._refit_for_question)
+
+    def _refit_for_question(self) -> None:
         if not self._is_alive():
             return
         self._force_resize()
@@ -1442,6 +1451,9 @@ class TutorialOverlay(QWidget):
         while self.dynamic_content.count():
             item = self.dynamic_content.takeAt(0)
             if item.widget():
+                # Hidden now; deleteLater() waits for the event loop to come
+                # back round, and until then it would still paint in the bubble.
+                item.widget().hide()
                 item.widget().deleteLater()
 
     def _force_resize(self) -> None:
