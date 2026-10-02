@@ -21,15 +21,26 @@ string directly as its topic key.
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 from .io import load_json, save_json
-from .tutorial_models import BaseStep, Course, ForcedInteractionStep, WaitForEventStep
+from .tutorial_models import (
+    QUESTION_CHECK,
+    BaseStep,
+    Course,
+    ForcedInteractionStep,
+    QuestionStep,
+    WaitForEventStep,
+)
 
 logger = logging.getLogger(__name__)
+
+# `{answer:<question_id>}` in a step's text → the learner's recorded answer.
+_ANSWER_PLACEHOLDER = re.compile(r"\{answer:([A-Za-z0-9_.-]+)\}")
 
 # Canonical topic names. These match the Hub's `KarcyticsEvent` enum member
 # names exactly (see `karcytics.core.event_bus`) so a Hub-side event bus
@@ -90,6 +101,13 @@ class AcademyManager:
         self.completed_courses: list[str] = []
         self.badges: list[dict[str, Any]] = []
         self.prerequisites_met: dict[str, str] = {}  # course_id -> workflow_hash
+        # course_id -> question_id -> {"choices": [...], "attempts": n, "correct": bool}.
+        # Local only (progress.json); lets a later step — even in a later
+        # course — reveal a prediction the learner made.
+        self.answers: dict[str, dict[str, dict[str, Any]]] = {}
+        # Whether the live QuestionStep has been answered (correctly, for a
+        # "check" question); next_step() won't leave it otherwise.
+        self._question_answered = False
 
         # State tracking
         self.active_course: Course | None = None
@@ -121,6 +139,7 @@ class AcademyManager:
         self.completed_courses = data.get("completed_courses", [])
         self.badges = data.get("badges", [])
         self.prerequisites_met = data.get("prerequisites_met", {})
+        self.answers = data.get("answers", {})
 
     def _save_progress(self) -> None:
         """Saves current progress to disk."""
@@ -128,6 +147,7 @@ class AcademyManager:
             "completed_courses": self.completed_courses,
             "badges": self.badges,
             "prerequisites_met": self.prerequisites_met,
+            "answers": self.answers,
         }
         try:
             save_json(str(self.progress_file), data)
@@ -167,6 +187,7 @@ class AcademyManager:
 
                     if course.steps:
                         self.current_step = course.steps[0]
+                        self._question_answered = False
                         self.active_subtask_progress = {}
                         # Subscribe immediately if the first step is a WaitForEventStep
                         if isinstance(self.current_step, WaitForEventStep):
@@ -202,6 +223,10 @@ class AcademyManager:
                 logger.warning("Cannot advance: not all sub-tasks completed.")
                 return
 
+        if isinstance(self.current_step, QuestionStep) and not self._question_answered:
+            logger.warning("Cannot advance: question not answered yet.")
+            return
+
         if isinstance(self.current_step, WaitForEventStep) and not _internal_force and specific_step_id is None:
             logger.warning(f"Cannot advance: waiting for event {self.current_step.event_name}")
             return
@@ -222,6 +247,7 @@ class AcademyManager:
             self.abandon_course()
             return
 
+        self._question_answered = False
         if next_id and next_id != "__complete__":
             self.current_step = self.active_course.get_step(next_id) if self.active_course else None
             if self.current_step:
@@ -236,6 +262,46 @@ class AcademyManager:
             self.complete_course()
             self.current_step = None
             self._emit_step_changed()
+
+    # ── Questions ──────────────────────────────────────────────────────────
+
+    def record_answer(self, selected: list[int], attempts: int) -> bool:
+        """Records the learner's answer to the live `QuestionStep`.
+
+        Returns whether it answers the question (any selection answers a
+        prediction). Only a correct answer unlocks `next_step()`; every
+        answer is saved, so attempts count how many tries it took.
+        """
+        step = self.current_step
+        if not self.active_course or not isinstance(step, QuestionStep) or self.is_reviewing:
+            return False
+        correct = step.is_correct(set(selected))
+        if correct:
+            self._question_answered = True
+        if step.question_id:
+            self.answers.setdefault(self.active_course.id, {})[step.question_id] = {
+                "choices": [step.choices[i].text for i in sorted(selected)],
+                "attempts": attempts,
+                "correct": correct if step.kind == QUESTION_CHECK else None,
+            }
+            self._save_progress()
+        return correct
+
+    def recorded_answer(self, question_id: str) -> str | None:
+        """The learner's recorded answer to `question_id`, from any course."""
+        for per_course in self.answers.values():
+            entry = per_course.get(question_id)
+            if entry and entry.get("choices"):
+                return " / ".join(entry["choices"])
+        return None
+
+    def format_step_text(self, text: str) -> str:
+        """Replaces each `{answer:<question_id>}` with the recorded answer.
+
+        An unanswered placeholder becomes "(not answered)" rather than
+        leaking the raw placeholder into the bubble.
+        """
+        return _ANSWER_PLACEHOLDER.sub(lambda m: self.recorded_answer(m.group(1)) or "(not answered)", text)
 
     def complete_subtask(self, subtask_id: str) -> None:
         """Marks a sub-task as complete for the current step."""

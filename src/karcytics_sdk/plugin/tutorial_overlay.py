@@ -41,6 +41,7 @@ from .academy import (
 from .cyto_character import CytoWidget
 from .dialogs import ask_yes_no
 from .draggable import DraggableMixin
+from .question_panel import QuestionPanel
 from .theme_fallback import Colors, theme_manager
 from .tutorial_models import (
     BaseStep,
@@ -49,6 +50,7 @@ from .tutorial_models import (
     ForcedInteractionStep,
     InfoStep,
     InteractionStep,
+    QuestionStep,
     SubplotCheckStep,
     VerificationStep,
     WaitForEventStep,
@@ -137,6 +139,8 @@ class TutorialOverlay(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_NoSystemBackground, True)
 
         self.target_rects: list[QRect] = []
+        # The live QuestionStep's answer panel, if any (see _render_question).
+        self.question_panel: QuestionPanel | None = None
         # The widget a step's allow_scroll=True should forward wheel events
         # to (see set_scroll_target()/wheelEvent()) — set by AcademyStepDriver
         # from the ancestor QScrollArea of the step's own target widget(s),
@@ -442,6 +446,10 @@ class TutorialOverlay(QWidget):
             self.cyto.apply_theme()
 
     def _update_text_rendering(self, text: str) -> None:
+        # `{answer:<id>}` placeholders → the learner's recorded answers.
+        format_text = getattr(self._academy_manager, "format_step_text", None)
+        if callable(format_text):
+            text = format_text(text)
         import re
 
         # Replace newlines with <br>
@@ -665,6 +673,10 @@ class TutorialOverlay(QWidget):
         elif isinstance(step, ForcedInteractionStep):
             self.btn_next.hide()
             self._render_checklist(step)
+
+        elif isinstance(step, QuestionStep):
+            self.btn_next.hide()
+            self._render_question(step)
 
         elif isinstance(step, SubplotCheckStep):
             self.btn_next.show()
@@ -1223,6 +1235,50 @@ class TutorialOverlay(QWidget):
         if remaining_count == 0 and not getattr(self.current_step, "auto_advance_when_complete", False):
             self.btn_next.show()
 
+    def _render_question(self, step: QuestionStep) -> None:
+        """Choices in the bubble; Check in the footer, then Continue once answered."""
+        manager = self._academy_manager
+        panel = QuestionPanel(
+            step,
+            check=lambda selection, attempts: manager.record_answer(selection, attempts),
+            width=CONTENT_WIDTH,
+        )
+        self.question_panel = panel
+        self.dynamic_content.addWidget(panel)
+
+        self._clear_buttons()
+        self.btn_layout.addStretch()
+        self.btn_layout.addWidget(self.btn_previous)
+        self._show_previous_button()
+        btn_check = QPushButton("Check answer")
+        btn_check.setObjectName("QuestionCheckButton")
+        theme_manager.apply_style(
+            btn_check,
+            "background-color: {ACCENT_PRIMARY}; color: white; border: none; border-radius: 4px; padding: 6px 12px; font-weight: bold;",
+        )
+        btn_check.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_check.clicked.connect(panel.submit)
+        self.btn_layout.addWidget(btn_check)
+        btn_check.show()  # see _render_consent_options
+
+        def _on_answered() -> None:
+            btn_check.clicked.disconnect()
+            btn_check.setObjectName("QuestionContinueButton")
+            btn_check.setText("Let's find out →" if step.kind == "predict" else "Continue →")
+            btn_check.clicked.connect(lambda _checked=False: manager.next_step())
+
+        panel.answered.connect(_on_answered)
+        panel.content_changed.connect(self._on_question_content_changed)
+
+    def _on_question_content_changed(self) -> None:
+        """Feedback appeared or grew: re-fit the bubble and re-punch the mask."""
+        if not self._is_alive():
+            return
+        self._force_resize()
+        if not self._user_positioned:
+            self._reposition_cyto_and_bubble(getattr(self, "target_rects", []))
+        self._update_mask()
+
     def _render_branching_options(self, options: dict) -> None:
         """Render branching-option buttons that advance to their selected tutorial steps.
 
@@ -1379,6 +1435,7 @@ class TutorialOverlay(QWidget):
         self._update_mask()
 
     def _clear_dynamic_content(self) -> None:
+        self.question_panel = None
         # Stop any running WaitForEventStep pulse timer
         if hasattr(self, "_wait_pulse_timer") and self._wait_pulse_timer.isActive():
             self._wait_pulse_timer.stop()
