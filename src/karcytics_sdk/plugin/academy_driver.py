@@ -24,6 +24,7 @@ from PyQt6.QtCore import QObject, QRect, QTimer
 from PyQt6.QtWidgets import QApplication, QScrollArea, QWidget
 
 from .academy import AcademyManager
+from .tutorial_highlight import TutorialHighlight
 from .tutorial_models import (
     ActionStep,
     BranchingStep,
@@ -86,6 +87,10 @@ class AcademyStepDriver(QObject):
         self._failure_hint_shown = False
         self._was_reviewing = False
         self._last_canvas_guide_active = False
+        # In-window spotlights for targets in other windows (see _spotlight_rects).
+        self._window_highlights: dict[QWidget, TutorialHighlight] = {}
+        # Step whose targets were last scrolled into view (see _update_targets).
+        self._revealed_step_id: str | None = None
 
         self._timer = QTimer(self)
         self._timer.timeout.connect(self._tick)
@@ -468,11 +473,16 @@ class AcademyStepDriver(QObject):
                 if w and w.isVisible():
                     targets.append(w)
 
-        rects = []
-        for w in targets:
-            global_pos = w.mapToGlobal(w.rect().topLeft())
-            local_pos = self._overlay.mapFromGlobal(global_pos)
-            rects.append(QRect(local_pos, w.size()))
+        # A step's first tick with targets: scroll them into view. Otherwise one
+        # scrolled out of a sidebar is spotlit off-screen, Cyto and the bubble
+        # follow it there, and the learner sees only the dim. Once per step,
+        # so they can still scroll away afterwards. (Not before the targets
+        # exist: a popup the step points into may open a few ticks later.)
+        if targets and getattr(step, "id", None) != self._revealed_step_id:
+            self._revealed_step_id = getattr(step, "id", None)
+            _scroll_into_view(targets)
+
+        rects = self._spotlight_rects(targets)
         rects.extend(self._collect_canvas_target_rects(step))
         self._overlay.set_targets(rects)
 
@@ -487,6 +497,47 @@ class AcademyStepDriver(QObject):
                 # widget that actually needs it.
                 scroll_target = scroll_area.viewport()
         self._overlay.set_scroll_target(scroll_target)
+
+    def _spotlight_rects(self, targets: list[QWidget]) -> list[QRect]:
+        """Overlay rects for `targets`; targets in other windows are framed there.
+
+        A target in the overlay's own window gets a spotlight hole as usual.
+        One inside another window — a dialog or popup, even one parented to
+        the panel (so `findChildren()` finds it) — would otherwise be
+        spotlit on the main window *underneath* that window. Those are framed
+        inside their own window by a `TutorialHighlight` instead, and that
+        window's frame becomes the overlay rect, so Cyto and the bubble steer
+        clear of the whole window rather than sitting behind it.
+        """
+        from PyQt6 import sip
+
+        # Forget windows that have since been destroyed (a closed dialog).
+        self._window_highlights = {w: h for w, h in self._window_highlights.items() if not sip.isdeleted(w)}
+        own_window = self._overlay.window()
+        rects: list[QRect] = []
+        elsewhere: dict[QWidget, list[QWidget]] = {}
+        for w in targets:
+            window = w.window()
+            if window is None or window is own_window:
+                local_pos = self._overlay.mapFromGlobal(w.mapToGlobal(w.rect().topLeft()))
+                rects.append(QRect(local_pos, w.size()))
+            else:
+                inner = elsewhere.setdefault(window, [])
+                if w is not window and w not in inner:
+                    inner.append(w)
+
+        for window, widgets in elsewhere.items():
+            highlight = self._window_highlights.get(window)
+            if highlight is None:
+                highlight = TutorialHighlight(window)
+                self._window_highlights[window] = highlight
+            highlight.show_on(widgets)
+            frame = window.frameGeometry()
+            rects.append(QRect(self._overlay.mapFromGlobal(frame.topLeft()), frame.size()))
+        for window, highlight in self._window_highlights.items():
+            if window not in elsewhere:
+                highlight.clear()
+        return rects
 
     def _find_in_other_windows(self, name: str) -> list[QWidget]:
         """Visible widgets named `name` in this process's *other* top-level
@@ -547,6 +598,16 @@ class AcademyStepDriver(QObject):
                 return parent
             parent = parent.parentWidget()
         return None
+
+
+def _scroll_into_view(widgets: list[QWidget]) -> None:
+    """Scrolls each widget's nearest `QScrollArea` so it shows — last
+    first, so when they don't all fit, the first-named one wins.
+    """
+    for w in reversed(widgets):
+        area = AcademyStepDriver._find_scroll_area_ancestor(w)
+        if area is not None:
+            area.ensureWidgetVisible(w, 0, 0)
 
 
 # ── Generic Academy launch — shared by any isolated plugin's own UI trigger ──

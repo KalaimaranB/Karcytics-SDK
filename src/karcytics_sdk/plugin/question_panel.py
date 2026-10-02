@@ -47,6 +47,16 @@ _REVEAL_NOTE = "The outlined answer is correct — select it to continue."
 _MULTI_MISSING = "Not quite — at least one correct answer is still unselected."
 
 
+def _claim_wrapped_height(label: QLabel, width: int) -> None:
+    """Makes a word-wrapped label ask for all its lines at `width`.
+
+    A wrapped QLabel's sizeHint() assumes its own preferred width, not the
+    fixed one it's given here, and the bubble is sized from sizeHint() — so
+    the last line or two (a long explanation) would be clipped.
+    """
+    label.setMinimumHeight(label.heightForWidth(width))
+
+
 class _ChoiceRow(QFrame):
     """One answer: an indicator plus a word-wrapped label; the whole row clicks."""
 
@@ -65,6 +75,7 @@ class _ChoiceRow(QFrame):
         row.addWidget(self.label, 1)
         self.setFixedWidth(width)
         theme_manager.apply_style(self, _ROW_QSS)
+        _claim_wrapped_height(self.label, width - 20 - 8 - indicator.sizeHint().width())
 
     def mousePressEvent(self, event) -> None:  # noqa: N802
         if self.indicator.isEnabled():
@@ -205,6 +216,7 @@ class QuestionPanel(QWidget):
 
     def _show_feedback(self, text: str, state: str) -> None:
         self.feedback.setText(text)
+        _claim_wrapped_height(self.feedback, self.feedback.width())
         self.feedback.setProperty("state", state)
         style = self.feedback.style()
         if style is not None:
