@@ -193,6 +193,13 @@ _FUNCTIONAL_RULES = [
         "No AnalysisBase subclass",
         "Put computation in a karcytics_sdk.plugin.AnalysisBase subclass under analysis/.",
     ),
+    (
+        "KS270",
+        _W,
+        "Test builds the plugin panel without destroying it",
+        "Destroy it when the test ends: `qtbot.addWidget(panel)`, or `panel.deleteLater()` in a fixture's "
+        "teardown. A panel left to the garbage collector makes unrelated tests fail intermittently.",
+    ),
 ]
 
 RULES: dict[str, Rule] = {

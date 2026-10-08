@@ -17,6 +17,7 @@ from . import catalog
 from .model import Finding, Severity
 from .registry import make_finding
 from .repo import RepoLayout
+from .test_rules import run_test_rules
 
 # 6- or 8-digit hex colours only: 3-digit forms collide with "#123"-style
 # issue references in ordinary text.
@@ -64,6 +65,7 @@ class _FileChecker(ast.NodeVisitor):
         self.zone = zone
         self.findings: list[Finding] = []
         self.sdk_bases_seen: set[str] = set()
+        self.panel_classes: set[str] = set()
         self._names = _collect_imports(tree)
         self._docstrings = _docstring_nodes(tree)
         self._colour_lines: set[int] = set()
@@ -128,6 +130,8 @@ class _FileChecker(ast.NodeVisitor):
         name = dotted.rsplit(".", 1)[-1]
         if dotted.startswith(catalog.SDK_PACKAGE) and name in _SDK_BASES:
             self.sdk_bases_seen.add(name)
+            if name == "PluginBase":
+                self.panel_classes.add(node.name)
         if not self._is_qt(dotted):
             return
         if name in catalog.WIDGET_EQUIVALENTS:
@@ -220,13 +224,17 @@ def _check_file(layout: RepoLayout, path: Path) -> _FileChecker | Finding:
 def run_functional_rules(layout: RepoLayout) -> Iterator[Finding]:
     """Yield every functional finding for the repo's source files."""
     sdk_bases_seen: set[str] = set()
+    panel_classes: set[str] = set()
     for path in layout.source_files:
         result = _check_file(layout, path)
         if isinstance(result, Finding):
             yield result
             continue
         sdk_bases_seen |= result.sdk_bases_seen
+        panel_classes |= result.panel_classes
         yield from result.findings
+
+    yield from run_test_rules(layout, panel_classes)
 
     # Repo-level expectations only make sense for an actual plugin package.
     if layout.package_dir and layout.source_files:

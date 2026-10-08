@@ -231,3 +231,36 @@ def test_non_plugin_repo_still_gets_functional_checks(tmp_path):
     report = evaluate_repo(tmp_path, modes=[Mode.FUNCTIONAL])
     assert [(f.rule_id, f.path) for f in report.findings] == [("KS210", "app/main.py")]
     assert report.plugin_id is None
+
+
+TEST_FILE = "tests/unit/test_panel.py"
+PANEL_IMPORT = "from karcytics_plugins.demo.ui.panel import Panel\n\n\n"
+
+
+def _test_file(repo, source: str):
+    repo.write(TEST_FILE, source)
+    return [(f.rule_id, f.line) for f in _findings(repo, TEST_FILE)]
+
+
+def test_test_that_drops_the_panel_is_flagged(repo):
+    source = (
+        PANEL_IMPORT + "def test_direct():\n    panel = Panel()\n    assert panel\n\n\n"
+        "def test_factory(plugin):\n    assert plugin.create_panel()\n"
+    )
+    assert _test_file(repo, source) == [("KS270", 5), ("KS270", 10)]
+
+
+def test_test_that_destroys_or_hands_over_the_panel_is_not_flagged(repo):
+    source = (
+        PANEL_IMPORT + "def test_qtbot(qtbot):\n    panel = Panel()\n    qtbot.addWidget(panel)\n\n\n"
+        "def test_handed_over(destroy_after, plugin):\n    panel = destroy_after(plugin.create_panel())\n\n\n"
+        "def panel_fixture():\n    panel = Panel()\n    yield panel\n    panel.deleteLater()\n\n\n"
+        "def test_shiboken():\n    import shiboken6\n\n    panel = Panel()\n    shiboken6.delete(panel)\n\n\n"
+        "def test_other_widget():\n    assert Helper()\n"
+    )
+    assert _test_file(repo, source) == []
+
+
+def test_nested_function_is_judged_on_its_own(repo):
+    source = PANEL_IMPORT + "def test_outer():\n    def build():\n        return Panel()\n\n    build().deleteLater()\n"
+    assert _test_file(repo, source) == [("KS270", 6)]

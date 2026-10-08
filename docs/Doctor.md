@@ -40,6 +40,8 @@ Colour is used when writing to a terminal and switched off when piped, with `--n
 
 Files under `analysis/` and `ui/` are treated differently where it matters: Qt is an error in `analysis/`, hard-coded colours are only checked outside it, and plain Python threads are info in `analysis/` (which cannot use Qt's) but a warning elsewhere.
 
+The files under `tests/` are read for one rule only, `KS270`. It reports a test or fixture that builds the plugin's panel (a `PluginBase` subclass, or `create_panel()`) without passing it to anything or calling `deleteLater()`, `qtbot.addWidget()` or `shiboken6.delete()`. It recognises that shape, not the leak itself: Python then garbage-collects the panel's wrappers while Qt still owns the widgets, and an unrelated test fails at random.
+
 Names are resolved through each file's imports, so aliased and module-qualified uses (`QtWidgets.QPushButton(...)`) are found, and a local class that merely shares a Qt name is not.
 
 ## Organizational rules
@@ -95,11 +97,12 @@ Names are resolved through each file's imports, so aliased and module-qualified 
 | `KS252` | warning | print() call | Use karcytics_sdk.plugin.get_logger(__name__) instead of print(). |
 | `KS260` | warning | No PluginBase subclass | The plugin's main panel should subclass karcytics_sdk.plugin.PluginBase. |
 | `KS261` | info | No AnalysisBase subclass | Put computation in a karcytics_sdk.plugin.AnalysisBase subclass under analysis/. |
+| `KS270` | warning | Test builds the plugin panel without destroying it | Destroy it when the test ends: `qtbot.addWidget(panel)`, or `panel.deleteLater()` in a fixture's teardown. A panel left to the garbage collector makes unrelated tests fail intermittently. |
 
 A Qt widget is only flagged when the SDK has a real replacement. `QCheckBox`, for example, has none and is never reported. The full mapping lives in `karcytics_sdk/evaluator/catalog.py`; add a row there when the SDK gains a component.
 
 ## Adding a rule
 
 1. Declare it in `evaluator/registry.py` (id, severity, title, default fix).
-2. Emit it with `make_finding(...)` from a check in `org_rules.py` or from `_FileChecker` in `functional_rules.py`.
+2. Emit it with `make_finding(...)` from a check in `org_rules.py` or from `_FileChecker` in `functional_rules.py` (`test_rules.py` for a check over the repo's tests).
 3. Add a test under `tests/unit/evaluator/` and a row to the table above (a test fails if a rule is missing from this page).
