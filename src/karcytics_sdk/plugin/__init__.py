@@ -79,7 +79,7 @@ from .runtime_services import (
     task_scheduler,
     tutorial_manager,
 )
-from .signals import PluginSignals
+from .signals import PluginSignals, safe_disconnect
 from .state import PluginState
 from .toast import (
     STYLE_ERROR,
@@ -113,6 +113,7 @@ __all__ = [
     "PluginDaemon",
     "PluginUIDaemon",
     "PluginSignals",
+    "safe_disconnect",
     "PluginState",
     "ClosableMainWindow",
     "RequestDispatcher",

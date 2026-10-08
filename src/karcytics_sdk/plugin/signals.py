@@ -4,7 +4,34 @@ This module defines all standard PySide6 signals that plugins should emit
 to communicate state changes and results to the Karcytics core application.
 """
 
+import warnings
+from collections.abc import Callable
+from typing import Any
+
 from PySide6.QtCore import QObject, Signal
+
+
+def safe_disconnect(signal: Any, slot: Callable[..., Any] | None = None) -> bool:
+    """Disconnect `slot` from `signal`, quietly doing nothing if it was not connected.
+
+    For the "disconnect, then connect" idiom that keeps a slot connected
+    exactly once. PySide6 reports a disconnect that finds nothing with a
+    `RuntimeWarning` (and, for a deleted sender, a `RuntimeError`); neither
+    is useful to a caller that only wants the slot gone.
+
+    Args:
+        signal: The bound signal, e.g. `button.clicked`.
+        slot: The slot to remove. `None` removes every connection.
+
+    Returns:
+        True if a connection was removed.
+    """
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        try:
+            return bool(signal.disconnect(slot) if slot is not None else signal.disconnect())
+        except (TypeError, RuntimeError):
+            return False
 
 
 class PluginSignals(QObject):
