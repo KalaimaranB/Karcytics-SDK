@@ -8,8 +8,8 @@ import sys
 from collections.abc import Sequence
 from typing import Any
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
     QComboBox,
     QDoubleSpinBox,
     QFrame,
@@ -75,9 +75,9 @@ def apply_global_sdk_styles() -> None:
     """
     import re
 
-    from PyQt6.QtCore import QMetaObject, Qt, QThread, QTimer
-    from PyQt6.QtGui import QColor, QPalette
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtCore import QMetaObject, Qt, QThread, QTimer
+    from PySide6.QtGui import QColor, QPalette
+    from PySide6.QtWidgets import QApplication
 
     app = QApplication.instance()
     if not isinstance(app, QApplication):
@@ -230,19 +230,19 @@ class BioButton(QPushButton):
             self.setStyleSheet("")
 
         if self.variant == "primary" and Colors.GLOW_COLOR != "transparent":
-            from PyQt6.QtGui import QColor
-            from PyQt6.QtWidgets import QGraphicsDropShadowEffect
+            from PySide6.QtGui import QColor
+            from PySide6.QtWidgets import QGraphicsDropShadowEffect
 
             if self._glow_effect is None:
                 self._glow_effect = QGraphicsDropShadowEffect(self)
-                self.setGraphicsEffect(self._glow_effect)
+                self.setGraphicsEffect(self._glow_effect)  # type: ignore[arg-type]
 
             if self._glow_effect is not None:
                 self._glow_effect.setBlurRadius(15)
                 self._glow_effect.setOffset(0, 0)
                 self._glow_effect.setColor(QColor(Colors.GLOW_COLOR))
         elif self._glow_effect:
-            self.setGraphicsEffect(None)
+            self.setGraphicsEffect(None)  # type: ignore[arg-type]
             self._glow_effect = None
 
 
@@ -558,7 +558,7 @@ class BioComboBox(QComboBox):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
-        from PyQt6.QtWidgets import QListView
+        from PySide6.QtWidgets import QListView
 
         # Override native macOS popup view to allow proper styling
         view = QListView()
@@ -948,8 +948,8 @@ class BioMenu(QMenu):
 class WorkspaceSaveButton(QToolButton):
     """Smart split-button for saving workflows, defaulting to Update or Save New depending on state."""
 
-    save_requested = pyqtSignal()
-    update_requested = pyqtSignal()
+    save_requested = Signal()
+    update_requested = Signal()
 
     def __init__(self, parent=None):
         super().__init__(parent)

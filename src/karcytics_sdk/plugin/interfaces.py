@@ -6,7 +6,7 @@ using PEP 544 Protocols.
 
 from typing import Protocol, runtime_checkable
 
-from PyQt6.QtWidgets import QWidget
+from PySide6.QtWidgets import QWidget
 
 
 @runtime_checkable

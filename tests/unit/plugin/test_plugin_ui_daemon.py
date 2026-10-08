@@ -123,7 +123,7 @@ def test_ui_daemon_dispatches_unsolicited_event(mock_ui_daemon_script):
 
     deadline = time.monotonic() + 3.0
     while time.monotonic() < deadline and not received:
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
 
         QApplication.processEvents()
         time.sleep(0.02)
@@ -292,7 +292,7 @@ while True:
 
         deadline = time.monotonic() + 5.0
         while time.monotonic() < deadline and not received:
-            from PyQt6.QtWidgets import QApplication
+            from PySide6.QtWidgets import QApplication
 
             QApplication.processEvents()
             time.sleep(0.02)
@@ -349,7 +349,7 @@ while True:
 
         deadline = time.monotonic() + 5.0
         while time.monotonic() < deadline and not received:
-            from PyQt6.QtWidgets import QApplication
+            from PySide6.QtWidgets import QApplication
 
             QApplication.processEvents()
             time.sleep(0.02)

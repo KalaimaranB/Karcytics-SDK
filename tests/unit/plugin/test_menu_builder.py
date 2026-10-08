@@ -9,7 +9,7 @@ that app-name menu itself.
 from __future__ import annotations
 
 import pytest
-from PyQt6.QtWidgets import QMainWindow
+from PySide6.QtWidgets import QMainWindow
 
 from karcytics_sdk.plugin import menu_builder
 from karcytics_sdk.plugin.menu_builder import StandardMenuBuilder

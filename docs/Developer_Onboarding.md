@@ -76,7 +76,7 @@ my_first_plugin/
 ├── pyproject.toml           # The plugin manifest (metadata & configuration)
 ├── src/
 │   ├── __init__.py          # The entry point
-│   └── ui.py                # The User Interface (PyQt6/PySide6)
+│   └── ui.py                # The User Interface (PySide6)
 └── .github/workflows/       # Pre-configured CI/CD pipelines
 ```
 
@@ -93,7 +93,7 @@ entry_point = "my_first_plugin:get_panel_class"
 
 ## 🖥️ Phase 4: Developing the User Interface
 
-Karcytics plugins are natively built using **PyQt6 / PySide6**. To ensure a cohesive visual aesthetic across the entire platform, the SDK provides pre-built, styled UI components.
+Karcytics plugins are natively built using **PySide6**. To ensure a cohesive visual aesthetic across the entire platform, the SDK provides pre-built, styled UI components.
 
 Open `src/ui.py` and import the Karcytics SDK components:
 

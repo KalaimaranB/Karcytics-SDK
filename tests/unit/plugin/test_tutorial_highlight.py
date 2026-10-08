@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from PyQt6.QtCore import QRect
-from PyQt6.QtWidgets import QDialog, QPushButton, QScrollArea, QWidget
+from PySide6.QtCore import QRect
+from PySide6.QtWidgets import QDialog, QPushButton, QScrollArea, QWidget
 
 from karcytics_sdk.plugin.academy import AcademyManager
 from karcytics_sdk.plugin.academy_driver import AcademyStepDriver

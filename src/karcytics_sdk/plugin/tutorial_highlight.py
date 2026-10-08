@@ -10,8 +10,8 @@ accent frames over the targets inside that window itself.
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QPoint, QRect, Qt, QTimer
-from PyQt6.QtWidgets import QFrame, QWidget
+from PySide6.QtCore import QPoint, QRect, Qt, QTimer
+from PySide6.QtWidgets import QFrame, QWidget
 
 from .theme_fallback import theme_manager
 

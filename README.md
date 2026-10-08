@@ -10,7 +10,7 @@ The Software Development Kit (SDK) and Command-Line Interface (CLI) for building
 
 ## 🚀 Key Features
 
-- **Decoupled Architecture**: Build and test PyQt6-based scientific plugins independently of the main desktop app.
+- **Decoupled Architecture**: Build and test PySide6-based scientific plugins independently of the main desktop app.
 - **Fail-Safe Dynamic Theme Fallbacks**: Visual components automatically load custom HSL-tailored colors when running standalone inside CI/CD test gates or external visualizers.
 - **Merkle-Tree Cryptographic Integrity**: Built-in Ed25519 signing and verification tools to secure user environments against remote execution and tampering.
 - **PyPI-Ready Packaging**: Complete declarative `pyproject.toml` config, built to publish natively under the `karcytics-sdk` package.
@@ -55,7 +55,7 @@ Every plugin must include a manifest file in its root directory:
 
 ### 2. `plugin.py`
 ```python
-from PyQt6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
 from karcytics_sdk.core.interfaces import KarcyticsPlugin
 from karcytics_sdk.ui import PrimaryButton
 
@@ -127,7 +127,7 @@ Since the SDK decouples all theme components from the desktop core using robust 
 
 ```python
 import sys
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 from karcytics_sdk.ui import PrimaryButton, WizardPanel
 
 app = QApplication(sys.argv)

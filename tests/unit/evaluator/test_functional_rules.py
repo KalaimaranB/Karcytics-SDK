@@ -1,10 +1,12 @@
+from pathlib import Path
+
 import pytest
 
 from karcytics_sdk.evaluator import Mode, Severity, evaluate_repo
 
 from .conftest import PACKAGE
 
-QT = "from PyQt6.QtWidgets import QPushButton, QComboBox, QMessageBox, QFileDialog, QInputDialog, QCheckBox\n"
+QT = "from PySide6.QtWidgets import QPushButton, QComboBox, QMessageBox, QFileDialog, QInputDialog, QCheckBox\n"
 
 
 def _findings(repo, path: str):
@@ -30,10 +32,36 @@ def test_sdk_and_plugin_namespace_imports_are_not_hub_imports(repo):
 
 
 def test_qt_in_analysis_is_an_error_but_fine_in_ui(repo):
-    source = "from PyQt6.QtCore import QObject\n"
+    source = "from PySide6.QtCore import QObject\n"
     assert [f.rule_id for f in _findings(repo, repo.analysis(source))] == ["KS202"]
     repo.analysis("")
     assert _ui(repo, source) == []
+
+
+def test_other_qt_bindings_are_an_error_and_still_analysed(repo):
+    found = _ui(repo, "from PyQt6.QtWidgets import QPushButton\nimport PyQt5.QtCore\nb = QPushButton()\n")
+    assert [(f.rule_id, f.line) for f in found] == [("KS203", 1), ("KS203", 2), ("KS210", 3)]
+    assert found[0].severity is Severity.ERROR
+
+
+def test_dict_typed_signals_and_slots_are_an_error(repo):
+    source = (
+        "from PySide6.QtCore import QObject, Signal, Slot\n\n\n"
+        "class Bus(QObject):\n"
+        "    done = Signal(dict)\n"
+        "    named = Signal(str, dict)\n"
+        "    fine = Signal(str, object)\n\n"
+        "    @Slot(dict)\n"
+        "    def on_done(self, payload):\n"
+        "        pass\n"
+    )
+    assert [(f.rule_id, f.line) for f in _ui(repo, source)] == [("KS204", 5), ("KS204", 6), ("KS204", 9)]
+
+
+def test_the_sdk_itself_declares_no_dict_signals_or_foreign_bindings():
+    sdk_root = Path(__file__).parents[3]
+    report = evaluate_repo(sdk_root, modes=[Mode.FUNCTIONAL], select=["KS203", "KS204"])
+    assert [(f.path, f.line, f.rule_id) for f in report.findings] == []
 
 
 def test_raw_widget_reports_line_column_and_sdk_equivalent(repo):
@@ -45,10 +73,10 @@ def test_raw_widget_reports_line_column_and_sdk_equivalent(repo):
 @pytest.mark.parametrize(
     "source",
     [
-        "from PyQt6.QtWidgets import QComboBox as Combo\nw = Combo()\n",
-        "from PyQt6 import QtWidgets\nw = QtWidgets.QComboBox()\n",
-        "import PyQt6.QtWidgets as qw\nw = qw.QComboBox()\n",
-        "import PyQt6.QtWidgets\nw = PyQt6.QtWidgets.QComboBox()\n",
+        "from PySide6.QtWidgets import QComboBox as Combo\nw = Combo()\n",
+        "from PySide6 import QtWidgets\nw = QtWidgets.QComboBox()\n",
+        "import PySide6.QtWidgets as qw\nw = qw.QComboBox()\n",
+        "import PySide6.QtWidgets\nw = PySide6.QtWidgets.QComboBox()\n",
     ],
 )
 def test_raw_widget_is_found_through_any_import_style(repo, source):
@@ -97,7 +125,7 @@ def test_open_file_dialog_is_only_advisory(repo):
 
 def test_qt_threading(repo):
     source = (
-        "from PyQt6.QtCore import QThread, QRunnable, QThreadPool\n\n\n"
+        "from PySide6.QtCore import QThread, QRunnable, QThreadPool\n\n\n"
         "class Worker(QThread):\n    pass\n\n\n"
         "class Job(QRunnable):\n    pass\n\n\n"
         "t = QThread()\n"

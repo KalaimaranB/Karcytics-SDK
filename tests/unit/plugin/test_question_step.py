@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-from PyQt6.QtWidgets import QPushButton, QWidget
+from PySide6.QtWidgets import QPushButton, QWidget
 
 from karcytics_sdk.plugin.academy import AcademyManager
 from karcytics_sdk.plugin.tutorial_models import (

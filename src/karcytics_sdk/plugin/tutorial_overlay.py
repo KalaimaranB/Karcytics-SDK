@@ -18,9 +18,9 @@ import math
 from collections.abc import Callable
 from typing import Any
 
-from PyQt6.QtCore import QPoint, QRect, Qt, QTimer, QUrl, pyqtSignal
-from PyQt6.QtGui import QColor, QDesktopServices, QPainter, QPen, QRegion
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QPoint, QRect, Qt, QTimer, QUrl, Signal
+from PySide6.QtGui import QColor, QDesktopServices, QPainter, QPen, QRegion
+from PySide6.QtWidgets import (
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -73,9 +73,9 @@ class _DraggableBubble(QWidget, DraggableMixin):
     handled by those buttons first and never start a drag.
     """
 
-    drag_started = pyqtSignal()
-    drag_finished = pyqtSignal()
-    dragged_by = pyqtSignal(QPoint)
+    drag_started = Signal()
+    drag_finished = Signal()
+    dragged_by = Signal(QPoint)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -113,7 +113,7 @@ class TutorialOverlay(QWidget):
     set_progress(cur, total) Update the progress bar.
     """
 
-    skip_requested = pyqtSignal()
+    skip_requested = Signal()
 
     def __init__(
         self,
@@ -1050,7 +1050,7 @@ class TutorialOverlay(QWidget):
         """
         step = getattr(self, "current_step", None)
         if not self._is_reviewing and step and getattr(step, "allow_scroll", False) and self._scroll_target is not None:
-            from PyQt6.QtWidgets import QApplication
+            from PySide6.QtWidgets import QApplication
 
             QApplication.sendEvent(self._scroll_target, event)
             return
@@ -1498,7 +1498,7 @@ class TutorialOverlay(QWidget):
 
         # QFontMetrics doesn't accurately measure HTML rich text.
         # We must use QTextDocument to get the exact rendered height of the rich text.
-        from PyQt6.QtGui import QTextDocument
+        from PySide6.QtGui import QTextDocument
 
         doc = QTextDocument()
         doc.setDefaultFont(self.text_label.font())

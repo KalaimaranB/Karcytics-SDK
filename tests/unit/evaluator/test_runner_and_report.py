@@ -5,7 +5,9 @@ from pathlib import Path
 from karcytics_sdk.cli.commands.diagnostics import doctor_plugin, setup_diagnostics_parser
 from karcytics_sdk.evaluator import RULES, Mode, Severity, evaluate_repo, render_json, render_text
 
-RAW = "from PyQt6.QtWidgets import QPushButton\nfrom karcytics.core import x\nb = QPushButton()\nb.setStyleSheet('')\n"
+RAW = (
+    "from PySide6.QtWidgets import QPushButton\nfrom karcytics.core import x\nb = QPushButton()\nb.setStyleSheet('')\n"
+)
 
 
 def _parse(*argv: str) -> argparse.Namespace:

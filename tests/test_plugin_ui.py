@@ -1,7 +1,7 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
-from PyQt6.QtWidgets import QMessageBox, QWidget
+from PySide6.QtWidgets import QMessageBox, QWidget
 
 from karcytics_sdk.plugin.analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
 from karcytics_sdk.plugin.components import (
@@ -304,7 +304,7 @@ def test_plugin_wizard_navigation():
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-@patch("PyQt6.QtWidgets.QFileDialog.getOpenFileName")
+@patch("PySide6.QtWidgets.QFileDialog.getOpenFileName")
 def test_dialogs_file_pickers(mock_open_file):
     """Test get_image_path dialog bindings."""
     mock_open_file.return_value = ("/path/to/cell.png", "All Files (*)")
@@ -314,7 +314,7 @@ def test_dialogs_file_pickers(mock_open_file):
     mock_open_file.assert_called_once()
 
 
-@patch("PyQt6.QtWidgets.QFileDialog.getOpenFileNames")
+@patch("PySide6.QtWidgets.QFileDialog.getOpenFileNames")
 def test_dialogs_multi_pickers(mock_open_files):
     """Test get_image_paths dialog bindings."""
     mock_open_files.return_value = (["/path/1.png", "/path/2.png"], "All Files (*)")
@@ -323,7 +323,7 @@ def test_dialogs_multi_pickers(mock_open_files):
     assert paths == ["/path/1.png", "/path/2.png"]
 
 
-@patch("PyQt6.QtWidgets.QFileDialog.getSaveFileName")
+@patch("PySide6.QtWidgets.QFileDialog.getSaveFileName")
 def test_dialogs_save_pickers(mock_save_file):
     """Test get_save_path dialog bindings."""
     mock_save_file.return_value = ("/path/to/output.csv", "CSV Files (*.csv)")
@@ -332,7 +332,7 @@ def test_dialogs_save_pickers(mock_save_file):
     assert path == "/path/to/output.csv"
 
 
-@patch("PyQt6.QtWidgets.QFileDialog.getExistingDirectory")
+@patch("PySide6.QtWidgets.QFileDialog.getExistingDirectory")
 def test_dialogs_directory_pickers(mock_get_dir):
     """Test get_directory dialog bindings."""
     mock_get_dir.return_value = "/path/to/workspace"
@@ -341,9 +341,9 @@ def test_dialogs_directory_pickers(mock_get_dir):
     assert path == "/path/to/workspace"
 
 
-@patch("PyQt6.QtWidgets.QMessageBox.information")
-@patch("PyQt6.QtWidgets.QMessageBox.warning")
-@patch("PyQt6.QtWidgets.QMessageBox.critical")
+@patch("PySide6.QtWidgets.QMessageBox.information")
+@patch("PySide6.QtWidgets.QMessageBox.warning")
+@patch("PySide6.QtWidgets.QMessageBox.critical")
 def test_dialogs_message_boxes(mock_crit, mock_warn, mock_info):
     """Verify info, warning, and error popups call correct QMessageBox slots."""
     show_info(message="info message")
@@ -390,9 +390,9 @@ def test_dialogs_questions():
         assert ask_ok_cancel(title="Apply?") is True
 
 
-@patch("PyQt6.QtWidgets.QInputDialog.getText")
-@patch("PyQt6.QtWidgets.QInputDialog.getInt")
-@patch("PyQt6.QtWidgets.QInputDialog.getDouble")
+@patch("PySide6.QtWidgets.QInputDialog.getText")
+@patch("PySide6.QtWidgets.QInputDialog.getInt")
+@patch("PySide6.QtWidgets.QInputDialog.getDouble")
 def test_dialogs_inputs(mock_double, mock_int, mock_text):
     """Verify text, integer, and decimal dialog inputs."""
     mock_text.return_value = ("expert_user", True)

@@ -1,20 +1,20 @@
 """Central EventBus for Karcytics SDK.
 
-Provides a singleton event bus using PyQt signals to allow asynchronous
+Provides a singleton event bus using Qt signals to allow asynchronous
 and decoupled communication between different plugins and the core application.
 """
 
 from collections.abc import Callable
 from typing import Any
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 
 class _EventBus(QObject):
     """The actual implementation of the EventBus."""
 
     # Generic signal used to bounce events through the Qt event loop
-    _event_signal = pyqtSignal(str, object)
+    _event_signal = Signal(str, object)
 
     def __init__(self) -> None:
         super().__init__()

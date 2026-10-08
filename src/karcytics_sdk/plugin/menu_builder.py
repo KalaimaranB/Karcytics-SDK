@@ -3,8 +3,8 @@
 import sys
 from collections.abc import Callable
 
-from PyQt6.QtGui import QAction, QKeySequence
-from PyQt6.QtWidgets import QMainWindow, QMenu
+from PySide6.QtGui import QAction, QKeySequence
+from PySide6.QtWidgets import QMainWindow, QMenu
 
 
 class StandardMenuBuilder:

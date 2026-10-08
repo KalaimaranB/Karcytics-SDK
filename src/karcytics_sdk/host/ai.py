@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import Any
 
 import requests
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 from .docs import docs_registry
 
@@ -23,11 +23,11 @@ from .docs import docs_registry
 class AIServerSignals(QObject):
     """Signals emitted by the AI Server Manager."""
 
-    server_started = pyqtSignal()
-    server_stopped = pyqtSignal()
-    prompt_download = pyqtSignal()
-    download_progress = pyqtSignal(int)
-    server_error = pyqtSignal(str)
+    server_started = Signal()
+    server_stopped = Signal()
+    prompt_download = Signal()
+    download_progress = Signal(int)
+    server_error = Signal(str)
 
 
 class AIServerManager:

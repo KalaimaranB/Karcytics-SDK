@@ -25,7 +25,7 @@ import logging
 from abc import abstractmethod
 from typing import Any
 
-from PyQt6.QtCore import QObject, QThread, pyqtSignal
+from PySide6.QtCore import QObject, QThread, Signal
 
 logger = logging.getLogger(__name__)
 
@@ -54,8 +54,8 @@ class OneShotWorkerThread(QThread):
     exactly the crash this class exists to prevent.
     """
 
-    finished_ok = pyqtSignal(object)
-    finished_err = pyqtSignal(str)
+    finished_ok = Signal(object)
+    finished_err = Signal(str)
 
     def __init__(self, parent: QObject) -> None:
         super().__init__(parent)

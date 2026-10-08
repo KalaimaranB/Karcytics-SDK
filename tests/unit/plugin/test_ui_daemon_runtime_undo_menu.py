@@ -11,8 +11,8 @@ import logging
 from dataclasses import dataclass
 
 import pytest
-from PyQt6.QtGui import QKeySequence
-from PyQt6.QtWidgets import QLineEdit, QMainWindow, QVBoxLayout, QWidget
+from PySide6.QtGui import QKeySequence
+from PySide6.QtWidgets import QLineEdit, QMainWindow, QVBoxLayout, QWidget
 
 from karcytics_sdk.plugin import ui_daemon_runtime as rt
 from karcytics_sdk.plugin.base import PluginBase

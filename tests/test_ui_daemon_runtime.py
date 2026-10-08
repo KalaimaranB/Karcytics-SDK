@@ -1,7 +1,7 @@
 from unittest.mock import patch
 
 import pytest
-from PyQt6.QtWidgets import QWidget
+from PySide6.QtWidgets import QWidget
 
 from karcytics_sdk.plugin.ui_daemon_runtime import run
 

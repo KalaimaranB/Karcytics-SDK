@@ -12,9 +12,9 @@ _qapp = None
 
 @pytest.fixture(scope="session", autouse=True)
 def qapp():
-    """Ensure a global QApplication instance is initialized before executing PyQt6 tests."""
+    """Ensure a global QApplication instance is initialized before executing PySide6 tests."""
     global _qapp
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication
 
     _qapp = QApplication.instance()
     if _qapp is None:

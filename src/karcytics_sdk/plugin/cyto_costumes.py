@@ -4,8 +4,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .cyto_character import CytoWidget
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import (
+from PySide6.QtCore import Qt
+from PySide6.QtGui import (
     QBrush,
     QColor,
     QLinearGradient,
@@ -13,7 +13,7 @@ from PyQt6.QtGui import (
     QPen,
     QRadialGradient,
 )
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
     QGraphicsItem,
     QGraphicsItemGroup,
@@ -77,7 +77,7 @@ class GalacticCostume(CytoCostume):
     def detach(self, cyto_widget: "CytoWidget") -> None:  # noqa: ARG002
         """Detach and remove all costume items from the scene."""
         for item in self.items:
-            item.setParentItem(None)
+            item.setParentItem(None)  # type: ignore[arg-type]
             if item.scene():
                 item.scene().removeItem(item)
         self.items.clear()
@@ -218,7 +218,7 @@ class MandalorianCostume(CytoCostume):
     def detach(self, cyto_widget: "CytoWidget") -> None:  # noqa: ARG002
         """Detach and remove all costume items from the scene."""
         for item in self.items:
-            item.setParentItem(None)
+            item.setParentItem(None)  # type: ignore[arg-type]
             if item.scene():
                 item.scene().removeItem(item)
         self.items.clear()
@@ -325,7 +325,7 @@ class TriStateCostume(CytoCostume):
     def detach(self, cyto_widget: "CytoWidget") -> None:  # noqa: ARG002
         """Detach and remove all costume items from the scene."""
         for item in self.items:
-            item.setParentItem(None)
+            item.setParentItem(None)  # type: ignore[arg-type]
             if item.scene():
                 item.scene().removeItem(item)
         self.items.clear()
@@ -459,7 +459,7 @@ class SubcavernCostume(CytoCostume):
     def detach(self, cyto_widget: "CytoWidget") -> None:  # noqa: ARG002
         """Detach and remove all costume items from the scene."""
         for item in self.items:
-            item.setParentItem(None)
+            item.setParentItem(None)  # type: ignore[arg-type]
             if item.scene():
                 item.scene().removeItem(item)
         self.items.clear()
@@ -579,7 +579,7 @@ class FamilyGuyCostume(CytoCostume):
         """Detach and remove all costume items from the scene, restoring the core's dashed ring."""
         cyto_widget.core.setPen(QPen(QColor("#c9d1d9"), 1.5, Qt.PenStyle.DotLine))
         for item in self.items:
-            item.setParentItem(None)
+            item.setParentItem(None)  # type: ignore[arg-type]
             if item.scene():
                 item.scene().removeItem(item)
         self.items.clear()
@@ -687,7 +687,7 @@ class AvatarAangCostume(CytoCostume):
     def detach(self, cyto_widget: "CytoWidget") -> None:  # noqa: ARG002
         """Detach all costume items and clear the swirl reference."""
         for item in self.items:
-            item.setParentItem(None)
+            item.setParentItem(None)  # type: ignore[arg-type]
             if item.scene():
                 item.scene().removeItem(item)
         self.items.clear()
@@ -781,7 +781,7 @@ class AvatarKorraCostume(CytoCostume):
     def detach(self, cyto_widget: "CytoWidget") -> None:  # noqa: ARG002
         """Detach and remove all costume items from the scene."""
         for item in self.items:
-            item.setParentItem(None)
+            item.setParentItem(None)  # type: ignore[arg-type]
             if item.scene():
                 item.scene().removeItem(item)
         self.items.clear()
@@ -865,7 +865,7 @@ class DefaultCostume(CytoCostume):
     def detach(self, cyto_widget: "CytoWidget") -> None:  # noqa: ARG002
         """Detach and remove all costume items from the scene."""
         for item in self.items:
-            item.setParentItem(None)
+            item.setParentItem(None)  # type: ignore[arg-type]
             if item.scene():
                 item.scene().removeItem(item)
         self.items.clear()
@@ -939,7 +939,7 @@ class AccessibleCostume(CytoCostume):
     def detach(self, cyto_widget: "CytoWidget") -> None:  # noqa: ARG002
         """Detach and remove all costume items from the scene."""
         for item in self.items:
-            item.setParentItem(None)
+            item.setParentItem(None)  # type: ignore[arg-type]
             if item.scene():
                 item.scene().removeItem(item)
         self.items.clear()

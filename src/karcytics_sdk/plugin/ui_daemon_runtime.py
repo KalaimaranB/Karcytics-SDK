@@ -29,9 +29,9 @@ from pathlib import Path
 from typing import Any, cast
 
 import msgpack
-from PyQt6.QtCore import QMetaObject, QObject, QThread, QTimer, pyqtSignal
-from PyQt6.QtGui import QAction, QIcon
-from PyQt6.QtWidgets import QApplication, QMainWindow, QMessageBox, QWidget
+from PySide6.QtCore import QMetaObject, QObject, QThread, QTimer, Signal
+from PySide6.QtGui import QAction, QIcon
+from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox, QWidget
 
 from .logging import get_logger
 
@@ -254,7 +254,7 @@ class _RequestBridge(QObject):
 
     Request handlers (`focus`, `theme_changed`, closing the window, ...)
     touch Qt widgets, which is only safe from the thread that owns them.
-    `pyqtSignal` delivery is thread-safe and automatically queues onto the
+    `Signal` delivery is thread-safe and automatically queues onto the
     thread that owns the connected slot's `QObject` — since this bridge is
     constructed on the GUI thread inside `run()`, emitting `request_received`
     from the reader thread delivers the frame there instead of running the
@@ -262,7 +262,7 @@ class _RequestBridge(QObject):
     version of this module deadlock on `window.close()` called off-thread.
     """
 
-    request_received = pyqtSignal(dict)
+    request_received = Signal(object)
 
 
 class _RequestReader:
@@ -468,7 +468,7 @@ def _focused_text_editor() -> Any | None:
     Routing to the text field in that case keeps "undo my typing" from
     unexpectedly reverting a workspace step instead.
     """
-    from PyQt6.QtWidgets import QComboBox, QLineEdit, QPlainTextEdit, QTextEdit
+    from PySide6.QtWidgets import QComboBox, QLineEdit, QPlainTextEdit, QTextEdit
 
     widget = QApplication.focusWidget()
     if isinstance(widget, QComboBox) and widget.isEditable():
@@ -902,7 +902,7 @@ def run(  # noqa: C901, PLR0913, PLR0915
         filename = kwargs.get("filename")
         metadata = kwargs.get("metadata")
 
-        from PyQt6.QtCore import QTimer
+        from PySide6.QtCore import QTimer
 
         QTimer.singleShot(0, lambda: _do_workflow_load(payload, filename, metadata))
 

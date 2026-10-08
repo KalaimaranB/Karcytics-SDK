@@ -20,8 +20,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
-from PyQt6.QtCore import QObject, QRect, QTimer
-from PyQt6.QtWidgets import QApplication, QScrollArea, QWidget
+from PySide6.QtCore import QObject, QRect, QTimer
+from PySide6.QtWidgets import QApplication, QScrollArea, QWidget
 
 from .academy import AcademyManager
 from .tutorial_highlight import TutorialHighlight
@@ -509,10 +509,10 @@ class AcademyStepDriver(QObject):
         window's frame becomes the overlay rect, so Cyto and the bubble steer
         clear of the whole window rather than sitting behind it.
         """
-        from PyQt6 import sip
+        import shiboken6
 
         # Forget windows that have since been destroyed (a closed dialog).
-        self._window_highlights = {w: h for w, h in self._window_highlights.items() if not sip.isdeleted(w)}
+        self._window_highlights = {w: h for w, h in self._window_highlights.items() if shiboken6.isValid(w)}
         own_window = self._overlay.window()
         rects: list[QRect] = []
         elsewhere: dict[QWidget, list[QWidget]] = {}

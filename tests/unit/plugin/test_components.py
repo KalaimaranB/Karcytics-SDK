@@ -11,7 +11,7 @@ resolved selection actually changed.
 """
 
 import pytest
-from PyQt6.QtWidgets import QComboBox
+from PySide6.QtWidgets import QComboBox
 
 from karcytics_sdk.plugin.components import repopulate_combo
 

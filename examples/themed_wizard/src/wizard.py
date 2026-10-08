@@ -1,7 +1,7 @@
 """UI Panel implementing a multi-step themed Guided Wizard."""
 
-from PyQt6.QtCore import pyqtSlot
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Slot
+from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
     QHBoxLayout,
@@ -59,7 +59,7 @@ class RoleStep(WizardStep):
         self.role_combo.currentTextChanged.connect(self.on_role_changed)
         return page
 
-    @pyqtSlot(str)
+    @Slot(str)
     def on_role_changed(self, text: str) -> None:
         """Update role inside state dynamically on changes.
 
@@ -109,7 +109,7 @@ class OptionStep(WizardStep):
         self.gpu_check.toggled.connect(self.on_gpu_toggled)
         return page
 
-    @pyqtSlot(bool)
+    @Slot(bool)
     def on_gpu_toggled(self, checked: bool) -> None:
         """Update GPU settings inside state dynamically.
 
@@ -242,12 +242,12 @@ class GuidedWizardPanel(PluginBase):
         else:
             self.next_btn.setText("Next")
 
-    @pyqtSlot()
+    @Slot()
     def on_prev(self) -> None:
         """Step back to the previous wizard panel."""
         self.wizard.prev_step()
 
-    @pyqtSlot()
+    @Slot()
     def on_next(self) -> None:
         """Validate choices and progress forward, or commit parameters on finish."""
         current_step = self.wizard.current_index()

@@ -43,7 +43,7 @@ _ORG_RULES = [
         "KS112",
         _E,
         "No ui/ package",
-        "Create src/karcytics_plugins/<id>/ui/ for PyQt6 code (PluginBase subclass, widgets, dialogs).",
+        "Create src/karcytics_plugins/<id>/ui/ for PySide6 code (PluginBase subclass, widgets, dialogs).",
     ),
     (
         "KS113",
@@ -129,6 +129,19 @@ _FUNCTIONAL_RULES = [
         _E,
         "Qt imported in analysis/",
         "Keep analysis/ free of Qt: move the widget or signal code to ui/ and run compute through AnalysisBase.",
+    ),
+    (
+        "KS203",
+        _E,
+        "Imports a Qt binding other than PySide6",
+        "Karcytics is built on PySide6 (LGPL). Import from PySide6 instead: pyqtSignal/pyqtSlot/pyqtProperty "
+        "become Signal/Slot/Property, and sip.isdeleted(x) becomes `not shiboken6.isValid(x)`.",
+    ),
+    (
+        "KS204",
+        _E,
+        "Signal or Slot declared with a dict argument",
+        "Declare the argument as `object`: PySide6 converts a `dict` signal argument to a QVariantMap and silently drops every non-string key.",
     ),
     ("KS210", _W, "Raw Qt widget where the SDK provides one", "Use the SDK component instead."),
     ("KS211", _W, "Subclasses a raw Qt widget the SDK wraps", "Subclass the SDK component instead."),

@@ -22,14 +22,14 @@ same amount rather than drifting out of sync permanently once the drag
 moves back into an unclamped region.
 """
 
-from PyQt6.QtCore import QPoint, Qt
+from PySide6.QtCore import QPoint, Qt
 
 
 class DraggableMixin:
     """Adds click-and-drag repositioning to a `QWidget` subclass.
 
     The concrete class must define `drag_started`/`drag_finished`
-    `pyqtSignal()`s, a `dragged_by = pyqtSignal(QPoint)`, and call
+    `Signal()`s, a `dragged_by = Signal(QPoint)`, and call
     `_init_draggable()` once in `__init__`, then route its
     `mousePressEvent`/`mouseMoveEvent`/`mouseReleaseEvent` overrides
     through `_handle_drag_press`/`_handle_drag_move`/`_handle_drag_release`,

@@ -21,7 +21,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable
 
-from PyQt6.QtCore import QObject, QTimer
+from PySide6.QtCore import QObject, QTimer
 
 from .io import PluginConfig
 from .preferences import PreferenceManagerProtocol

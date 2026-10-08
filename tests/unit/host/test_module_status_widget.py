@@ -10,7 +10,7 @@ import time
 from unittest.mock import patch
 
 import pytest
-from PyQt6.QtWidgets import QApplication
+from PySide6.QtWidgets import QApplication
 
 from karcytics_sdk.host.core_services import CoreServicesServer
 from karcytics_sdk.host.module_status_widget import ModuleStatusWidget
@@ -47,7 +47,7 @@ def fast_worker_script(tmp_path):
     script_path = tmp_path / "fast_worker.py"
     code = """
 import sys
-from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow
+from PySide6.QtWidgets import QApplication, QLabel, QMainWindow
 from karcytics_sdk.plugin.ui_daemon_runtime import run
 
 def build_panel():
@@ -74,7 +74,7 @@ def slow_worker_script(tmp_path):
     script_path = tmp_path / "slow_worker.py"
     code = """
 import time
-from PyQt6.QtWidgets import QLabel
+from PySide6.QtWidgets import QLabel
 from karcytics_sdk.plugin.ui_daemon_runtime import run
 
 def build_panel():

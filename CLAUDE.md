@@ -31,6 +31,14 @@ Pre-commit runs ruff (lint + format), mypy, and license compliance automatically
 - `src/karcytics_sdk/evaluator/` — the static conformance checker behind `karcytics-sdk doctor`: `registry.py` (every rule), `org_rules.py` (KS1xx: layout/CI/tooling), `functional_rules.py` (KS2xx: one AST pass per file), `catalog.py` (which Qt classes have an SDK equivalent). It only reads the target repo, never imports it. See `docs/Doctor.md`.
 - `src/karcytics_sdk/testing/` — test helpers exported for *plugin repos* to use in their own test suites.
 
+## Qt binding
+
+The SDK is PySide6 only (LGPL; PyQt6 is GPL and incompatible with our license — see Hub issue #134). Never import PyQt6. Three PySide6 behaviours differ from PyQt6 in ways tests don't always catch:
+
+- Declare a signal that carries a dict as `Signal(object)`, never `Signal(dict)`: PySide6 converts `dict` to a `QVariantMap` and silently drops non-string keys. `karcytics-sdk doctor` flags this as KS204.
+- Use `shiboken6.isValid(obj)` to check a Qt object is still alive (the inverse of PyQt's `sip.isdeleted`).
+- PySide6's type stubs omit `Optional` on arguments Qt accepts `None` for (`setParentItem(None)`, `setGraphicsEffect(None)`); those calls carry `# type: ignore[arg-type]`.
+
 ## Key architectural pattern
 
 Every plugin panel splits into a `PluginBase` (QWidget, all UI/signals) and an `AnalysisBase` subclass (pure compute, no Qt imports) — the engine takes a frozen `PluginState` snapshot rather than reading live widget state, so it's thread-safe and independently unit-testable/headless-runnable. Don't put computation directly in a `PluginBase` method; put it in the paired `AnalysisBase`.

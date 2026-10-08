@@ -22,7 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 from ..analysis import AnalysisBase
 from ..state import PluginState
@@ -141,8 +141,8 @@ class RenderPipelineController(QObject):
     dropped rather than visually reverting a newer, already-applied result.
     """
 
-    result_ready = pyqtSignal(object)  # emits the RenderData that was rasterized
-    compute_failed = pyqtSignal(str)
+    result_ready = Signal(object)  # emits the RenderData that was rasterized
+    compute_failed = Signal(str)
 
     def __init__(  # noqa: PLR0913, PLR0917 - a small DI-style constructor; each param is a distinct collaborator, not a group that bundles cleanly
         self,

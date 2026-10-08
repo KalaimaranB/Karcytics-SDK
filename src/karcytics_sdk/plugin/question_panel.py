@@ -11,8 +11,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
     QAbstractButton,
     QButtonGroup,
     QCheckBox,
@@ -101,8 +101,8 @@ class QuestionPanel(QWidget):
         content_changed: feedback/reveal changed the panel's height.
     """
 
-    answered = pyqtSignal()
-    content_changed = pyqtSignal()
+    answered = Signal()
+    content_changed = Signal()
 
     def __init__(
         self,

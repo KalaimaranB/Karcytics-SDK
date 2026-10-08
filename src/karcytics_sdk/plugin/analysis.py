@@ -9,7 +9,7 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any
 
-from PyQt6.QtCore import QObject, QRunnable, pyqtSignal
+from PySide6.QtCore import QObject, QRunnable, Signal
 
 from .signals import PluginSignals
 from .state import PluginState
@@ -65,7 +65,7 @@ class AnalysisBase(ABC):
         """Execute the analysis with the given state.
 
         This method should contain all scientific computation and should
-        NOT interact with PyQt6 widgets or UI.
+        NOT interact with PySide6 widgets or UI.
 
         Args:
             state: Plugin state containing analysis parameters
@@ -110,10 +110,10 @@ class AnalysisWorker(QObject):
         >>> thread.start()
     """
 
-    finished = pyqtSignal(dict)  # Emitted with results dict on success
-    error = pyqtSignal(str)  # Emitted with error message on failure
-    progress = pyqtSignal(int)  # Emitted with 0-100 progress value
-    cancelled = pyqtSignal()  # Emitted if analysis was cancelled
+    finished = Signal(object)  # Emitted with results dict on success
+    error = Signal(str)  # Emitted with error message on failure
+    progress = Signal(int)  # Emitted with 0-100 progress value
+    cancelled = Signal()  # Emitted if analysis was cancelled
 
     def __init__(self, analyzer: AnalysisBase, state: PluginState | None, parent: QObject | None = None):
         """Initialize the worker.

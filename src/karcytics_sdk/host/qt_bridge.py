@@ -17,7 +17,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 
 @dataclass
@@ -38,7 +38,7 @@ class QtThreadBridge(QObject):
     runs `fn()` and hands back its result.
     """
 
-    _call_requested = pyqtSignal(object)
+    _call_requested = Signal(object)
 
     def __init__(self) -> None:
         super().__init__()

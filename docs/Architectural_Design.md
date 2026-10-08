@@ -12,7 +12,7 @@ Karcytics SDK enforces a strict **Decoupled Boundary Model**:
 
 ```text
 +-----------------------+              +-----------------------+
-|  PyQt6 Graphical UI   |              | Asynchronous Offscreen|
+|  PySide6 Graphical UI   |              | Asynchronous Offscreen|
 |  (subclasses Plugin)  |              | (subclasses Analysis) |
 |                       |              |                       |
 |   - Widget Forms      |              |   - Pure Algorithms   |
@@ -25,7 +25,7 @@ Karcytics SDK enforces a strict **Decoupled Boundary Model**:
 ### Key Engineering Decisions:
 1.  **Pure Business Logic (`AnalysisBase`):** Computational algorithms must be isolated in a subclass of `AnalysisBase`. This subclass knows absolutely nothing about buttons, sliders, widgets, or labels. It is pure Python/NumPy code that takes a state dataclass and returns a results dictionary.
 2.  **State-Driven UI (`PluginState`):** All configurations are modeled in serializable dataclasses. The UI binds user changes to these properties. When calculations start, a deep-copy of the state is passed to the engine. This guarantees thread isolation: the engine works on a frozen snapshot of configurations, protecting it from race conditions if the user interacts with inputs mid-calculation.
-3.  **Headless Execution Capable:** Because the calculation engines are decoupled from PyQt6 widgets, they can be run inside headless command-line pipelines (such as automated CI servers or high-performance computing clusters) without initializing a desktop display environment!
+3.  **Headless Execution Capable:** Because the calculation engines are decoupled from PySide6 widgets, they can be run inside headless command-line pipelines (such as automated CI servers or high-performance computing clusters) without initializing a desktop display environment!
 
 ---
 
@@ -53,4 +53,4 @@ Scientific applications often load massive data files (high-resolution microscop
 Karcytics SDK uses **Resource Acquisition Is Initialization (RAII)** patterns:
 1.  **Thread Pool Binding:** Asynchronous worker threads are registered inside a centralized `QThreadPool` on the parent plugin object.
 2.  **Automated Disconnection:** When a panel is closed, the destructor (`__del__` or `closeEvent`) is triggered. The framework automatically signals any running background engines to cancel execution (`engine.cancel()`), waits for threads to exit safely, and releases file handles.
-3.  **No Dangling Pointers:** We enforce standard PyQt6 C++ pointer validation checks. Before any signal is emitted by background threads, the worker verifies that the graphical receiver object has not been deleted by the Qt garbage collector, preventing common `RuntimeError: wrapped C/C++ object has been deleted` crashes.
+3.  **No Dangling Pointers:** We enforce standard PySide6 C++ pointer validation checks. Before any signal is emitted by background threads, the worker verifies that the graphical receiver object has not been deleted by the Qt garbage collector, preventing common `RuntimeError: wrapped C/C++ object has been deleted` crashes.

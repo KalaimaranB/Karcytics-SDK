@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QRectF
-from PyQt6.QtWidgets import QGraphicsRectItem, QGraphicsView
+from PySide6.QtCore import QRectF
+from PySide6.QtWidgets import QGraphicsRectItem, QGraphicsView
 
 from karcytics_sdk.plugin.rendering.graphics_scene import (
     STRICT_DIRTY_TRACKING_ENV,

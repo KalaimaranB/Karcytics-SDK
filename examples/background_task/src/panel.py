@@ -1,7 +1,7 @@
 """UI Panel implementing thread orchestration for background simulations."""
 
-from PyQt6.QtCore import pyqtSlot
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Slot
+from PySide6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QProgressBar,
@@ -100,7 +100,7 @@ class BackgroundTaskPanel(PluginBase):
         self.console.append(text)
         logger.debug(text)
 
-    @pyqtSlot()
+    @Slot()
     def on_start(self) -> None:
         """Trigger background thread execution mapping inputs to workers."""
         self.log_console("Preparing background mathematical worker thread...")
@@ -124,7 +124,7 @@ class BackgroundTaskPanel(PluginBase):
         self.start_worker(self.active_worker)
         self.log_console("Worker dispatched to QThreadPool successfully.")
 
-    @pyqtSlot()
+    @Slot()
     def on_cancel(self) -> None:
         """Signal target background worker to abort calculations early."""
         if self.active_worker:
@@ -132,7 +132,7 @@ class BackgroundTaskPanel(PluginBase):
             self.active_worker.cancel()
             self.cancel_btn.setEnabled(False)
 
-    @pyqtSlot(int, str)
+    @Slot(int, str)
     def on_worker_progress(self, progress: int, msg: str) -> None:
         """Update progress values on the UI bar dynamically.
 
@@ -144,7 +144,7 @@ class BackgroundTaskPanel(PluginBase):
         self.status_lbl.setText(f"Status: {msg}")
         self.log_console(f"[Progress {progress}%] {msg}")
 
-    @pyqtSlot(dict)
+    @Slot(object)
     def on_worker_success(self, results: dict) -> None:
         """Assemble finished results, update state history, and release buttons.
 
@@ -160,7 +160,7 @@ class BackgroundTaskPanel(PluginBase):
         self.log_console(f"SUCCESS: Calculated {len(self.state.results)} results.")
         self.log_console(f"Output list: {self.state.results[:3]}... [Truncated]")
 
-    @pyqtSlot(str)
+    @Slot(str)
     def on_worker_failure(self, error_msg: str) -> None:
         """Handle errors cleanly, preventing application segmentation crashes.
 
@@ -172,7 +172,7 @@ class BackgroundTaskPanel(PluginBase):
         self.status_lbl.setText("Status: Failed!")
         self.log_console(f"ERROR: Calculation worker crashed with exception: {error_msg}")
 
-    @pyqtSlot(int)
+    @Slot(int)
     def on_iter_changed(self, value: int) -> None:
         """Update iterations values inside state dynamically.
 
@@ -181,7 +181,7 @@ class BackgroundTaskPanel(PluginBase):
         """
         self.state.iterations = value
 
-    @pyqtSlot(int)
+    @Slot(int)
     def on_delay_changed(self, value: int) -> None:
         """Update delay parameters inside state dynamically.
 

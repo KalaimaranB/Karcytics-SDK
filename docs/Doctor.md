@@ -53,7 +53,7 @@ Names are resolved through each file's imports, so aliased and module-qualified 
 | `KS104` | error | Project metadata missing | Set name and version under [project] in pyproject.toml. |
 | `KS110` | error | Plugin package not at the standard path | Put the plugin's code under src/karcytics_plugins/<id>/ where <id> is the manifest id. |
 | `KS111` | error | No analysis/ package | Create src/karcytics_plugins/<id>/analysis/ for pure, Qt-free compute (AnalysisBase subclasses). |
-| `KS112` | error | No ui/ package | Create src/karcytics_plugins/<id>/ui/ for PyQt6 code (PluginBase subclass, widgets, dialogs). |
+| `KS112` | error | No ui/ package | Create src/karcytics_plugins/<id>/ui/ for PySide6 code (PluginBase subclass, widgets, dialogs). |
 | `KS113` | error | Entry point does not resolve | Point entry_point at a real "module:function" that returns a PluginBase instance. |
 | `KS120` | error | Signing artefact missing | Run `karcytics-sdk sign <plugin_dir>` and commit the generated file. |
 | `KS121` | error | No author signing key | Run `karcytics-sdk init-identity` and set author_public_key under [tool.karcytics.plugin.signing]. |
@@ -81,6 +81,8 @@ Names are resolved through each file's imports, so aliased and module-qualified 
 | `KS200` | warning | File could not be parsed | Fix the syntax error so the file can be analysed. |
 | `KS201` | error | Imports the Hub package | A plugin may only import karcytics_sdk. Use the SDK equivalent or request one. |
 | `KS202` | error | Qt imported in analysis/ | Keep analysis/ free of Qt: move the widget or signal code to ui/ and run compute through AnalysisBase. |
+| `KS203` | error | Imports a Qt binding other than PySide6 | Karcytics is built on PySide6 (LGPL). Import from PySide6 instead: pyqtSignal/pyqtSlot/pyqtProperty become Signal/Slot/Property, and sip.isdeleted(x) becomes `not shiboken6.isValid(x)`. |
+| `KS204` | error | Signal or Slot declared with a dict argument | Declare the argument as `object`: PySide6 converts a `dict` signal argument to a QVariantMap and silently drops every non-string key. |
 | `KS210` | warning | Raw Qt widget where the SDK provides one | Use the SDK component instead. |
 | `KS211` | warning | Subclasses a raw Qt widget the SDK wraps | Subclass the SDK component instead. |
 | `KS220` | warning | Raw Qt dialog | Use the helper from karcytics_sdk.plugin.dialogs instead. |

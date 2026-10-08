@@ -18,8 +18,8 @@ default.
 import logging
 from typing import cast
 
-from PyQt6.QtCore import QEasingCurve, QEvent, QObject, QPoint, QPropertyAnimation, Qt, QTimer
-from PyQt6.QtWidgets import QApplication, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtCore import QEasingCurve, QEvent, QObject, QPoint, QPropertyAnimation, Qt, QTimer
+from PySide6.QtWidgets import QApplication, QGraphicsOpacityEffect, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 logger = logging.getLogger(__name__)
 
@@ -263,7 +263,7 @@ class ToastManager:
         # never visible.  Descend to the central widget instead so the toast
         # is a sibling of the plugin panel's own children and raise_() keeps
         # it on top.
-        from PyQt6.QtWidgets import QMainWindow
+        from PySide6.QtWidgets import QMainWindow
 
         if isinstance(anchor, QMainWindow):
             cw = anchor.centralWidget()

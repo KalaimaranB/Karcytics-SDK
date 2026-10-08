@@ -16,8 +16,8 @@ from __future__ import annotations
 import logging
 import os
 
-from PyQt6.QtCore import QObject, QRectF
-from PyQt6.QtWidgets import QGraphicsItem, QGraphicsScene, QGraphicsView, QWidget
+from PySide6.QtCore import QObject, QRectF
+from PySide6.QtWidgets import QGraphicsItem, QGraphicsScene, QGraphicsView, QWidget
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ class DirtyTrackingGraphicsScene(QGraphicsScene):
         """Remove `item`, also dropping its tracked bounding-rect history."""
         if item is not None:
             self._last_bounds.pop(id(item), None)
-        super().removeItem(item)
+        super().removeItem(item)  # type: ignore[arg-type]
 
 
 class DirtyTrackingGraphicsView(QGraphicsView):

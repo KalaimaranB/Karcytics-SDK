@@ -27,10 +27,10 @@ import threading
 from collections.abc import Callable
 from typing import Any
 
-from PyQt6 import sip
-from PyQt6.QtCore import QObject, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import QColor, QPainter
-from PyQt6.QtWidgets import QFrame, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget
+import shiboken6
+from PySide6.QtCore import QObject, Qt, QTimer, Signal
+from PySide6.QtGui import QColor, QPainter
+from PySide6.QtWidgets import QFrame, QLabel, QProgressBar, QPushButton, QVBoxLayout, QWidget
 
 from karcytics_sdk.plugin.daemon import PluginUIDaemon
 
@@ -56,7 +56,7 @@ class _SerialWorker(QObject):
     is safe by design.
     """
 
-    result_ready = pyqtSignal(bool, object, object)  # ok, result_or_error, context
+    result_ready = Signal(bool, object, object)  # ok, result_or_error, context
 
     def __init__(self) -> None:
         super().__init__()
@@ -110,9 +110,9 @@ class ModuleStatusWidget(QWidget):
     STATE_CRASHED = "crashed"
     STATE_CLOSED = "closed"
 
-    state_changed = pyqtSignal(str)
-    panel_ready = pyqtSignal()
-    data_ready = pyqtSignal()
+    state_changed = Signal(str)
+    panel_ready = Signal()
+    data_ready = Signal()
 
     def __init__(
         self,
@@ -400,7 +400,7 @@ class ModuleStatusWidget(QWidget):
         is fine: this already runs on `_worker`'s background thread, same as
         `bring_to_front()`'s call below.
         """
-        if sip.isdeleted(self) or self._state != self.STATE_RUNNING:
+        if not shiboken6.isValid(self) or self._state != self.STATE_RUNNING:
             return
         self._worker.submit(lambda: self._daemon.call("theme_changed", {"colors": colors}), ("theme", None))
 
@@ -412,11 +412,11 @@ class ModuleStatusWidget(QWidget):
         `ModuleStatusWidget.__init__`), this signal can legitimately arrive
         after the Hub has already discarded the widget that submitted the
         call — e.g. the user switched to another module while a `focus`
-        call was still queued. `sip.isdeleted` guards every slot reached
+        call was still queued. `shiboken6.isValid` guards every slot reached
         this way so a stale completion is dropped instead of touching a
         deleted QWidget.
         """
-        if sip.isdeleted(self):
+        if not shiboken6.isValid(self):
             return
         kind, generation = context
         if kind == "start":
@@ -425,7 +425,7 @@ class ModuleStatusWidget(QWidget):
             pass  # fire-and-forget; nothing in the UI depends on the result.
 
     def _on_daemon_event(self, topic: str, payload: Any) -> None:  # noqa: ARG002
-        if sip.isdeleted(self):
+        if not shiboken6.isValid(self):
             return
         if topic == "ready":
             if self._state == self.STATE_SPAWNING:
@@ -439,7 +439,7 @@ class ModuleStatusWidget(QWidget):
             self._set_state(self.STATE_CLOSED)
 
     def _on_process_exited(self) -> None:
-        if sip.isdeleted(self):
+        if not shiboken6.isValid(self):
             return
         if self._shutdown_requested:
             return

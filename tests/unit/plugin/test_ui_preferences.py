@@ -96,7 +96,7 @@ def test_theme_page_degrades_gracefully_when_hub_unreachable(qapp):  # noqa: ARG
 
 
 def test_preferences_dialog_add_page_selects_first_page_by_default(qapp):  # noqa: ARG001
-    from PyQt6.QtWidgets import QWidget
+    from PySide6.QtWidgets import QWidget
 
     dialog = SDKPreferencesDialog(client=MagicMock())
     dialog.add_page("Theme", QWidget())
@@ -137,7 +137,7 @@ class TestAutosaveWorkflowsPreferencesPage:
 
 
 def test_dialog_exposes_stable_names_and_current_page_title_for_academy_courses(qapp):  # noqa: ARG001
-    from PyQt6.QtWidgets import QWidget
+    from PySide6.QtWidgets import QWidget
 
     from karcytics_sdk.plugin.ui_preferences import PREFERENCES_DIALOG_OBJECT_NAME
 

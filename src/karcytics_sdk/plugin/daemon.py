@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any, ClassVar
 
 import msgpack
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 from .logging import get_logger
 
@@ -29,7 +29,7 @@ logger = get_logger(__name__, "karcytics_sdk")
 
 # A PyInstaller-frozen Hub sets these so its own bootloader can find the Qt/
 # Python libraries bundled inside the .app — but a plugin worker is a
-# completely separate interpreter with its own venv and its own real PyQt6
+# completely separate interpreter with its own venv and its own real PySide6
 # install. Inheriting them unmodified via os.environ.copy() makes the
 # child's dynamic linker load the Hub's bundled Qt frameworks *alongside*
 # the venv's own, producing objc class collisions and a fatal
@@ -489,8 +489,8 @@ class PluginUIDaemon(QObject):
     conventions without a transport-level fork.
     """
 
-    event_received = pyqtSignal(str, object)  # topic, payload
-    process_exited = pyqtSignal()
+    event_received = Signal(str, object)  # topic, payload
+    process_exited = Signal()
 
     _instances: ClassVar[dict[str, PluginUIDaemon]] = {}
     _registry_lock: ClassVar[threading.Lock] = threading.Lock()

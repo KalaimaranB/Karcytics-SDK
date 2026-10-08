@@ -3,8 +3,8 @@
 import math
 import random
 
-from PyQt6.QtCore import QPoint, Qt, QTimer, pyqtSignal
-from PyQt6.QtGui import (
+from PySide6.QtCore import QPoint, Qt, QTimer, Signal
+from PySide6.QtGui import (
     QBrush,
     QColor,
     QPainter,
@@ -12,7 +12,7 @@ from PyQt6.QtGui import (
     QPen,
     QRadialGradient,
 )
-from PyQt6.QtWidgets import (
+from PySide6.QtWidgets import (
     QGraphicsEllipseItem,
     QGraphicsItemGroup,
     QGraphicsPathItem,
@@ -57,9 +57,9 @@ class Particle(QGraphicsEllipseItem):
 class CytoWidget(QGraphicsView, DraggableMixin):
     """A pure rendering widget for the Cyto character."""
 
-    drag_started = pyqtSignal()
-    drag_finished = pyqtSignal()
-    dragged_by = pyqtSignal(QPoint)
+    drag_started = Signal()
+    drag_finished = Signal()
+    dragged_by = Signal(QPoint)
 
     def __init__(self, parent=None):
         super().__init__(parent)

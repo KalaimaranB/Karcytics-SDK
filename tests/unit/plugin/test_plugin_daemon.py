@@ -9,7 +9,7 @@ def test_build_worker_env_strips_frozen_hub_library_paths(monkeypatch):
     """A PyInstaller-frozen Hub sets DYLD_*/QT_*/PYTHONHOME so its own
     bootloader finds the Qt/Python it bundles inside the .app. A plugin
     worker is a completely separate interpreter with its own venv and its
-    own real PyQt6 — inheriting these unmodified made the worker's dynamic
+    own real PySide6 — inheriting these unmodified made the worker's dynamic
     linker load the Hub's bundled Qt frameworks *alongside* its own,
     producing objc class collisions and a fatal "Could not load the Qt
     platform plugin" the moment the worker touched any Qt API.
@@ -17,7 +17,7 @@ def test_build_worker_env_strips_frozen_hub_library_paths(monkeypatch):
     monkeypatch.setenv("DYLD_LIBRARY_PATH", "/some/Karcytics.app/Contents/Frameworks")
     monkeypatch.setenv("DYLD_FRAMEWORK_PATH", "/some/Karcytics.app/Contents/Frameworks")
     monkeypatch.setenv("LD_LIBRARY_PATH", "/some/karcytics/lib")
-    monkeypatch.setenv("QT_PLUGIN_PATH", "/some/Karcytics.app/Contents/Frameworks/PyQt6/Qt6/plugins")
+    monkeypatch.setenv("QT_PLUGIN_PATH", "/some/Karcytics.app/Contents/Frameworks/PySide6/Qt6/plugins")
     monkeypatch.setenv("PYTHONHOME", "/some/Karcytics.app/Contents/Frameworks")
     monkeypatch.setenv("SOME_UNRELATED_VAR", "kept")
 

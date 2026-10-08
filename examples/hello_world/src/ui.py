@@ -1,7 +1,7 @@
 """UI Panel implementation for the Hello World blueprint plugin."""
 
-from PyQt6.QtCore import pyqtSlot
-from PyQt6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QVBoxLayout
+from PySide6.QtCore import Slot
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QLineEdit, QVBoxLayout
 
 from karcytics_sdk.plugin import PluginBase, PluginState
 from karcytics_sdk.plugin.components import PrimaryButton, SecondaryButton
@@ -67,7 +67,7 @@ class MyFirstPanel(PluginBase):
         # Register input change for state undo/redo capability
         self.name_input.textChanged.connect(self.on_name_changed)
 
-    @pyqtSlot()
+    @Slot()
     def on_greet(self) -> None:
         """Handle the greet action, displaying a pop-up confirmation dialog."""
         name = self.name_input.text().strip()
@@ -84,14 +84,14 @@ class MyFirstPanel(PluginBase):
             f"Hello, {name}! You have successfully integrated a custom Karcytics plugin widget.",
         )
 
-    @pyqtSlot()
+    @Slot()
     def on_clear(self) -> None:
         """Clear the input field and reset local plugin state."""
         self.name_input.clear()
         self.state.user_name = ""
         self.push_state()
 
-    @pyqtSlot(str)
+    @Slot(str)
     def on_name_changed(self, text: str) -> None:
         """Track text changes silently in the background state object.
 

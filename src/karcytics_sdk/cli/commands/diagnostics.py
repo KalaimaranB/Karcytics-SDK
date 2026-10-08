@@ -56,7 +56,7 @@ def evaluate_plugin(args) -> bool:
     import sys
     from pathlib import Path
 
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication
 
     from karcytics_sdk.plugin.manifest_parser import ManifestParser
 

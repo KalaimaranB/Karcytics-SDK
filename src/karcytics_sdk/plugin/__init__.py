@@ -230,7 +230,7 @@ __all__ = [
 def __getattr__(name: str) -> object:
     """Lazily import matplotlib-dependent names.
 
-    ``LayeredMatplotlibCanvas`` requires ``matplotlib`` and ``PyQt6`` to be
+    ``LayeredMatplotlibCanvas`` requires ``matplotlib`` and ``PySide6`` to be
     installed in the calling environment.  Plugins that never use it (e.g.
     text-only or headless plugins) should not be forced to vendor those heavy
     dependencies just because they import ``karcytics_sdk.plugin``.

@@ -1,5 +1,5 @@
-from PyQt6.QtGui import QColor  # noqa: D100
-from PyQt6.QtWidgets import QGraphicsDropShadowEffect, QGraphicsItem, QWidget
+from PySide6.QtGui import QColor  # noqa: D100
+from PySide6.QtWidgets import QGraphicsDropShadowEffect, QGraphicsItem, QWidget
 
 
 def apply_glow_effect(

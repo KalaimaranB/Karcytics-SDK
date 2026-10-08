@@ -17,7 +17,7 @@ processes without either side needing to know which one it's in.
 import sys
 import weakref
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 _SHORT_HEX_LEN = 3
 _LINEAR_THRESHOLD = 0.03928
@@ -168,31 +168,31 @@ class _Fonts:
 
     @property
     def H1(self):  # noqa: N802
-        from PyQt6.QtGui import QFont
+        from PySide6.QtGui import QFont
 
         return QFont(self.FAMILY_HEADINGS, self.SIZE_XLARGE, QFont.Weight.Bold)
 
     @property
     def H2(self):  # noqa: N802
-        from PyQt6.QtGui import QFont
+        from PySide6.QtGui import QFont
 
         return QFont(self.FAMILY_HEADINGS, self.SIZE_LARGE, QFont.Weight.Bold)
 
     @property
     def H3(self):  # noqa: N802
-        from PyQt6.QtGui import QFont
+        from PySide6.QtGui import QFont
 
         return QFont(self.FAMILY_HEADINGS, self.SIZE_NORMAL, QFont.Weight.Bold)
 
     @property
     def BODY(self):  # noqa: N802
-        from PyQt6.QtGui import QFont
+        from PySide6.QtGui import QFont
 
         return QFont(self.FAMILY_UI, self.SIZE_NORMAL)
 
     @property
     def CAPTION(self):  # noqa: N802
-        from PyQt6.QtGui import QFont
+        from PySide6.QtGui import QFont
 
         return QFont(self.FAMILY_UI, self.SIZE_SMALL)
 
@@ -203,7 +203,7 @@ Fonts = _Fonts()
 
 
 class _ThemeManagerProxy(QObject):
-    theme_changed = pyqtSignal()
+    theme_changed = Signal()
 
     def __init__(self):
         super().__init__()

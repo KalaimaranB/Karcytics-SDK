@@ -41,7 +41,7 @@ The host application uses standard lazy-loading. It imports `__init__.py` and ca
 ```python
 """Entry point for my_plugin."""
 
-from PyQt6.QtWidgets import QWidget
+from PySide6.QtWidgets import QWidget
 
 __version__ = "1.0.0"
 __plugin_id__ = "my_plugin"
@@ -82,8 +82,8 @@ The primary UI widget class must subclass `PluginBase`. By inheriting from `Plug
 *   **Decoupled Worker Factories:** Create non-blocking calculations via `self.create_worker()`.
 
 ```python
-from PyQt6.QtCore import pyqtSlot
-from PyQt6.QtWidgets import QVBoxLayout, QLabel, QLineEdit
+from PySide6.QtCore import Slot
+from PySide6.QtWidgets import QVBoxLayout, QLabel, QLineEdit
 from karcytics_sdk.plugin import PluginBase
 from karcytics_sdk.plugin.components import PrimaryButton
 
@@ -105,11 +105,11 @@ class MyFirstPanel(PluginBase):
         self.input.textChanged.connect(self.on_notes_changed)
         self.btn.clicked.connect(self.on_apply)
 
-    @pyqtSlot(str)
+    @Slot(str)
     def on_notes_changed(self, text: str) -> None:
         self.state.user_notes = text
 
-    @pyqtSlot()
+    @Slot()
     def on_apply(self) -> None:
         # Commit checkpoint to the undo/redo stack
         self.push_state()

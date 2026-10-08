@@ -1,7 +1,7 @@
 [project]
 name = "hello-world"
 version = "1.0.0"
-description = "Minimal plugin blueprint demonstrating PyQt6 widgets and semantic buttons."
+description = "Minimal plugin blueprint demonstrating PySide6 widgets and semantic buttons."
 requires-python = ">=3.11"
 authors = [
     { name = "Karcytics SDK Team", role = "Lead Developer" },

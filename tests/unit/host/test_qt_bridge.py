@@ -35,7 +35,7 @@ def test_run_from_a_background_thread_returns_the_result(qapp):  # noqa: ARG001
 
     # The GUI thread must pump its event loop for the queued call to run.
     deadline_iterations = 200
-    from PyQt6.QtWidgets import QApplication
+    from PySide6.QtWidgets import QApplication
 
     for _ in range(deadline_iterations):
         if "result" in outcome or "error" in outcome:

@@ -180,7 +180,7 @@ def test_widget_close_event():
     plugin.cleanup = MagicMock()
 
     # Create real QCloseEvent
-    from PyQt6.QtGui import QCloseEvent
+    from PySide6.QtGui import QCloseEvent
 
     event = QCloseEvent()
 

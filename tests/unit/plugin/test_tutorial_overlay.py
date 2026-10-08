@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from PyQt6.QtWidgets import QWidget
+from PySide6.QtWidgets import QWidget
 
 from karcytics_sdk.plugin.academy import AcademyManager
 from karcytics_sdk.plugin.tutorial_models import ConsentStep, Course, InfoStep
@@ -107,7 +107,7 @@ def test_new_spotlight_repaints_opaque_widgets_under_it(tmp_path, monkeypatch):
     canvas) in the region, which would leave the previous step's dim inside
     the new hole — so such widgets are asked to update themselves.
     """
-    from PyQt6.QtCore import QRect, Qt
+    from PySide6.QtCore import QRect, Qt
 
     overlay, manager = make_overlay(tmp_path, InfoStep(id="a", text="Read the plot", allow_interaction=True))
     overlay.render_step(manager.current_step)
@@ -135,7 +135,7 @@ def test_new_spotlight_repaints_opaque_widgets_under_it(tmp_path, monkeypatch):
 
 
 def test_cyto_character_can_be_turned_off(tmp_path):
-    from PyQt6.QtCore import QRect
+    from PySide6.QtCore import QRect
 
     overlay, manager = make_overlay(tmp_path, InfoStep(id="a", text="Hello"))
     overlay._root.show()  # type: ignore[attr-defined]

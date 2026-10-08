@@ -32,7 +32,7 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from PyQt6.QtCore import QObject, QThreadPool, pyqtSignal
+from PySide6.QtCore import QObject, QThreadPool, Signal
 
 from .academy import AcademyManager
 from .analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
@@ -59,10 +59,10 @@ class LocalTaskScheduler(QObject):
     only ever hosts one module.
     """
 
-    task_started = pyqtSignal(str)
-    task_finished = pyqtSignal(str, dict)
-    task_error = pyqtSignal(str, str)
-    task_progress = pyqtSignal(str, int)
+    task_started = Signal(str)
+    task_finished = Signal(str, object)
+    task_error = Signal(str, str)
+    task_progress = Signal(str, int)
 
     def __init__(self) -> None:
         super().__init__()
@@ -108,9 +108,9 @@ class LocalTaskScheduler(QObject):
         if task_id in self._active_workers:
             worker = self._active_workers[task_id]
             try:
-                import sip  # type: ignore[import-not-found, import-untyped]
+                import shiboken6
 
-                if not sip.isdeleted(worker):
+                if shiboken6.isValid(worker):
                     worker.setParent(None)
             except (ImportError, AttributeError, RuntimeError):
                 pass

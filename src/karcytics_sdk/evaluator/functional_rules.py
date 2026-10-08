@@ -1,7 +1,7 @@
 """Functional checks (KS2xx): is the SDK actually used where it should be?
 
 One AST pass per source file. Names are resolved through the file's own
-imports, so `from PyQt6.QtWidgets import QPushButton as Btn` and
+imports, so `from PySide6.QtWidgets import QPushButton as Btn` and
 `QtWidgets.QPushButton(...)` are both recognised, while an unrelated local
 class that happens to be called `QPushButton` is not.
 """
@@ -109,8 +109,11 @@ class _FileChecker(ast.NodeVisitor):
         top = module.split(".")[0]
         if top == catalog.HUB_PACKAGE:
             self._add("KS201", node, f"imports `{module}` from the Hub application")
-        elif top in catalog.QT_BINDINGS and self.zone == "analysis":
-            self._add("KS202", node, f"imports `{module}` inside analysis/")
+        elif top in catalog.QT_BINDINGS:
+            if top != catalog.SUPPORTED_QT_BINDING:
+                self._add("KS203", node, f"imports `{module}`; the supported binding is PySide6")
+            if self.zone == "analysis":
+                self._add("KS202", node, f"imports `{module}` inside analysis/")
 
     # ── Classes ───────────────────────────────────────────────────────
 
@@ -155,7 +158,10 @@ class _FileChecker(ast.NodeVisitor):
     def _check_qt_call(self, node: ast.Call, dotted: str) -> None:
         owner, _, name = dotted.rpartition(".")
         owner = owner.rpartition(".")[2]
-        if name in catalog.WIDGET_EQUIVALENTS:
+        if name in catalog.SIGNAL_DECLARATORS:
+            if any(isinstance(arg, ast.Name) and arg.id == "dict" for arg in node.args):
+                self._add("KS204", node, f"`{name}` declared with a `dict` argument")
+        elif name in catalog.WIDGET_EQUIVALENTS:
             remedy = f"Use {catalog.WIDGET_EQUIVALENTS[name]}."
             self._add("KS210", node, f"`{name}` instantiated directly", remedy=remedy)
         elif name == "QThread":

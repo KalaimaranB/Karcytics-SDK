@@ -1,13 +1,13 @@
 """Dialog utilities for Karcytics SDK.
 
-Provides convenient wrappers for common PyQt6 file dialogs and message boxes
+Provides convenient wrappers for common PySide6 file dialogs and message boxes
 that work with the current theme.
 """
 
 from datetime import datetime
 
-from PyQt6.QtCore import Qt
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QFileDialog,

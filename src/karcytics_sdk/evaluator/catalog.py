@@ -56,6 +56,9 @@ DIALOG_EQUIVALENTS: dict[str, dict[str, str]] = {
 # (the SDK's open-file helpers are image-only), so a hit is advisory.
 PARTIAL_DIALOG_METHODS = {"getOpenFileName", "getOpenFileNames"}
 
+# Signal/slot declarators, under either binding's spelling.
+SIGNAL_DECLARATORS = {"Signal", "Slot", "pyqtSignal", "pyqtSlot"}
+
 # Qt threading primitives a plugin should not drive by hand.
 QT_THREAD_CLASSES = {"QThread", "QRunnable", "QThreadPool"}
 
@@ -70,6 +73,9 @@ PY_THREAD_CALLABLES = {
     "multiprocessing.Pool",
 }
 
-QT_BINDINGS = ("PyQt6", "PyQt5", "PySide6", "PySide2")
+# Every binding is recognised so the widget/dialog/threading rules still fire
+# on unmigrated code; only SUPPORTED_QT_BINDING is acceptable to import.
+SUPPORTED_QT_BINDING = "PySide6"
+QT_BINDINGS = (SUPPORTED_QT_BINDING, "PyQt6", "PyQt5", "PySide2")
 HUB_PACKAGE = "karcytics"
 SDK_PACKAGE = "karcytics_sdk"

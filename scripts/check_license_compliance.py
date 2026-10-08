@@ -41,6 +41,9 @@ DISALLOWED_MARKERS = [
 GPL_MARKER = "gpl"
 GPL_STRIP_FIRST = ["lgpl", "agpl", "lesser general public license", "library general public license"]
 
+# Longer than any real SPDX expression; beyond this the text is prose.
+_MAX_EXPRESSION_LENGTH = 200
+
 # Package name (case-insensitive) -> reason it's exempt despite its license
 # text. Only add an entry here with a documented, verifiable reason — this
 # list is a manual trust boundary, not a place to silence real findings.
@@ -48,12 +51,6 @@ NAME_ALLOWLIST = {
     "pyinstaller": "GPLv2 with an explicit bootloader exception: frozen/built "
     "output is not covered by the GPL regardless of the app's own license.",
     "pyinstaller-hooks-contrib": "Same PyInstaller bootloader exception as pyinstaller.",
-    # TEMPORARY — tracked migration to PySide6 (LGPLv3, no such conflict):
-    # https://github.com/KalaimaranB/Karcytics/issues/134
-    # Do NOT cite this as precedent for adding a new GPL/AGPL dependency —
-    # this is pre-existing debt being paid down, not a blessed exception.
-    "pyqt6": "TEMPORARY, see issue #134 — GPL-3.0-only, migrating to PySide6.",
-    "pyqt6-webengine": "TEMPORARY, see issue #134 — same as pyqt6, remove together.",
 }
 
 
@@ -67,9 +64,8 @@ def _dist_text(dist: m.Distribution) -> str:
     package itself. The structured ``License-Expression`` (PEP 639) or
     ``Classifier: License ::`` trove fields are what the package actually
     declares itself under, so they take priority; the noisy free-text field
-    is only consulted when neither is present (which is exactly the case
-    for PyQt6, which declares ``License-Expression: GPL-3.0-only`` and has
-    no classifier at all).
+    is only consulted when neither is present (PySide6, for one, declares
+    its license choice only in that field and has no classifier at all).
     """
     license_expr = dist.metadata.get("License-Expression", "") or ""
     if license_expr.strip():
@@ -82,11 +78,39 @@ def _dist_text(dist: m.Distribution) -> str:
     return (dist.metadata.get("License", "") or "").lower()
 
 
+def _marker_in(text: str) -> str | None:
+    """The disallowed-license marker found in `text`, if any."""
+    hit = next((marker for marker in DISALLOWED_MARKERS if marker in text), None)
+    if hit is None:
+        stripped = text
+        for s in GPL_STRIP_FIRST:
+            stripped = re.sub(re.escape(s), "", stripped)
+        if GPL_MARKER in stripped:
+            hit = "gpl"
+    return hit
+
+
+def _disallowed_marker(text: str) -> str | None:
+    """Like `_marker_in`, but honouring a license *choice*.
+
+    ``A OR B`` in an SPDX-style expression means the recipient picks one, so
+    the dependency is usable as long as any one alternative is acceptable —
+    PySide6 declares ``LGPL-3.0-only OR GPL-2.0-only OR GPL-3.0-only`` and we
+    take it under the LGPL. Only short single-line text is treated as an
+    expression; an "or" inside long free-text notices is just prose.
+    """
+    if "\n" in text or len(text) > _MAX_EXPRESSION_LENGTH:
+        return _marker_in(text)
+    hits = [_marker_in(alternative) for alternative in re.split(r"\s+or\s+", text.strip().strip("()"))]
+    return None if None in hits else hits[0]
+
+
 def _is_editable_first_party(dist: m.Distribution) -> bool:
     """First-party packages developed locally (this repo, the SDK, sibling
     plugins) carry our own PolyForm license intentionally and aren't a
     third-party dependency risk — skip them regardless of what their
-    metadata says."""
+    metadata says.
+    """
     try:
         raw = dist.read_text("direct_url.json")
     except Exception:
@@ -108,9 +132,7 @@ def find_violations() -> list[tuple[str, str, str]]:
     # real editable install uv manages) — if *any* discovered instance of a
     # name is a first-party editable install, treat the whole name as
     # first-party rather than flagging whichever instance lacks the marker.
-    first_party_names = {
-        dist.metadata.get("Name", "").lower() for dist in all_dists if _is_editable_first_party(dist)
-    }
+    first_party_names = {dist.metadata.get("Name", "").lower() for dist in all_dists if _is_editable_first_party(dist)}
 
     violations = []
     seen_names: set[str] = set()
@@ -126,16 +148,7 @@ def find_violations() -> list[tuple[str, str, str]]:
         if key in NAME_ALLOWLIST or key in first_party_names:
             continue
 
-        text = _dist_text(dist)
-
-        hit = next((marker for marker in DISALLOWED_MARKERS if marker in text), None)
-        if hit is None:
-            stripped = text
-            for s in GPL_STRIP_FIRST:
-                stripped = re.sub(re.escape(s), "", stripped)
-            if GPL_MARKER in stripped:
-                hit = "gpl"
-
+        hit = _disallowed_marker(_dist_text(dist))
         if hit is not None:
             violations.append((name, version, hit))
 

@@ -6,8 +6,8 @@ Each step can have its own UI and validation logic.
 
 from abc import ABC, abstractmethod
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -35,7 +35,7 @@ class StepIndicator(QWidget):
     current, and upcoming steps.
     """
 
-    step_clicked = pyqtSignal(int)
+    step_clicked = Signal(int)
 
     def __init__(self, steps: list[str], parent=None) -> None:
         """Create a step indicator.
@@ -257,12 +257,12 @@ class WizardPanel(QWidget):
     """
 
     # Proxy signals from PluginSignals for convenience
-    status_message = pyqtSignal(str)
-    state_changed = pyqtSignal()
-    analysis_started = pyqtSignal()
-    analysis_progress = pyqtSignal(int)
-    analysis_complete = pyqtSignal()
-    analysis_error = pyqtSignal(str)
+    status_message = Signal(str)
+    state_changed = Signal()
+    analysis_started = Signal()
+    analysis_progress = Signal(int)
+    analysis_complete = Signal()
+    analysis_error = Signal(str)
 
     def __init__(self, steps: list[WizardStep], title: str = "", parent=None) -> None:
         """Create a wizard panel.

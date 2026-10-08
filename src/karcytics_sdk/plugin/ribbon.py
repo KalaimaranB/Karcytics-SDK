@@ -1,6 +1,6 @@
 """Structural ribbon layouts for plugins."""
 
-from PyQt6.QtWidgets import QFrame, QHBoxLayout, QSizePolicy, QSpacerItem, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QSizePolicy, QSpacerItem, QWidget
 
 from .components import BioCancelButton, BioRunButton
 from .theme_fallback import theme_manager

@@ -1,6 +1,6 @@
 """Entry point for the Hello World blueprint plugin."""
 
-from PyQt6.QtWidgets import QWidget
+from PySide6.QtWidgets import QWidget
 
 __version__ = "1.0.0"
 __plugin_id__ = "hello_world"

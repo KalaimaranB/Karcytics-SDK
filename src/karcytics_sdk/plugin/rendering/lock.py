@@ -20,7 +20,7 @@ import threading
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
-from PyQt6.QtCore import QTimer
+from PySide6.QtCore import QTimer
 
 if TYPE_CHECKING:
     from karcytics_sdk.interfaces.i_crash_reporter import ICrashReporter

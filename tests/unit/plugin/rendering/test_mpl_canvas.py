@@ -278,9 +278,9 @@ class TestLockedFigureCanvas:
         c.deleteLater()
         qtbot.wait(10)  # let the queued deleteLater() actually run
 
-        from PyQt6 import sip
+        import shiboken6
 
-        assert sip.isdeleted(c)
+        assert not shiboken6.isValid(c)
         c._retry_draw()  # must not raise, and must not touch the destroyed C++ widget
 
     def test_retry_update_is_a_noop_once_the_canvas_has_been_deleted(self, qapp, qtbot):
@@ -289,7 +289,7 @@ class TestLockedFigureCanvas:
         c.deleteLater()
         qtbot.wait(10)
 
-        from PyQt6 import sip
+        import shiboken6
 
-        assert sip.isdeleted(c)
+        assert not shiboken6.isValid(c)
         c._retry_update()  # must not raise

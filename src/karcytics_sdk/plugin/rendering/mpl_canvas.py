@@ -19,7 +19,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from PyQt6.QtCore import QTimer, pyqtSignal
+from PySide6.QtCore import QTimer, Signal
 
 from .lock import MPL_RASTER_LOCK, RasterLock
 
@@ -61,9 +61,9 @@ class LayeredMatplotlibCanvas(_mpl_canvas_base()):
     scheduler and a private lock instead of the process-wide ones.
     """
 
-    data_layer_started = pyqtSignal()
-    data_layer_finished = pyqtSignal()
-    data_layer_failed = pyqtSignal(str)
+    data_layer_started = Signal()
+    data_layer_finished = Signal()
+    data_layer_failed = Signal(str)
 
     def __init__(  # noqa: PLR0913, PLR0917 - a small DI-style constructor; each param is a distinct collaborator, not a group that bundles cleanly
         self,
@@ -275,9 +275,9 @@ class LockedFigureCanvas(_mpl_canvas_base()):
         # destroyed C++ widget here would crash natively rather than raise a
         # catchable RuntimeError, since this runs from a QTimer callback
         # rather than a normal Python call.
-        from PyQt6 import sip
+        import shiboken6
 
-        if sip.isdeleted(self):
+        if not shiboken6.isValid(self):
             return
         self.draw()
 
@@ -286,8 +286,8 @@ class LockedFigureCanvas(_mpl_canvas_base()):
         self.raster_lock.try_run(lambda: _base_paint(event), self._retry_update)
 
     def _retry_update(self) -> None:
-        from PyQt6 import sip
+        import shiboken6
 
-        if sip.isdeleted(self):
+        if not shiboken6.isValid(self):
             return
         self.update()

@@ -1,10 +1,10 @@
 """Standard plugin signals for Karcytics SDK.
 
-This module defines all standard PyQt6 signals that plugins should emit
+This module defines all standard PySide6 signals that plugins should emit
 to communicate state changes and results to the Karcytics core application.
 """
 
-from PyQt6.QtCore import QObject, pyqtSignal
+from PySide6.QtCore import QObject, Signal
 
 
 class PluginSignals(QObject):
@@ -29,20 +29,20 @@ class PluginSignals(QObject):
     """
 
     # Status / Logging
-    status_message = pyqtSignal(str)  # Short status for UI (e.g. "Processing...")
-    log_message = pyqtSignal(str)  # Detailed log message
+    status_message = Signal(str)  # Short status for UI (e.g. "Processing...")
+    log_message = Signal(str)  # Detailed log message
 
     # State Management
-    state_changed = pyqtSignal()  # Plugin state changed
-    undo_available = pyqtSignal(bool)  # Whether undo is available
-    redo_available = pyqtSignal(bool)  # Whether redo is available
-    undo_state_changed = pyqtSignal()  # Undo labels / availability / clean state changed
+    state_changed = Signal()  # Plugin state changed
+    undo_available = Signal(bool)  # Whether undo is available
+    redo_available = Signal(bool)  # Whether redo is available
+    undo_state_changed = Signal()  # Undo labels / availability / clean state changed
 
     # Analysis Results
-    analysis_started = pyqtSignal()
-    analysis_progress = pyqtSignal(int)  # 0-100
-    analysis_complete = pyqtSignal()
-    analysis_error = pyqtSignal(str)  # Error message
+    analysis_started = Signal()
+    analysis_progress = Signal(int)  # 0-100
+    analysis_complete = Signal()
+    analysis_error = Signal(str)  # Error message
 
     # Data Changed
-    data_changed = pyqtSignal()  # Some data changed (image, parameters, etc)
+    data_changed = Signal()  # Some data changed (image, parameters, etc)

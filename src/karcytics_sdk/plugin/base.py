@@ -11,7 +11,7 @@ from collections.abc import Callable
 from functools import partial
 from typing import TYPE_CHECKING, Any
 
-from PyQt6.QtWidgets import QWidget
+from PySide6.QtWidgets import QWidget
 
 try:
     from karcytics.ui.theme import Colors, theme_manager
@@ -360,7 +360,7 @@ class PluginBase(QWidget):
         signals on the exact worker instance `create_worker()` returned
         before dispatch, so that same instance must be the one that runs.
         """
-        from PyQt6.QtCore import QThreadPool
+        from PySide6.QtCore import QThreadPool
 
         QThreadPool.globalInstance().start(AnalysisRunnable(worker))
         return worker
@@ -573,13 +573,13 @@ class PluginBase(QWidget):
     # Opt-in protocol for panels that support smooth animated loading.
     # Karcytics's PluginLoaderManager detects it via ``hasattr(panel, 'panel_ready')``.
     #
-    # To implement, subclass must ALSO declare these class-level PyQt signals:
+    # To implement, subclass must ALSO declare these class-level Qt signals:
     #
-    #   panel_ready = pyqtSignal()
+    #   panel_ready = Signal()
     #       Emitted after Phase 2 heavy widgets are built.
     #       PluginLoaderManager updates the loader message to "Loading workspace data…".
     #
-    #   data_ready = pyqtSignal()   # OPTIONAL
+    #   data_ready = Signal()   # OPTIONAL
     #       Emitted when ALL background data processing is done and the first
     #       meaningful render is complete.  PluginLoaderManager cross-fades the
     #       GalacticLoader into the fully-populated workspace only after this fires.
@@ -609,8 +609,8 @@ class PluginBase(QWidget):
         for panels that do not need the protocol.
 
         Subclasses that override this method MUST also declare:
-        - ``panel_ready = pyqtSignal()`` on the class
-        - Optionally: ``data_ready = pyqtSignal()`` for async data gating
+        - ``panel_ready = Signal()`` on the class
+        - Optionally: ``data_ready = Signal()`` for async data gating
 
         See the class-level docstring above for full protocol details.
         """
@@ -625,7 +625,7 @@ class PluginBase(QWidget):
         self.setStyleSheet(f"background: {Colors.BG_DARKEST}; color: {Colors.FG_PRIMARY};")
 
         # Propagate to children if they have their own theme handlers
-        from PyQt6.QtWidgets import QWidget
+        from PySide6.QtWidgets import QWidget
 
         for child in self.findChildren(QWidget):
             if hasattr(child, "_apply_theme_styles") and child is not self:

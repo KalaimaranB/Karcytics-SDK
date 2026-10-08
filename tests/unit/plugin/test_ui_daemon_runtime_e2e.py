@@ -46,7 +46,7 @@ def minimal_worker_script(tmp_path):
     script_path = tmp_path / "minimal_ui_daemon.py"
     code = """
 import sys
-from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow
+from PySide6.QtWidgets import QApplication, QLabel, QMainWindow
 from karcytics_sdk.plugin.ui_daemon_runtime import run
 
 def build_panel():
@@ -81,7 +81,7 @@ def theme_aware_worker_script(tmp_path):
     """
     script_path = tmp_path / "theme_worker.py"
     code = """
-from PyQt6.QtWidgets import QLabel
+from PySide6.QtWidgets import QLabel
 from karcytics_sdk.plugin.theme_fallback import Colors
 from karcytics_sdk.plugin.ui_daemon_runtime import run, send_event
 
@@ -108,7 +108,7 @@ def theme_gate_worker_script(tmp_path):
     """
     script_path = tmp_path / "theme_gate_worker.py"
     code = """
-from PyQt6.QtWidgets import QLabel
+from PySide6.QtWidgets import QLabel
 from karcytics_sdk.plugin.theme_fallback import Colors
 from karcytics_sdk.plugin.ui_daemon_runtime import run, send_event
 
@@ -139,7 +139,7 @@ def slow_phase_2_worker_script(tmp_path):
     script_path = tmp_path / "slow_phase_2_worker.py"
     code = """
 import time
-from PyQt6.QtWidgets import QLabel
+from PySide6.QtWidgets import QLabel
 from karcytics_sdk.plugin.ui_daemon_runtime import run, send_event
 
 class Panel(QLabel):
@@ -168,7 +168,7 @@ def project_aware_worker_script(tmp_path):
     """
     script_path = tmp_path / "project_worker.py"
     code = """
-from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow
+from PySide6.QtWidgets import QApplication, QLabel, QMainWindow
 from karcytics_sdk.plugin.ui_daemon_runtime import run
 
 def build_panel():
@@ -264,8 +264,8 @@ def menu_aware_worker_script(tmp_path):
     """
     script_path = tmp_path / "menu_worker.py"
     code = """
-from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import QApplication, QLabel, QMainWindow
+from PySide6.QtGui import QAction
+from PySide6.QtWidgets import QApplication, QLabel, QMainWindow
 from karcytics_sdk.plugin.ui_daemon_runtime import run
 
 class Panel(QLabel):
@@ -326,7 +326,7 @@ def broken_configure_menus_worker_script(tmp_path):
     """
     script_path = tmp_path / "broken_menu_worker.py"
     code = """
-from PyQt6.QtWidgets import QLabel
+from PySide6.QtWidgets import QLabel
 from karcytics_sdk.plugin.ui_daemon_runtime import run
 
 def build_panel():
@@ -374,7 +374,7 @@ def test_runtime_sends_ready_with_geometry(minimal_worker_script):
     while time.monotonic() < deadline:
         if any(t == "ready" for t, p in received):
             break
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
 
         QApplication.processEvents()
         time.sleep(0.02)
@@ -436,7 +436,7 @@ def test_runtime_native_close_emits_window_closed_event(minimal_worker_script):
     deadline = time.monotonic() + 5.0
     topics = [t for t, _ in received]
     while time.monotonic() < deadline and "window_closed" not in topics:
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
 
         QApplication.processEvents()
         time.sleep(0.02)
@@ -498,7 +498,7 @@ def test_theme_changed_colors_reach_the_panel(theme_aware_worker_script):
     deadline = time.monotonic() + 5.0
     topics = dict(received)
     while time.monotonic() < deadline and "theme_applied" not in topics:
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
 
         QApplication.processEvents()
         time.sleep(0.02)
@@ -548,7 +548,7 @@ def test_hub_theme_is_applied_before_any_widget_is_built(theme_gate_worker_scrip
     deadline = time.monotonic() + 5.0
     topics = dict(received)
     while time.monotonic() < deadline and "startup_accent" not in topics:
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
 
         QApplication.processEvents()
         time.sleep(0.02)
@@ -586,12 +586,12 @@ def data_ready_worker_script(tmp_path):
     """
     script_path = tmp_path / "data_ready_worker.py"
     code = """
-from PyQt6.QtCore import QTimer, pyqtSignal
-from PyQt6.QtWidgets import QLabel
+from PySide6.QtCore import QTimer, Signal
+from PySide6.QtWidgets import QLabel
 from karcytics_sdk.plugin.ui_daemon_runtime import run
 
 class Panel(QLabel):
-    data_ready = pyqtSignal()
+    data_ready = Signal()
 
     def load_workflow(self, payload, filename=None, metadata=None):
         self.setText(f"loaded {filename}")
@@ -627,7 +627,7 @@ def test_inject_workflow_then_panel_data_ready_event(data_ready_worker_script):
     deadline = time.monotonic() + 5.0
     topics = []
     while time.monotonic() < deadline and "panel_data_ready" not in topics:
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
 
         QApplication.processEvents()
         time.sleep(0.02)
@@ -648,7 +648,7 @@ def failing_load_worker_script(tmp_path):
     """
     script_path = tmp_path / "failing_load_worker.py"
     code = """
-from PyQt6.QtWidgets import QLabel
+from PySide6.QtWidgets import QLabel
 from karcytics_sdk.plugin.ui_daemon_runtime import run
 
 class Panel(QLabel):
@@ -678,7 +678,7 @@ def test_inject_workflow_failure_sends_workflow_injection_failed_event(failing_l
     deadline = time.monotonic() + 5.0
     topics = {}
     while time.monotonic() < deadline and "workflow_injection_failed" not in topics:
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
 
         QApplication.processEvents()
         time.sleep(0.02)

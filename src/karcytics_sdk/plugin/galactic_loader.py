@@ -22,9 +22,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from PyQt6 import QtCore
-from PyQt6.QtCore import Qt, QUrl, pyqtSignal
-from PyQt6.QtQuickWidgets import QQuickWidget
+from PySide6 import QtCore
+from PySide6.QtCore import Qt, QUrl, Signal
+from PySide6.QtQuickWidgets import QQuickWidget
 
 from .theme_fallback import Colors
 
@@ -39,8 +39,8 @@ class GalacticLoader(QQuickWidget):
     blocked importing heavy analysis libraries (matplotlib/umap/sklearn/...).
     """
 
-    warp_out_finished = pyqtSignal()
-    fade_out_finished = pyqtSignal()
+    warp_out_finished = Signal()
+    fade_out_finished = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -99,4 +99,4 @@ class GalacticLoader(QQuickWidget):
         """Begin the loader's fade-out transition."""
         root = self.rootObject()
         if root:
-            QtCore.QMetaObject.invokeMethod(root, "fadeOut", QtCore.Q_ARG(QtCore.QVariant, duration_ms))
+            QtCore.QMetaObject.invokeMethod(root, "fadeOut", QtCore.Q_ARG("QVariant", duration_ms))

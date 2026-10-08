@@ -1,18 +1,18 @@
 import math
 import random
 
-from PyQt6.QtCore import (  # type: ignore[attr-defined]
+from PySide6.QtCore import (  # type: ignore[attr-defined]
+    Property,
     QEasingCurve,
     QPointF,
     QPropertyAnimation,
     QRect,
     Qt,
     QTimer,
-    pyqtProperty,
-    pyqtSignal,
+    Signal,
 )
-from PyQt6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen
-from PyQt6.QtWidgets import (
+from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPainterPath, QPen
+from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
@@ -49,7 +49,7 @@ class HexagonBadge(QWidget):
         self._glow = value
         self.update()
 
-    glow = pyqtProperty(float, _get_glow, _set_glow)
+    glow = Property(float, _get_glow, _set_glow)
 
     def paintEvent(self, event):  # noqa: ARG002, N802
         """Paint the badge as a glowing hexagonal network graphic."""
@@ -128,7 +128,7 @@ class HexagonBadge(QWidget):
 class CourseCompleteOverlay(QWidget):
     """A full-screen overlay congratulating the user for completing a course."""
 
-    dismissed = pyqtSignal()
+    dismissed = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)

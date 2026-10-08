@@ -75,7 +75,7 @@ graph TD
 
 0.  **🚀 [Developer Onboarding](Developer_Onboarding.md):** The ultimate master guide for new and existing V1 developers migrating to the Karcytics V2 architecture. Start here!
 1.  **🏁 [Quickstart Guide](Getting_Started.md):** Learn how to prepare your local virtual environment using `uv`, generate onboarding keys, bootstrap a new plugin repository, and cryptographically sign your work.
-2.  **📖 [Developer Handbook](Dev_Handbook.md):** Deep technical workflows on layouts, dynamic state binding, persistent local storage, and the PyQt6 event model.
+2.  **📖 [Developer Handbook](Dev_Handbook.md):** Deep technical workflows on layouts, dynamic state binding, persistent local storage, and the PySide6 event model.
 3.  **🛡️ [CI/CD & Security](CI_CD_Guide.md):** Learn how the Karcytics security model signs code, performs integrity checks, and integrates into GitHub Actions workflows.
 4.  **🔍 API Reference:** Comprehensive technical references generated directly from the source code:
     *   **[Plugin Core](api/plugin/base.md):** `PluginBase`, `PluginState`, UI Components, and more.

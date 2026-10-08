@@ -10,7 +10,7 @@ base class.
 
 from __future__ import annotations
 
-from PyQt6.QtCore import QObject
+from PySide6.QtCore import QObject
 
 from karcytics_sdk.plugin.worker_thread import OneShotWorkerThread
 

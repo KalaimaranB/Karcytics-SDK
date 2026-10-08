@@ -13,9 +13,9 @@ import time
 from typing import Any
 
 import pytest
-from PyQt6.QtCore import QPoint, QPointF, QRect, Qt, pyqtSignal
-from PyQt6.QtGui import QWheelEvent
-from PyQt6.QtWidgets import QApplication, QScrollArea, QSlider, QVBoxLayout, QWidget
+from PySide6.QtCore import QPoint, QPointF, QRect, Qt, Signal
+from PySide6.QtGui import QWheelEvent
+from PySide6.QtWidgets import QApplication, QScrollArea, QSlider, QVBoxLayout, QWidget
 
 from karcytics_sdk.plugin.academy import AcademyManager
 from karcytics_sdk.plugin.academy_driver import AcademyStepDriver
@@ -262,7 +262,7 @@ class SelfSignalWidget(QWidget):
     not just a container searched for some descendant target.
     """
 
-    triggered = pyqtSignal()
+    triggered = Signal()
 
 
 class TestWireInteractionStepSelfTarget:

@@ -107,7 +107,7 @@ If you prefer to build and upload the package manually from your local machine, 
 
 - **`src/karcytics_sdk/`**: The core codebase containing:
   - `core/`: Verification trust managers, local override registries, and interface models.
-  - `ui/`: PyQt6 reusable visual components and wizard form guides.
+  - `ui/`: PySide6 reusable visual components and wizard form guides.
   - `utils/`: High performance IO helpers.
   - `contrib/`: Heavy deep-learning and image processing wrappers.
   - `sdk_cli.py`: The `karcytics-sdk` command line engine.

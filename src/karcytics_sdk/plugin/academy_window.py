@@ -30,9 +30,9 @@ import random
 from collections.abc import Callable
 from typing import Any
 
-from PyQt6.QtCore import QPointF, Qt, QTimer
-from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QPointF, Qt, QTimer
+from PySide6.QtGui import QBrush, QColor, QPainter, QPen
+from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
     QFrame,
