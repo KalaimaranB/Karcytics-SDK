@@ -33,8 +33,9 @@ Pre-commit runs ruff (lint + format), mypy, and license compliance automatically
 
 ## Qt binding
 
-The SDK is PySide6 only (LGPL; PyQt6 is GPL and incompatible with our license — see Hub issue #134). Never import PyQt6. Four PySide6 behaviours differ from PyQt6 in ways tests don't always catch:
+The SDK is PySide6 only (LGPL; PyQt6 is GPL and incompatible with our license — see Hub issue #134). Never import PyQt6. Five PySide6 behaviours differ from PyQt6 in ways tests don't always catch:
 
+- That same kind of slot is also delivered *through the sender*: if the sender is destroyed before the queued call runs, the slot is silently dropped. Never let an object be destroyed from inside a slot of its own signal while other slots may still be queued — hold it for one more event-loop turn (see the task scheduler's `_cleanup`/`_release_retired`). This is what left the flow canvas stuck on "Rendering…".
 - Declare a signal that carries a dict as `Signal(object)`, never `Signal(dict)`: PySide6 converts `dict` to a `QVariantMap` and silently drops non-string keys. `karcytics-sdk doctor` flags this as KS204.
 - A slot that is not a bound method of a `QObject` (a lambda, `functools.partial`, plain function) runs on the **sender's** thread, not the connecting thread. For a `QObject` worker moved to a `QThread`, connect its signals to bound methods of a GUI-thread `QObject`, never to a lambda that touches widgets. Signals declared on a `QThread` subclass itself are unaffected (the thread object lives on the GUI thread).
 - Use `shiboken6.isValid(obj)` to check a Qt object is still alive (the inverse of PyQt's `sip.isdeleted`).

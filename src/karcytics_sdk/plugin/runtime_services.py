@@ -32,7 +32,7 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QObject, QThreadPool, Signal
+from PySide6.QtCore import QMetaObject, QObject, Qt, QThreadPool, Signal, Slot
 
 from .academy import AcademyManager
 from .analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
@@ -69,6 +69,7 @@ class LocalTaskScheduler(QObject):
         self._pool: Any = QThreadPool.globalInstance()
         assert self._pool is not None
         self._active_workers: dict[str, AnalysisWorker] = {}
+        self._retired_workers: list[AnalysisWorker] = []
 
     def submit(self, analyzer: AnalysisBase, state: PluginState | None = None) -> AnalysisWorker:
         task_id = str(uuid.uuid4())
@@ -105,17 +106,29 @@ class LocalTaskScheduler(QObject):
         self._cleanup(task_id)
 
     def _cleanup(self, task_id: str) -> None:
-        if task_id in self._active_workers:
-            worker = self._active_workers[task_id]
-            try:
-                import shiboken6
+        # This runs *during* the worker's finished/error emission. Under
+        # PySide6 a slot that is not a bound QObject method (the lambdas
+        # callers such as the render pipeline connect to `worker.finished`)
+        # is delivered through the sender, so letting the worker be destroyed
+        # here silently drops every such slot still queued behind this one.
+        # Detach it as before, but hold a reference until `_release_retired`
+        # runs — a queued call, so it lands after those pending slots.
+        worker = self._active_workers.pop(task_id, None)
+        if worker is None:
+            return
+        try:
+            import shiboken6
 
-                if shiboken6.isValid(worker):
-                    worker.setParent(None)
-            except (ImportError, AttributeError, RuntimeError):
-                pass
-            finally:
-                del self._active_workers[task_id]
+            if shiboken6.isValid(worker):
+                worker.setParent(None)
+        except (ImportError, AttributeError, RuntimeError):
+            pass
+        self._retired_workers.append(worker)
+        QMetaObject.invokeMethod(self, "_release_retired", Qt.ConnectionType.QueuedConnection)
+
+    @Slot()
+    def _release_retired(self) -> None:
+        self._retired_workers.clear()
 
 
 class _TaskSchedulerProxy:

@@ -73,6 +73,32 @@ class TestLocalTaskScheduler:
     def test_cancel_all_does_not_raise(self):
         LocalTaskScheduler().cancel_all()
 
+    def test_lambda_connected_to_worker_finished_is_delivered(self, qtbot):
+        """The render pipeline connects a lambda to `worker.finished`. PySide6
+        delivers a non-bound-method slot through the sender, so a scheduler
+        that destroyed the worker during cleanup silently dropped it — the
+        canvas then sat on "Rendering…" forever.
+        """
+        import threading
+
+        from karcytics_sdk.plugin.managed_task import FunctionalTask
+
+        connected = threading.Event()  # hold the task until the slot is connected
+
+        def work():
+            connected.wait(5)
+            return {"value": 1}
+
+        scheduler = LocalTaskScheduler()
+        received = []
+        worker = scheduler.submit(FunctionalTask(work, "p"), None)
+        worker.finished.connect(lambda results: received.append(results))
+        del worker  # callers such as RenderPipelineController keep no reference
+        connected.set()
+
+        qtbot.waitUntil(lambda: bool(received), timeout=5000)
+        assert received[0]["value"] == 1
+
     def test_cleanup_disconnect_resilience(self):
         scheduler = LocalTaskScheduler()
         mock_worker = MagicMock()

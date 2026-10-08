@@ -293,3 +293,26 @@ class TestLockedFigureCanvas:
 
         assert not shiboken6.isValid(c)
         c._retry_update()  # must not raise
+
+
+class TestDataLayerWithRealScheduler:
+    """Every test above drives a fake scheduler, which is how a canvas stuck on
+    "Rendering…" under PySide6 went unnoticed: the real scheduler dropped the
+    lambda this canvas connects to `worker.finished`.
+    """
+
+    def test_data_layer_finishes_through_the_real_task_scheduler(self, qtbot):
+        from karcytics_sdk.plugin.runtime_services import LocalTaskScheduler
+
+        rasterize = _RecordingRasterizeStage()
+        canvas = LayeredMatplotlibCanvas(
+            Figure(), raster_lock=RasterLock("real-scheduler"), task_scheduler=LocalTaskScheduler()
+        )
+        qtbot.addWidget(canvas)
+        canvas.set_compute_stage(_FakeComputeStage("test"))
+        canvas.set_rasterize_stage(rasterize)
+
+        with qtbot.waitSignal(canvas.data_layer_finished, timeout=5000):
+            canvas.request_data_redraw(debounce_ms=0)
+
+        assert [data.value for _, data in rasterize.calls] == [1]
