@@ -132,3 +132,30 @@ def test_new_spotlight_repaints_opaque_widgets_under_it(tmp_path, monkeypatch):
     assert len(canvas_updates) == 1
     assert canvas_updates[0][0].boundingRect() == QRect(0, 0, 300, 200)
     assert elsewhere_updates == []
+
+
+def test_cyto_character_can_be_turned_off(tmp_path):
+    from PyQt6.QtCore import QRect
+
+    overlay, manager = make_overlay(tmp_path, InfoStep(id="a", text="Hello"))
+    overlay._root.show()  # type: ignore[attr-defined]
+    overlay.setGeometry(overlay._root.rect())  # type: ignore[attr-defined]
+    try:
+        overlay.render_step(manager.current_step)
+        assert overlay.cyto.isVisible()
+
+        manager.set_show_character(False)
+        overlay.refresh_character()
+        assert not overlay.cyto.isVisible()
+        assert overlay.bubble_container.isVisible()
+        # Alone, the bubble is centred rather than offset to leave Cyto room.
+        bubble = overlay.bubble_container
+        assert abs(bubble.geometry().center().x() - overlay.width() // 2) <= bubble.width() // 2 - 100
+
+        # A targeted step keeps him hidden and the bubble on screen.
+        overlay.set_targets([QRect(100, 100, 120, 30)])
+        overlay.render_step(manager.current_step)
+        assert not overlay.cyto.isVisible()
+        assert overlay.rect().contains(bubble.geometry())
+    finally:
+        overlay._root.close()  # type: ignore[attr-defined]

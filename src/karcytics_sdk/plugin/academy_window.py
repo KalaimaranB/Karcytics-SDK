@@ -33,6 +33,7 @@ from typing import Any
 from PyQt6.QtCore import QPointF, Qt, QTimer
 from PyQt6.QtGui import QBrush, QColor, QPainter, QPen
 from PyQt6.QtWidgets import (
+    QCheckBox,
     QDialog,
     QFrame,
     QHBoxLayout,
@@ -133,6 +134,19 @@ class AcademyCatalogWindow(QDialog):
         layout.addWidget(self.scroll)
 
         btn_layout = QHBoxLayout()
+        # The character only — courses, the bubble and spotlights run the
+        # same either way. Persisted per plugin by the AcademyManager.
+        self.show_character_check = QCheckBox("Show Cyto character during courses")
+        self.show_character_check.setObjectName("AcademyShowCharacterCheck")
+        self.show_character_check.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.show_character_check.setToolTip(
+            "Turn off to hide Cyto himself. Course steps and instructions still appear."
+        )
+        self.show_character_check.setChecked(bool(getattr(tutorial_manager, "show_character", True)))
+        self.show_character_check.toggled.connect(self._on_show_character_toggled)
+        # A manager without the setting (an older Hub-side one) can't honour it.
+        self.show_character_check.setVisible(hasattr(tutorial_manager, "set_show_character"))
+        btn_layout.addWidget(self.show_character_check)
         btn_layout.addStretch()
         self.close_btn = QPushButton("Close")
         self.close_btn.setCursor(Qt.CursorShape.PointingHandCursor)
@@ -154,6 +168,11 @@ class AcademyCatalogWindow(QDialog):
             f"color: {Colors.FG_SECONDARY}; font-size: {Fonts.SIZE_NORMAL}px; background: transparent;",
         )
         theme_manager.apply_style(
+            self.show_character_check,
+            f"QCheckBox {{ color: {Colors.FG_SECONDARY}; font-size: {Fonts.SIZE_NORMAL}px;"
+            f" background: transparent; spacing: 8px; }}",
+        )
+        theme_manager.apply_style(
             self.close_btn,
             f"""
             QPushButton {{
@@ -171,6 +190,9 @@ class AcademyCatalogWindow(QDialog):
             """,
         )
         self._populate_courses()
+
+    def _on_show_character_toggled(self, checked: bool) -> None:
+        self.tutorial_manager.set_show_character(checked)
 
     def _animate_particles(self) -> None:
         w, h = self.width(), self.height()

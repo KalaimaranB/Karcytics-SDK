@@ -1,5 +1,6 @@
 """Standard Menu Builder for Karcytics."""
 
+import sys
 from collections.abc import Callable
 
 from PyQt6.QtGui import QAction, QKeySequence
@@ -13,12 +14,29 @@ class StandardMenuBuilder:
         if self.menubar is None:
             raise ValueError("Window does not have a valid menubar.")
 
+        self.app_menu: QMenu | None = None
         self.file_menu: QMenu | None = None
         self.edit_menu: QMenu | None = None
         self.view_menu: QMenu | None = None
         self.help_menu: QMenu | None = None
         self.undo_action: QAction | None = None
         self.redo_action: QAction | None = None
+
+    def add_app_menu(self, title: str = "Karcytics") -> QMenu:
+        """Leading app-name menu for platforms with no native application menu.
+
+        macOS has one already (Qt moves PreferencesRole/AboutRole actions
+        into it); Windows and Linux don't, so this builds the equivalent as
+        the first menu-bar entry.
+        """
+        if not self.app_menu:
+            self.app_menu = QMenu(title, self.window)
+            existing = self.menubar.actions()
+            if existing:
+                self.menubar.insertMenu(existing[0], self.app_menu)
+            else:
+                self.menubar.addMenu(self.app_menu)
+        return self.app_menu
 
     def add_file_menu(self, extra_actions: list[QAction] | None = None) -> QMenu:
         if not self.file_menu:
@@ -36,6 +54,7 @@ class StandardMenuBuilder:
         redo_cb: Callable | None = None,
         pref_cb: Callable | None = None,
         pref_action_name: str = "Preferences...",
+        app_menu_title: str = "Karcytics",
     ) -> QMenu:
         if not self.edit_menu:
             self.edit_menu = self.menubar.addMenu("&Edit")
@@ -58,14 +77,26 @@ class StandardMenuBuilder:
             self.redo_action = redo_action
 
         if pref_cb:
-            # Also true when undo/redo were added by an earlier call.
-            if not self.edit_menu.isEmpty():
-                self.edit_menu.addSeparator()
             pref_action = QAction(pref_action_name, self.window)
             pref_action.setMenuRole(QAction.MenuRole.PreferencesRole)
             pref_action.setShortcut("Ctrl+,")
             pref_action.triggered.connect(pref_cb)
-            self.edit_menu.addAction(pref_action)
+            if sys.platform == "darwin":
+                # Also true when undo/redo were added by an earlier call.
+                if not self.edit_menu.isEmpty():
+                    self.edit_menu.addSeparator()
+                self.edit_menu.addAction(pref_action)
+            else:
+                # PreferencesRole only relocates the action on macOS (into
+                # the native app-name menu). Elsewhere it would stay under
+                # Edit, so put it in an explicit app-name menu instead to
+                # keep "<App> -> Preferences" true on every platform.
+                self.add_app_menu(app_menu_title).addAction(pref_action)
+
+        if sys.platform != "darwin":
+            # Preferences no longer lands here, so a preferences-only caller
+            # would otherwise show an empty Edit menu.
+            self.edit_menu.menuAction().setVisible(not self.edit_menu.isEmpty())
 
         assert self.edit_menu is not None
         return self.edit_menu

@@ -13,7 +13,7 @@ import time
 from typing import Any
 
 import pytest
-from PyQt6.QtCore import QPoint, QPointF, Qt, pyqtSignal
+from PyQt6.QtCore import QPoint, QPointF, QRect, Qt, pyqtSignal
 from PyQt6.QtGui import QWheelEvent
 from PyQt6.QtWidgets import QApplication, QScrollArea, QSlider, QVBoxLayout, QWidget
 
@@ -668,3 +668,53 @@ class TestTargetsInOtherWindows:
             assert driver._find_in_other_windows("NavInDialog") == []
         finally:
             dialog.close()
+
+
+class TestSpotlightCompanions:
+    """A target's `tutorial_spotlight_with` companions (the "X:" label in
+    front of an axis dropdown) share its spotlight hole.
+    """
+
+    @staticmethod
+    def _labelled_combo(parent: QWidget, x: int) -> tuple[QWidget, QWidget]:
+        panel = QWidget(parent)
+        panel.setGeometry(x, 0, 200, 30)
+        label = QWidget(panel)
+        label.setObjectName("AxisLabel")
+        label.setGeometry(0, 0, 20, 30)
+        combo = QWidget(panel)
+        combo.setObjectName("AxisCombo")
+        combo.setGeometry(30, 0, 100, 30)
+        combo.setProperty("tutorial_spotlight_with", "AxisLabel")
+        return label, combo
+
+    def test_label_and_dropdown_are_spotlit_as_one_hole(self, bus, tmp_path):
+        course = Course(id="c1", title="T", steps=[InfoStep(id="s", text="x", target_widget_names=["AxisCombo"])])
+        root = QWidget()
+        root.resize(800, 600)
+        # Two copies of the panel: each dropdown pairs with its own label.
+        self._labelled_combo(root, 0)
+        self._labelled_combo(root, 400)
+        driver, manager, root, overlay = make_visible_driver(course, bus, tmp_path, root=root)
+        overlay.setGeometry(root.rect())
+        root.show()
+        try:
+            driver._update_targets(manager.current_step)
+            assert overlay.target_rects == [QRect(0, 0, 130, 30), QRect(400, 0, 130, 30)]
+        finally:
+            root.close()
+
+    def test_hidden_companion_is_left_out(self, bus, tmp_path):
+        course = Course(id="c1", title="T", steps=[InfoStep(id="s", text="x", target_widget_names=["AxisCombo"])])
+        root = QWidget()
+        root.resize(800, 600)
+        label, _combo = self._labelled_combo(root, 0)
+        label.hide()
+        driver, manager, root, overlay = make_visible_driver(course, bus, tmp_path, root=root)
+        overlay.setGeometry(root.rect())
+        root.show()
+        try:
+            driver._update_targets(manager.current_step)
+            assert overlay.target_rects == [QRect(30, 0, 100, 30)]
+        finally:
+            root.close()

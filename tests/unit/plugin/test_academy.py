@@ -343,6 +343,28 @@ class TestProgressPersistence:
         assert second.completed_courses == ["course_1"]
         assert second.badges[0]["id"] == "course_1"
 
+    def test_show_character_defaults_on_and_persists_when_turned_off(self, bus, tmp_path):
+        persistence_dir = tmp_path / "academy"
+        first = AcademyManager(event_bus=bus, persistence_dir=persistence_dir)
+        assert first.show_character is True
+
+        first.set_show_character(False)
+
+        assert AcademyManager(event_bus=FakeEventBus(), persistence_dir=persistence_dir).show_character is False
+
+    def test_catalog_checkbox_drives_show_character(self, bus, tmp_path):
+        from karcytics_sdk.plugin.academy_window import AcademyCatalogWindow
+
+        manager = AcademyManager(event_bus=bus, persistence_dir=tmp_path / "academy")
+        manager.register_storyboard("m", make_two_step_course())
+        dialog = AcademyCatalogWindow(manager, "m", lambda _course_id: None)
+
+        assert dialog.show_character_check.isChecked()
+        dialog.show_character_check.setChecked(False)
+
+        assert manager.show_character is False
+        assert AcademyCatalogWindow(manager, "m", lambda _course_id: None).show_character_check.isChecked() is False
+
     def test_missing_progress_file_starts_with_empty_state(self, bus, tmp_path):
         manager = AcademyManager(event_bus=bus, persistence_dir=tmp_path / "nonexistent")
 

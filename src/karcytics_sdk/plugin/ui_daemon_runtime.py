@@ -418,8 +418,12 @@ def _build_menu_bar(window: QMainWindow, logger: Any) -> None:
 
         client = CoreServicesClient(int(port), token=token)
 
-        # Edit -> Preferences
-        builder.add_edit_menu(pref_cb=lambda: _open_preferences(window, client))
+        # <App name> -> Preferences (the native app menu on macOS, an
+        # explicit leading menu elsewhere — see StandardMenuBuilder).
+        builder.add_edit_menu(
+            pref_cb=lambda: _open_preferences(window, client),
+            app_menu_title=QApplication.applicationDisplayName() or window.windowTitle() or "Karcytics",
+        )
 
         # View -> Theme
         try:

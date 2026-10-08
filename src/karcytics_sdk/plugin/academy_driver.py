@@ -519,8 +519,14 @@ class AcademyStepDriver(QObject):
         for w in targets:
             window = w.window()
             if window is None or window is own_window:
-                local_pos = self._overlay.mapFromGlobal(w.mapToGlobal(w.rect().topLeft()))
-                rects.append(QRect(local_pos, w.size()))
+                # One hole for the target plus its companions (see
+                # `_spotlight_companions`), not a hole each with the gap
+                # between them left dimmed.
+                rect = QRect()
+                for part in [w, *_spotlight_companions(w)]:
+                    local_pos = self._overlay.mapFromGlobal(part.mapToGlobal(part.rect().topLeft()))
+                    rect = rect.united(QRect(local_pos, part.size()))
+                rects.append(rect)
             else:
                 inner = elsewhere.setdefault(window, [])
                 if w is not window and w not in inner:
@@ -598,6 +604,30 @@ class AcademyStepDriver(QObject):
                 return parent
             parent = parent.parentWidget()
         return None
+
+
+def _spotlight_companions(widget: QWidget) -> list[QWidget]:
+    """Visible widgets spotlit together with `widget` as one component.
+
+    A target opts in with a `tutorial_spotlight_with` dynamic property — the
+    object name (or a list of them) of widgets that read as part of it, e.g.
+    the "X:" label in front of an axis dropdown. Each name resolves to the
+    nearest match walking up from `widget`, so several copies of the same
+    panel (one per open plot) each pair with their own label.
+    """
+    names = widget.property("tutorial_spotlight_with")
+    if isinstance(names, str):
+        names = [names]
+    companions: list[QWidget] = []
+    for name in names or []:
+        ancestor = widget.parentWidget()
+        while ancestor is not None:
+            found = [c for c in ancestor.findChildren(QWidget, name) if c.isVisible()]
+            if found or ancestor.isWindow():
+                companions.extend(found)
+                break
+            ancestor = ancestor.parentWidget()
+    return companions
 
 
 def _scroll_into_view(widgets: list[QWidget]) -> None:
@@ -718,3 +748,8 @@ def open_academy(window: QWidget, panel: QWidget) -> None:
 
     dialog = AcademyCatalogWindow(tutorial_manager, plugin_id, _start, parent=window)
     dialog.exec()
+    # The catalogue's "Show Cyto character" checkbox may have been flipped
+    # with a course already on screen.
+    overlay = getattr(window, "_academy_overlay", None)
+    if overlay is not None:
+        overlay.refresh_character()

@@ -219,6 +219,26 @@ class TutorialOverlay(QWidget):
         self.cyto.drag_started.connect(self._on_user_drag_started)
         self.cyto.drag_finished.connect(self._on_user_drag_finished)
 
+    def _cyto_enabled(self) -> bool:
+        """Whether the learner wants the Cyto character drawn at all — see
+        `AcademyManager.show_character`. The bubble and spotlight are
+        unaffected; only the character itself goes.
+        """
+        return bool(getattr(self._academy_manager, "show_character", True))
+
+    def _show_cyto(self) -> None:
+        self.cyto.setVisible(self._cyto_enabled())
+
+    def refresh_character(self) -> None:
+        """Applies a changed `show_character` setting to the step on screen."""
+        if not self._is_alive() or not self.isVisible() or not self.bubble_container.isVisible():
+            return
+        self._show_cyto()
+        if not self._user_positioned:
+            self._reposition_cyto_and_bubble(self.target_rects)
+        self._update_mask()
+        self.update()
+
     def _build_bubble(self) -> None:
         """Builds the overlay's instructional bubble and its progress and navigation controls."""
         self.bubble_container = _DraggableBubble(self)
@@ -587,7 +607,7 @@ class TutorialOverlay(QWidget):
             self.target_rects = []
             self.clearMask()
         else:
-            self.cyto.show()
+            self._show_cyto()
             self.bubble_container.show()
             self._update_mask()
         self.update()
@@ -622,7 +642,7 @@ class TutorialOverlay(QWidget):
 
         self.current_step = step
         self.show()
-        self.cyto.show()
+        self._show_cyto()
         self.bubble_container.show()
         self._clear_dynamic_content()
         self._populate_default_buttons()
@@ -767,7 +787,7 @@ class TutorialOverlay(QWidget):
         self._is_reviewing = True
         self._review_step = step
         self.show()
-        self.cyto.show()
+        self._show_cyto()
         self.bubble_container.show()
         self._clear_dynamic_content()
         self.target_rects = []
@@ -887,11 +907,19 @@ class TutorialOverlay(QWidget):
         """
         if self._compact_mode or not rects:
             # ── Centered layout: Cyto and bubble as a side-by-side pair ────────
-            self.cyto.show()
+            self._show_cyto()
             self.bubble_container.show()
             self._force_resize()
             bubble_w = self.bubble_container.sizeHint().width()
             bubble_h = self.bubble_container.sizeHint().height()
+
+            if not self._cyto_enabled():
+                # No character to pair with — the bubble is centred alone.
+                self.bubble_container.move(
+                    max(10, (self.width() - bubble_w) // 2), max(10, (self.height() - bubble_h) // 2)
+                )
+                self.bubble_container.raise_()
+                return
 
             # Cyto's visual right edge is roughly cx + 240.
             # We place the bubble at cx + 240 so they sit side-by-side.
@@ -967,11 +995,19 @@ class TutorialOverlay(QWidget):
         bubble_y = cyto_y + 370
         bubble_w = self.bubble_container.sizeHint().width()
         bubble_h = self.bubble_container.sizeHint().height()
+        show_cyto = self._cyto_enabled()
+        if not show_cyto:
+            # With the character off, the bubble takes Cyto's spot beside
+            # the target (Cyto's face sits ~120px below his widget's top)
+            # rather than hanging a whole character's height below it.
+            bubble_y = cyto_y + 120
 
         # Clamp to screen
         if bubble_x + bubble_w > self.width():
             bubble_x = self.width() - bubble_w - 20
-        if bubble_y + bubble_h > self.height():
+        if bubble_y + bubble_h > self.height() and not show_cyto:
+            bubble_y = max(10, self.height() - bubble_h - 20)
+        elif bubble_y + bubble_h > self.height():
             # If placing below Cyto pushes it off-screen, place it above Cyto's visible face.
             # Cyto's face is around y=150. We want the bottom of the bubble (bubble_y + bubble_h)
             # to be above y=150, leaving a small gap.

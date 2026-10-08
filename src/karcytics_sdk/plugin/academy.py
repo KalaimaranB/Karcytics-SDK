@@ -105,6 +105,10 @@ class AcademyManager:
         # Local only (progress.json); lets a later step — even in a later
         # course — reveal a prediction the learner made.
         self.answers: dict[str, dict[str, dict[str, Any]]] = {}
+        # Whether TutorialOverlay draws the Cyto character during courses —
+        # the learner's own choice (a checkbox in AcademyCatalogWindow). The
+        # bubble and spotlights show either way.
+        self.show_character = True
         # Whether the live QuestionStep has been answered (correctly, for a
         # "check" question); next_step() won't leave it otherwise.
         self._question_answered = False
@@ -140,6 +144,7 @@ class AcademyManager:
         self.badges = data.get("badges", [])
         self.prerequisites_met = data.get("prerequisites_met", {})
         self.answers = data.get("answers", {})
+        self.show_character = bool(data.get("show_character", True))
 
     def _save_progress(self) -> None:
         """Saves current progress to disk."""
@@ -148,11 +153,17 @@ class AcademyManager:
             "badges": self.badges,
             "prerequisites_met": self.prerequisites_met,
             "answers": self.answers,
+            "show_character": self.show_character,
         }
         try:
             save_json(str(self.progress_file), data)
         except Exception as e:
             logger.error(f"Failed to save academy progress: {e}")
+
+    def set_show_character(self, show: bool) -> None:
+        """Turns the Cyto character on or off for this plugin's courses, persistently."""
+        self.show_character = bool(show)
+        self._save_progress()
 
     def register_storyboard(self, module_id: str, course: Course) -> None:
         """Registers a new tutorial course for a specific module."""
