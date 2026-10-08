@@ -59,6 +59,7 @@ nav:
       - Onboarding Guide: Developer_Onboarding.md
       - Plugin Development: Dev_Handbook.md
       - Cryptography & CI/CD: CI_CD_Guide.md
+      - SDK Doctor: Doctor.md
   - API Reference:
       - Interfaces: api/interfaces.md
       - Plugin Core:

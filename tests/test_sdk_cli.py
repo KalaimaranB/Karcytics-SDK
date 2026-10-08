@@ -88,6 +88,7 @@ def test_migrate_missing(tmp_path):
 def test_main_cli(mock_exit):
     from karcytics_sdk.cli.main import main
 
+    # doctor on a directory that does not exist reports failure.
     with patch("sys.argv", ["karcytics-sdk", "doctor", "/path"]):
         main()
-        mock_exit.assert_called_with(0)
+        mock_exit.assert_called_with(1)

@@ -113,6 +113,13 @@ Verify your plugin matches QA and security standards:
 karcytics-sdk evaluate <path/to/plugin>
 ```
 
+### 4. SDK Conformance Report (optional)
+Statically check a repo's structure and its use of SDK components, with a file, line, and fix for each finding:
+```bash
+karcytics-sdk doctor <path/to/plugin>
+```
+See `docs/Doctor.md` for the rules.
+
 ---
 
 ## 📘 Standalone Preview Support

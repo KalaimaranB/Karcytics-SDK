@@ -12,8 +12,23 @@ def setup_diagnostics_parser(subparsers):
     eval_parser.set_defaults(func=evaluate_plugin)
 
     # Command: doctor
-    doctor_parser = subparsers.add_parser("doctor", help="Evaluate a plugin against new SDK architecture.")
-    doctor_parser.add_argument("plugin_dir", type=str, help="Path to the plugin directory.")
+    doctor_parser = subparsers.add_parser(
+        "doctor",
+        help="Statically check a repo against SDK conventions (structure and SDK usage).",
+    )
+    doctor_parser.add_argument("plugin_dir", type=str, nargs="?", default=".", help="Path to the repo to check.")
+    doctor_parser.add_argument(
+        "--mode",
+        choices=["org", "functional", "all"],
+        default="all",
+        help="org: structure/CI/tooling. functional: SDK usage in the source. Default: all.",
+    )
+    doctor_parser.add_argument("--format", choices=["text", "json"], default="text", help="Output format.")
+    doctor_parser.add_argument("--show-info", action="store_true", help="Also show info-level findings.")
+    doctor_parser.add_argument("--strict", action="store_true", help="Exit non-zero on warnings as well as errors.")
+    doctor_parser.add_argument("--select", default="", help="Comma-separated rule-id prefixes to report (e.g. KS2).")
+    doctor_parser.add_argument("--ignore", default="", help="Comma-separated rule-id prefixes to skip.")
+    doctor_parser.add_argument("--no-color", action="store_true", help="Disable coloured output.")
     doctor_parser.set_defaults(func=doctor_plugin)
 
 
@@ -75,7 +90,31 @@ def evaluate_plugin(args) -> bool:
 
 
 def doctor_plugin(args) -> bool:
-    """Evaluate a plugin against new SDK architecture (plugin.toml, strict imports)."""
-    print(f"Running Plugin Conformance Evaluator (doctor) on {args.plugin_dir}...")
-    print("Note: Scaffolded for Phase 1. Full static/runtime checks to be implemented.")
-    return True
+    """Statically evaluate a repo against SDK conventions. Returns False if it has errors."""
+    import os
+    import sys
+    from pathlib import Path
+
+    from karcytics_sdk.evaluator import Mode, evaluate_repo, render_json, render_text
+
+    root = Path(args.plugin_dir)
+    if not root.is_dir():
+        print(f"ERROR: '{args.plugin_dir}' is not a directory.", file=sys.stderr)
+        return False
+
+    # Read with defaults: the legacy SDKCLI shim only passes plugin_dir.
+    mode = getattr(args, "mode", "all")
+    modes = (Mode.ORG, Mode.FUNCTIONAL) if mode == "all" else (Mode(mode),)
+    report = evaluate_repo(
+        root,
+        modes=modes,
+        select=getattr(args, "select", "").split(","),
+        ignore=getattr(args, "ignore", "").split(","),
+    )
+
+    if getattr(args, "format", "text") == "json":
+        print(render_json(report))
+    else:
+        color = not getattr(args, "no_color", False) and sys.stdout.isatty() and "NO_COLOR" not in os.environ
+        print(render_text(report, show_info=getattr(args, "show_info", False), color=color))
+    return report.passed(strict=getattr(args, "strict", False))

@@ -28,6 +28,7 @@ Pre-commit runs ruff (lint + format), mypy, and license compliance automatically
 - `src/karcytics_sdk/host/` — Hub-facing: `core_services.py`, `trust_manager.py`/`trust_path.py`/`trust_storage.py`/`trust_overrides.py` (Ed25519 signature verification), `module_status_widget.py`, `marketplace_cache.py`.
 - `src/karcytics_sdk/interfaces/` — Protocols implemented by the Hub and consumed by plugins: `ITaskScheduler`, `IEventBus`, `ILogger`, `ICrashReporter`.
 - `src/karcytics_sdk/cli/commands/` — the `karcytics-sdk` CLI: `scaffold` (new plugin), `security` (signing/identity), `migrate`, `diagnostics`.
+- `src/karcytics_sdk/evaluator/` — the static conformance checker behind `karcytics-sdk doctor`: `registry.py` (every rule), `org_rules.py` (KS1xx: layout/CI/tooling), `functional_rules.py` (KS2xx: one AST pass per file), `catalog.py` (which Qt classes have an SDK equivalent). It only reads the target repo, never imports it. See `docs/Doctor.md`.
 - `src/karcytics_sdk/testing/` — test helpers exported for *plugin repos* to use in their own test suites.
 
 ## Key architectural pattern
