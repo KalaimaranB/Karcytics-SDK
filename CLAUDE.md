@@ -33,9 +33,10 @@ Pre-commit runs ruff (lint + format), mypy, and license compliance automatically
 
 ## Qt binding
 
-The SDK is PySide6 only (LGPL; PyQt6 is GPL and incompatible with our license — see Hub issue #134). Never import PyQt6. Three PySide6 behaviours differ from PyQt6 in ways tests don't always catch:
+The SDK is PySide6 only (LGPL; PyQt6 is GPL and incompatible with our license — see Hub issue #134). Never import PyQt6. Four PySide6 behaviours differ from PyQt6 in ways tests don't always catch:
 
 - Declare a signal that carries a dict as `Signal(object)`, never `Signal(dict)`: PySide6 converts `dict` to a `QVariantMap` and silently drops non-string keys. `karcytics-sdk doctor` flags this as KS204.
+- A slot that is not a bound method of a `QObject` (a lambda, `functools.partial`, plain function) runs on the **sender's** thread, not the connecting thread. For a `QObject` worker moved to a `QThread`, connect its signals to bound methods of a GUI-thread `QObject`, never to a lambda that touches widgets. Signals declared on a `QThread` subclass itself are unaffected (the thread object lives on the GUI thread).
 - Use `shiboken6.isValid(obj)` to check a Qt object is still alive (the inverse of PyQt's `sip.isdeleted`).
 - PySide6's type stubs omit `Optional` on arguments Qt accepts `None` for (`setParentItem(None)`, `setGraphicsEffect(None)`); those calls carry `# type: ignore[arg-type]`.
 
