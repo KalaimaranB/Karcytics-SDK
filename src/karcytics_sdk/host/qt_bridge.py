@@ -19,6 +19,8 @@ from typing import Any
 
 from PySide6.QtCore import QObject, Signal
 
+from karcytics_sdk.plugin.signals import move_to_gui_thread
+
 
 @dataclass
 class _CallRequest:
@@ -42,6 +44,9 @@ class QtThreadBridge(QObject):
 
     def __init__(self) -> None:
         super().__init__()
+        # The whole point is to run on the GUI thread, so never let a bridge
+        # built elsewhere quietly run its calls on that other thread.
+        move_to_gui_thread(self)
         self._call_requested.connect(self._on_call_requested)
 
     def _on_call_requested(self, request: _CallRequest) -> None:

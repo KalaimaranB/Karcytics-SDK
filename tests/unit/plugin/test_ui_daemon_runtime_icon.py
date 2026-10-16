@@ -10,6 +10,7 @@ import logging
 from karcytics_sdk.plugin.ui_daemon_runtime import (
     _resolve_app_icon_path,
     patch_macos_bundle_name,
+    set_windows_app_user_model_id,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,3 +62,10 @@ def test_patch_macos_bundle_name_never_raises():
     process down over a cosmetic menu-bar title.
     """
     patch_macos_bundle_name("Flow Cytometry", logger)
+
+
+def test_set_windows_app_user_model_id_never_raises():
+    """Same contract as `patch_macos_bundle_name`: a no-op off Windows, and
+    best-effort on it.
+    """
+    set_windows_app_user_model_id("Karcytics.Plugin.test", logger)

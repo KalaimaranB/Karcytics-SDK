@@ -34,6 +34,25 @@ def safe_disconnect(signal: Any, slot: Callable[..., Any] | None = None) -> bool
             return False
 
 
+def move_to_gui_thread(obj: QObject) -> None:
+    """Give a newly built, parentless `obj` to the application's GUI thread.
+
+    Call it right after constructing a long-lived `QObject` that may be built
+    off the GUI thread (a lazy singleton first touched by a background
+    thread, or anything created from a plain `threading.Thread`). Under
+    PySide6, a slot that is not a bound `QObject` method (a lambda,
+    `functools.partial`) is delivered through the sender's thread; if that
+    thread has no running event loop, every such delivery is silently
+    dropped. Does nothing when no application exists yet or `obj` is already
+    on the GUI thread.
+    """
+    from PySide6.QtCore import QCoreApplication
+
+    app = QCoreApplication.instance()
+    if app is not None and obj.thread() is not app.thread():
+        obj.moveToThread(app.thread())
+
+
 class PluginSignals(QObject):
     """Standard signals that all plugins emit.
 

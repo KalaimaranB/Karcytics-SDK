@@ -79,8 +79,9 @@ from .runtime_services import (
     task_scheduler,
     tutorial_manager,
 )
-from .signals import PluginSignals, safe_disconnect
+from .signals import PluginSignals, move_to_gui_thread, safe_disconnect
 from .state import PluginState
+from .timing import Debouncer
 from .toast import (
     STYLE_ERROR,
     STYLE_INFO,
@@ -93,7 +94,12 @@ from .toast import (
     toast_manager,
 )
 from .tutorial_overlay import TutorialOverlay
-from .ui_daemon_runtime import ClosableMainWindow, RequestDispatcher, patch_macos_bundle_name
+from .ui_daemon_runtime import (
+    ClosableMainWindow,
+    RequestDispatcher,
+    patch_macos_bundle_name,
+    set_windows_app_user_model_id,
+)
 from .ui_daemon_runtime import run as run_ui_daemon
 from .validation import (
     validate_directory_exists,
@@ -114,11 +120,14 @@ __all__ = [
     "PluginUIDaemon",
     "PluginSignals",
     "safe_disconnect",
+    "move_to_gui_thread",
+    "Debouncer",
     "PluginState",
     "ClosableMainWindow",
     "RequestDispatcher",
     "run_ui_daemon",
     "patch_macos_bundle_name",
+    "set_windows_app_user_model_id",
     "PluginContext",
     "PluginManifest",
     "UndeclaredCapabilityAccess",

@@ -37,6 +37,7 @@ from PySide6.QtCore import QMetaObject, QObject, Qt, QThreadPool, Signal, Slot
 from .academy import AcademyManager
 from .analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
 from .events import CentralEventBus
+from .signals import move_to_gui_thread
 from .ui_daemon_runtime import send_event
 
 if TYPE_CHECKING:
@@ -74,7 +75,16 @@ class LocalTaskScheduler(QObject):
     def submit(self, analyzer: AnalysisBase, state: PluginState | None = None) -> AnalysisWorker:
         task_id = str(uuid.uuid4())
 
-        worker = AnalysisWorker(analyzer, state, parent=self)
+        # A caller may submit from a plain Python thread (the flow plugin's
+        # gate propagator does, from its debounce `threading.Timer`). A worker
+        # created there belongs to that thread, and PySide6 delivers the
+        # non-QObject slots below through it — a thread with no event loop,
+        # so `task_finished` was silently never emitted. Move the worker to
+        # this scheduler's thread before parenting and wiring it.
+        worker = AnalysisWorker(analyzer, state)
+        if worker.thread() is not self.thread():
+            worker.moveToThread(self.thread())
+        worker.setParent(self)
         worker.task_id = task_id  # type: ignore[attr-defined]
 
         worker.finished.connect(partial(self._on_task_finished, task_id))
@@ -145,7 +155,10 @@ class _TaskSchedulerProxy:
 
     def _get_instance(self) -> LocalTaskScheduler:
         if self._instance is None:
+            # Same first-touch hazard as `CentralEventBus`; `submit()` moves
+            # each worker to this scheduler's thread, so it must be the GUI one.
             self._instance = LocalTaskScheduler()
+            move_to_gui_thread(self._instance)
         return self._instance
 
     def __getattr__(self, name: str) -> Any:

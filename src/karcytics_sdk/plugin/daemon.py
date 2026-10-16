@@ -24,6 +24,7 @@ import msgpack
 from PySide6.QtCore import QObject, Signal
 
 from .logging import get_logger
+from .signals import move_to_gui_thread
 
 logger = get_logger(__name__, "karcytics_sdk")
 
@@ -117,6 +118,9 @@ class PluginDaemon(QObject):
         with PluginDaemon._registry_lock:
             if plugin_id not in PluginDaemon._instances:
                 daemon = PluginDaemon(plugin_id, daemon_script_path)
+                # May be first requested from a background thread (the flow
+                # plugin's FCS warm-up); see `move_to_gui_thread`.
+                move_to_gui_thread(daemon)
                 PluginDaemon._instances[plugin_id] = daemon
             elif daemon_script_path is not None and PluginDaemon._instances[plugin_id].daemon_script_path is None:
                 PluginDaemon._instances[plugin_id].daemon_script_path = Path(daemon_script_path)
@@ -596,7 +600,9 @@ class PluginUIDaemon(QObject):
         """
         with cls._registry_lock:
             if plugin_id not in cls._instances:
-                cls._instances[plugin_id] = PluginUIDaemon(plugin_id, daemon_script_path)
+                ui_daemon = PluginUIDaemon(plugin_id, daemon_script_path)
+                move_to_gui_thread(ui_daemon)  # its signals are connected to lambdas
+                cls._instances[plugin_id] = ui_daemon
             elif daemon_script_path is not None and cls._instances[plugin_id].daemon_script_path is None:
                 cls._instances[plugin_id].daemon_script_path = Path(daemon_script_path)
             return cls._instances[plugin_id]

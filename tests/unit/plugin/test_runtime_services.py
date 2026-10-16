@@ -99,6 +99,28 @@ class TestLocalTaskScheduler:
         qtbot.waitUntil(lambda: bool(received), timeout=5000)
         assert received[0]["value"] == 1
 
+    def test_task_finished_emitted_for_task_submitted_off_the_gui_thread(self, qtbot):
+        """The flow plugin's gate propagator submits from a `threading.Timer`
+        (its debounce). A worker created there belonged to that short-lived
+        thread, so the scheduler's own finished slot was delivered through a
+        thread with no event loop and silently dropped: gates never reached
+        the other samples.
+        """
+        import threading
+
+        from karcytics_sdk.plugin.managed_task import FunctionalTask
+
+        scheduler = LocalTaskScheduler()
+        received = []
+        scheduler.task_finished.connect(lambda task_id, results: received.append(results))
+
+        submitter = threading.Thread(target=lambda: scheduler.submit(FunctionalTask(lambda: {"value": 2}, "p"), None))
+        submitter.start()
+        submitter.join()
+
+        qtbot.waitUntil(lambda: bool(received), timeout=5000)
+        assert received[0]["value"] == 2
+
     def test_cleanup_disconnect_resilience(self):
         scheduler = LocalTaskScheduler()
         mock_worker = MagicMock()

@@ -19,6 +19,8 @@ import weakref
 
 from PySide6.QtCore import QObject, Signal
 
+from .signals import move_to_gui_thread
+
 _SHORT_HEX_LEN = 3
 _LINEAR_THRESHOLD = 0.03928
 
@@ -261,3 +263,5 @@ class _ThemeManagerProxy(QObject):
 
 
 theme_manager = _ThemeManagerProxy()
+# Built at import time, which can happen on the Hub's background plugin loader.
+move_to_gui_thread(theme_manager)

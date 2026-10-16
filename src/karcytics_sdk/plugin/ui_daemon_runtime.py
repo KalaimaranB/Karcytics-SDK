@@ -84,6 +84,38 @@ def patch_macos_bundle_name(display_name: str, logger: Any) -> None:
         )
 
 
+def set_windows_app_user_model_id(app_id: str, logger: Any) -> None:
+    """Give this process its own Windows taskbar identity, so the taskbar
+    shows the icon set via `QApplication.setWindowIcon` instead of the
+    running executable's.
+
+    Windows' counterpart to `patch_macos_bundle_name`, for the same set of
+    processes: every isolated plugin runs under its `.venv`'s bare
+    `python.exe`, and so does the Hub in dev mode. Without an explicit
+    AppUserModelID, the taskbar groups each of their windows under
+    `python.exe` and shows Python's icon (or a generic one) for the button,
+    whatever `setWindowIcon` was given. Setting one makes the shell treat the
+    process as its own app and take the button's icon from the window. A
+    frozen `Karcytics.exe` already has its icon embedded, but setting this
+    there too is harmless.
+
+    Must run before the process creates its first window. Best-effort and
+    Windows-only: silently no-ops elsewhere, and a failure leaves the
+    taskbar as it was rather than taking the process down over cosmetics.
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import ctypes
+
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(ctypes.c_wchar_p(app_id))
+    except Exception:
+        logger.debug(
+            "Could not set the Windows AppUserModelID; the taskbar may show the generic Python icon.",
+            extra={"log_event": "windows_app_id_failed"},
+        )
+
+
 def _resolve_app_icon_path(icon_path: str | Path | None) -> Path | None:
     """Pick this window's icon: the plugin's own if it provided one and it
     exists, else the Hub's default icon (see `PluginUIDaemon
@@ -745,6 +777,7 @@ def run(  # noqa: C901, PLR0913, PLR0915
     logger = get_logger(__name__, plugin_id)
     _confirm_hub_theme_or_exit(logger, plugin_id)
     patch_macos_bundle_name(window_title, logger)
+    set_windows_app_user_model_id(f"Karcytics.Plugin.{plugin_id}", logger)
     # QApplication.instance() is typed as returning the QCoreApplication
     # base (it overrides an inherited classmethod without narrowing the
     # stub's return type), so the `or` here still widens to that base type

@@ -9,6 +9,8 @@ from typing import Any
 
 from PySide6.QtCore import QObject, Signal
 
+from .signals import move_to_gui_thread
+
 
 class _EventBus(QObject):
     """The actual implementation of the EventBus."""
@@ -68,7 +70,11 @@ class _EventBusProxy:
 
     def _get_bus(self):
         if self._bus is None:
+            # The first touch can come from a background thread (plugin code
+            # loaded off the GUI thread); a bus owned by that thread would
+            # drop every event once it ends.
             self._bus = _EventBus()
+            move_to_gui_thread(self._bus)
         return self._bus
 
     def subscribe(self, topic: str, callback: Callable[[Any], None]) -> None:
