@@ -51,6 +51,12 @@ ACADEMY_SUBTASK_COMPLETED = "ACADEMY_SUBTASK_COMPLETED"
 ACADEMY_CHECKPOINT_SAVED = "ACADEMY_CHECKPOINT_SAVED"
 ACADEMY_COURSE_PREPARE_PROJECT = "ACADEMY_COURSE_PREPARE_PROJECT"
 
+# Emitted with (course_id, snapshot) when the live course is paused, and with
+# (course_id, step) when a paused one resumes. Plugin-process only: the Hub
+# never runs a pausable course, so these have no KarcyticsEvent counterpart.
+ACADEMY_COURSE_PAUSED = "ACADEMY_COURSE_PAUSED"
+ACADEMY_COURSE_RESUMED = "ACADEMY_COURSE_RESUMED"
+
 # Emitted with (step, is_reviewing) whenever the *reviewed* step changes.
 # Deliberately separate from ACADEMY_STEP_CHANGED (which means "the live
 # course actually progressed") so existing/future subscribers can't mistake
@@ -105,6 +111,10 @@ class AcademyManager:
         # Local only (progress.json); lets a later step — even in a later
         # course — reveal a prediction the learner made.
         self.answers: dict[str, dict[str, dict[str, Any]]] = {}
+        # course_id -> the latest unfinished attempt at it (see
+        # record_in_progress): where it was saved and how far it got. Feeds
+        # the catalog's progress; the attempt itself lives in its workflow.
+        self.in_progress: dict[str, dict[str, Any]] = {}
         # Whether TutorialOverlay draws the Cyto character during courses —
         # the learner's own choice (a checkbox in AcademyCatalogWindow). The
         # bubble and spotlights show either way.
@@ -144,6 +154,7 @@ class AcademyManager:
         self.badges = data.get("badges", [])
         self.prerequisites_met = data.get("prerequisites_met", {})
         self.answers = data.get("answers", {})
+        self.in_progress = data.get("in_progress", {})
         self.show_character = bool(data.get("show_character", True))
 
     def _save_progress(self) -> None:
@@ -153,6 +164,7 @@ class AcademyManager:
             "badges": self.badges,
             "prerequisites_met": self.prerequisites_met,
             "answers": self.answers,
+            "in_progress": self.in_progress,
             "show_character": self.show_character,
         }
         try:
@@ -374,6 +386,9 @@ class AcademyManager:
                 self._award_badge(self.active_course)
 
             self._save_checkpoint(course_id)
+            # The finished attempt is now the latest one, so the catalog
+            # shows "completed" rather than an older paused attempt.
+            self.in_progress.pop(course_id, None)
             self._save_progress()
 
             self._event_bus.emit(ACADEMY_COURSE_COMPLETED, course_id, self.active_course.badge_reward)
@@ -417,6 +432,127 @@ class AcademyManager:
             self.step_history = []
             self._review_index = None
             self._emit_step_changed()
+
+    # ── Pause and resume ───────────────────────────────────────────────────
+
+    def find_course(self, course_id: str) -> Course | None:
+        """The registered course with this id, from any module."""
+        for courses in self.courses_by_module.values():
+            for course in courses:
+                if course.id == course_id:
+                    return course
+        return None
+
+    def step_position(self, course: Course | None = None, step_id: str | None = None) -> tuple[int, int]:
+        """`(step_number, step_total)` along the course's main path.
+
+        Defaults to the live course and step. A step off the main path (a
+        retry or side branch) counts as the last main-path step visited
+        before it — the same number the overlay's progress bar shows.
+        """
+        course = course or self.active_course
+        if course is None:
+            return 0, 0
+        main_path = course.get_main_path()
+        if step_id is None:
+            step_id = self.current_step.id if self.current_step else None
+        if step_id in main_path:
+            return main_path.index(step_id) + 1, len(main_path)
+        for visited in reversed(self.step_history):
+            if visited in main_path:
+                return main_path.index(visited) + 1, len(main_path)
+        return (1 if step_id else 0), len(main_path)
+
+    def session_snapshot(self) -> dict[str, Any] | None:
+        """Everything needed to resume the live course later, as plain JSON.
+
+        None when no course is running. The caller stores it (a plugin keeps
+        it in the course's workflow) and hands it back to `restore_session()`.
+        """
+        if not self.active_course or not self.current_step:
+            return None
+        step_number, step_total = self.step_position()
+        return {
+            "course_id": self.active_course.id,
+            "course_title": self.active_course.title,
+            "step_id": self.current_step.id,
+            "step_history": list(self.step_history),
+            "subtask_progress": dict(self.active_subtask_progress),
+            "step_number": step_number,
+            "step_total": step_total,
+            "updated_at": datetime.now(UTC).isoformat(),
+        }
+
+    def pause(self) -> dict[str, Any] | None:
+        """Stops the live course and returns its snapshot (None if none is running).
+
+        Leaves review mode first, so the snapshot is the live step. The
+        course is no longer active afterwards: the overlay hides and
+        nothing advances until `restore_session()`.
+        """
+        if self.is_reviewing:
+            self.return_to_current()
+        snapshot = self.session_snapshot()
+        if snapshot is None:
+            return None
+        self._cancel_wait_subscription()
+        self.active_course = None
+        self.current_step = None
+        self._question_answered = False
+        self._event_bus.emit(ACADEMY_COURSE_PAUSED, snapshot["course_id"], snapshot)
+        self._event_bus.emit(ACADEMY_STEP_CHANGED, None)
+        return snapshot
+
+    def restore_session(self, snapshot: dict[str, Any]) -> bool:
+        """Resumes a course from a `session_snapshot()`.
+
+        Lands on the saved step, or on its `resume_step_id` when it has one
+        (the history is cut back to that step, and sub-task progress — which
+        belonged to the step left behind — is dropped). An unknown step id
+        restarts the course. Returns False for an unknown course.
+        """
+        course = self.find_course(snapshot.get("course_id", ""))
+        if course is None or not course.steps:
+            logger.error(f"Cannot resume unknown course: {snapshot.get('course_id')!r}")
+            return False
+
+        self._cancel_wait_subscription()
+        history = [s for s in snapshot.get("step_history", []) if course.get_step(s)]
+        subtasks = dict(snapshot.get("subtask_progress", {}))
+        step = course.get_step(snapshot.get("step_id", ""))
+        if step is not None and step.resume_step_id and course.get_step(step.resume_step_id):
+            step = course.get_step(step.resume_step_id)
+            subtasks = {}
+            if step is not None and step.id in history:
+                history = history[: len(history) - history[::-1].index(step.id)]
+        if step is None:
+            step, history, subtasks = course.steps[0], [], {}
+
+        self.active_course = course
+        self.current_step = step
+        self.step_history = history
+        self._review_index = None
+        self._question_answered = False
+        self.active_subtask_progress = subtasks if isinstance(step, ForcedInteractionStep) else {}
+        if isinstance(step, WaitForEventStep):
+            self._subscribe_wait_event(step)
+        self._event_bus.emit(ACADEMY_COURSE_RESUMED, course.id, step)
+        self._emit_step_changed()
+        return True
+
+    def record_in_progress(self, course_id: str, entry: dict[str, Any]) -> None:
+        """Stores the latest unfinished attempt at `course_id` for the catalog.
+
+        `entry` is whatever the plugin wants to find it by again (workflow
+        filename, project dir) plus `step_number`/`step_total`. A newer
+        attempt replaces an older one.
+        """
+        self.in_progress[course_id] = {**entry, "updated_at": datetime.now(UTC).isoformat()}
+        self._save_progress()
+
+    def get_in_progress(self, course_id: str) -> dict[str, Any] | None:
+        """The latest unfinished attempt at `course_id`, if any."""
+        return self.in_progress.get(course_id)
 
     def _award_badge(self, course: Course) -> None:
         """Awards a badge if not already earned."""
@@ -541,13 +677,21 @@ class AcademyManager:
         self._event_bus.emit(ACADEMY_REVIEW_STATE_CHANGED, self.current_step, False)
 
     def get_progress(self, course_id: str) -> float:
-        """Returns completion percentage (100.0 if completed)."""
+        """Returns completion percentage: 100.0 once completed, else how far
+        the latest unfinished attempt got (0.0 if none).
+
+        A completed course reads 100 even with a newer attempt in progress.
+        """
         if course_id in self.completed_courses or any(b.get("id") == course_id for b in self.badges):
             if course_id not in self.completed_courses:
                 self.completed_courses.append(course_id)
                 self._save_progress()
             return 100.0
 
+        attempt = self.in_progress.get(course_id)
+        if attempt and attempt.get("step_total"):
+            # Never 100 for an unfinished attempt, even on its last step.
+            return min(99.0, 100.0 * attempt.get("step_number", 0) / attempt["step_total"])
         return 0.0
 
     def is_core_intro_done(self) -> bool:

@@ -68,6 +68,11 @@ class BaseStep(ABC):
     failure_hint: str | None = None
     stuck_hint_text: str | None = None
     stuck_hint_after_ms: int | None = None
+    # Where a paused course resumes when it was paused on this step. Set it on
+    # a step that only makes sense with a window or dialog open that a saved
+    # workflow doesn't restore — point it at the step that opens it. None
+    # resumes on this step itself.
+    resume_step_id: str | None = None
 
 
 @dataclass

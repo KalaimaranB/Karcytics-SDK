@@ -634,3 +634,157 @@ class TestReviewMode:
         manager.start_course_confirmed("course_2")
 
         assert manager.step_history == ["step_1"]
+
+
+def make_pausable_course(course_id: str = "pausable") -> Course:
+    """Four main-path steps, a side branch off step_2, and a step that
+    resumes one step back (as one inside a dialog would).
+    """
+    return Course(
+        id=course_id,
+        title="Pausable",
+        steps=[
+            InfoStep(id="step_1", text="One", next_step_id="step_2"),
+            InfoStep(id="step_2", text="Two", next_step_id="step_3"),
+            InfoStep(id="side", text="Side", next_step_id="step_3"),
+            InfoStep(id="step_3", text="Three", next_step_id="step_4", resume_step_id="step_2"),
+            InfoStep(id="step_4", text="Four", next_step_id=None),
+        ],
+    )
+
+
+class TestPauseAndResume:
+    @pytest.fixture
+    def started(self, manager):
+        manager.register_storyboard("mod", make_pausable_course())
+        manager.start_course_confirmed("pausable")
+        return manager
+
+    def test_step_position_counts_along_the_main_path(self, started):
+        started.next_step()
+        assert started.step_position() == (2, 4)
+
+    def test_a_side_step_counts_as_the_last_main_path_step_visited(self, started):
+        started.next_step()
+        started.next_step("side")
+        assert started.step_position() == (2, 4)
+
+    def test_pause_returns_a_snapshot_and_stops_the_course(self, started, bus):
+        started.next_step()
+        snapshot = started.pause()
+
+        assert snapshot["course_id"] == "pausable"
+        assert snapshot["step_id"] == "step_2"
+        assert snapshot["step_history"] == ["step_1", "step_2"]
+        assert (snapshot["step_number"], snapshot["step_total"]) == (2, 4)
+        assert started.active_course is None
+        assert started.current_step is None
+        assert ("ACADEMY_COURSE_PAUSED", ("pausable", snapshot)) in bus.emitted
+
+    def test_pause_without_a_course_returns_none(self, manager):
+        assert manager.pause() is None
+
+    def test_pause_while_reviewing_snapshots_the_live_step(self, started):
+        started.next_step()
+        started.review_previous()
+        assert started.pause()["step_id"] == "step_2"
+
+    def test_restore_resumes_on_the_saved_step_with_its_history(self, started):
+        started.next_step()
+        snapshot = started.pause()
+
+        assert started.restore_session(snapshot)
+        assert started.current_step.id == "step_2"
+        assert started.step_history == ["step_1", "step_2"]
+        assert started.can_review_previous()
+
+    def test_restore_honours_resume_step_id_and_cuts_history_back(self, started):
+        started.next_step()
+        started.next_step()  # step_3, which resumes on step_2
+        snapshot = started.pause()
+
+        started.restore_session(snapshot)
+        assert started.current_step.id == "step_2"
+        assert started.step_history == ["step_1", "step_2"]
+
+    def test_restore_of_an_unknown_step_restarts_the_course(self, started):
+        snapshot = started.pause()
+        snapshot["step_id"] = "renamed_since"
+
+        started.restore_session(snapshot)
+        assert started.current_step.id == "step_1"
+        assert started.step_history == ["step_1"]
+
+    def test_restore_of_an_unknown_course_fails(self, manager):
+        assert not manager.restore_session({"course_id": "nope", "step_id": "x"})
+
+    def test_restore_keeps_forced_subtask_progress(self, manager):
+        course = Course(
+            id="forced",
+            title="Forced",
+            steps=[
+                ForcedInteractionStep(
+                    id="f1",
+                    text="Do both",
+                    sub_tasks=[
+                        SubTask(id="a", instruction="A", target_widget_name="w1"),
+                        SubTask(id="b", instruction="B", target_widget_name="w2"),
+                    ],
+                )
+            ],
+        )
+        manager.register_storyboard("mod", course)
+        manager.start_course_confirmed("forced")
+        manager.complete_subtask("a")
+        snapshot = manager.pause()
+
+        manager.restore_session(snapshot)
+        assert manager.active_subtask_progress == {"a": True}
+
+    def test_restore_resubscribes_a_wait_for_event_step(self, manager, bus):
+        course = Course(
+            id="waiting",
+            title="Waiting",
+            steps=[
+                WaitForEventStep(id="w1", text="Wait", event_name="SOMETHING", next_step_id="w2"),
+                InfoStep(id="w2", text="Done"),
+            ],
+        )
+        manager.register_storyboard("mod", course)
+        manager.start_course_confirmed("waiting")
+        snapshot = manager.pause()
+        assert not bus.subscriptions.get("SOMETHING")
+
+        manager.restore_session(snapshot)
+        bus.emit("SOMETHING")
+        assert manager.current_step.id == "w2"
+
+
+class TestInProgressAttempts:
+    def test_progress_reflects_the_latest_attempt(self, manager):
+        manager.record_in_progress("c", {"workflow": "a.json", "step_number": 10, "step_total": 40})
+        manager.record_in_progress("c", {"workflow": "b.json", "step_number": 20, "step_total": 40})
+
+        assert manager.get_in_progress("c")["workflow"] == "b.json"
+        assert manager.get_progress("c") == 50.0
+
+    def test_an_unfinished_attempt_never_reads_complete(self, manager):
+        manager.record_in_progress("c", {"step_number": 40, "step_total": 40})
+        assert manager.get_progress("c") < 100.0
+
+    def test_attempts_persist_across_instances(self, bus, tmp_path):
+        first = AcademyManager(event_bus=bus, persistence_dir=tmp_path)
+        first.record_in_progress("c", {"workflow": "a.json", "step_number": 3, "step_total": 6})
+
+        second = AcademyManager(event_bus=bus, persistence_dir=tmp_path)
+        assert second.get_in_progress("c")["workflow"] == "a.json"
+
+    def test_completing_the_course_clears_its_attempt(self, manager):
+        manager.register_storyboard("mod", make_two_step_course("c"))
+        manager.record_in_progress("c", {"step_number": 1, "step_total": 2})
+        manager.start_course_confirmed("c")
+        manager.next_step()
+        manager.next_step()
+
+        assert manager.get_in_progress("c") is None
+        assert manager.get_progress("c") == 100.0
