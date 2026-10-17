@@ -58,6 +58,15 @@ class TaskHandle:
         if callable(cancel):
             cancel()
 
+    def detach(self) -> None:
+        """Stop listening: no callback will run for this task from now on.
+
+        For a widget being closed while its task is still running. The task
+        itself keeps going; call `cancel()` as well to stop it.
+        """
+        if not self._watcher.done:
+            self._watcher._end()
+
 
 class _TaskWatcher(QObject):
     def __init__(

@@ -157,3 +157,19 @@ def test_functional_task_still_calls_zero_argument_functions(qtbot):
 
     qtbot.waitUntil(lambda: bool(finished), timeout=5000)
     assert finished == [{"result": 42, "status": "success"}]
+
+
+def test_detach_drops_callbacks_and_connections(qtbot):
+    scheduler = LocalTaskScheduler()
+    baseline = _receivers(scheduler)
+    gate = threading.Event()
+    finished = []
+
+    handle = submit_task(_Task(wait=gate), scheduler=scheduler, on_finished=finished.append)
+    handle.detach()
+    gate.set()
+
+    qtbot.wait(200)
+    assert finished == []
+    assert handle.done
+    assert _receivers(scheduler) == baseline
