@@ -210,7 +210,8 @@ class AcademyLockCard(QWidget):
         text.addStretch()
         row.addLayout(text, stretch=1)
 
-        outer.addWidget(self.card)
+        # Aligned, so the card keeps its own size instead of filling the panel.
+        outer.addWidget(self.card, 0, Qt.AlignmentFlag.AlignCenter)
         self._apply_styles()
         theme_manager.theme_changed.connect(self._apply_styles)
 
