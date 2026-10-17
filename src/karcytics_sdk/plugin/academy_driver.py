@@ -708,10 +708,24 @@ def build_academy_overlay(window: QWidget, panel: QWidget) -> TutorialOverlay:
 
     overlay.btn_next.clicked.connect(_on_next_clicked)
     overlay.skip_requested.connect(_on_skip)
+    # A plugin that saves courses in its workflows (see AcademyLockCard)
+    # handles ⏸ Pause itself; it turns the button on with set_pausable().
+    on_pause = getattr(panel, "on_academy_pause_requested", None)
+    if callable(on_pause):
+        overlay.pause_requested.connect(on_pause)
     window._academy_overlay = overlay  # type: ignore[attr-defined]
     window._academy_driver = AcademyStepDriver(  # type: ignore[attr-defined]
         tutorial_manager, overlay, panel, state_provider=lambda: getattr(panel, "state", None)
     )
+    return overlay
+
+
+def show_academy_overlay(window: QWidget, panel: QWidget) -> TutorialOverlay:
+    """Shows this plugin's Academy overlay over `panel`, building it on first use."""
+    overlay = getattr(window, "_academy_overlay", None) or build_academy_overlay(window, panel)
+    overlay.setGeometry(panel.rect())
+    overlay.show()
+    overlay.raise_()
     return overlay
 
 
@@ -740,13 +754,23 @@ def open_academy(window: QWidget, panel: QWidget) -> None:
         return
 
     def _start(course_id: str) -> None:
-        overlay = getattr(window, "_academy_overlay", None) or build_academy_overlay(window, panel)
+        # A panel that runs courses inside its own workflows starts them
+        # itself (e.g. turning the workflow into an Academy workflow first).
+        starter = getattr(panel, "start_academy_course", None)
+        if callable(starter):
+            starter(course_id)
+            return
         tutorial_manager.start_course_confirmed(course_id)
-        overlay.setGeometry(panel.rect())
-        overlay.show()
-        overlay.raise_()
+        show_academy_overlay(window, panel)
 
-    dialog = AcademyCatalogWindow(tutorial_manager, plugin_id, _start, parent=window)
+    def _resume(course_id: str, attempt: dict[str, Any]) -> None:
+        resumer = getattr(panel, "resume_academy_course", None)
+        if callable(resumer):
+            resumer(course_id, attempt)
+        else:
+            _start(course_id)
+
+    dialog = AcademyCatalogWindow(tutorial_manager, plugin_id, _start, parent=window, on_resume_course=_resume)
     dialog.exec()
     # The catalogue's "Show Cyto character" checkbox may have been flipped
     # with a course already on screen.

@@ -21,6 +21,7 @@ from typing import Any
 from PySide6.QtCore import QPoint, QRect, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QPainter, QPen, QRegion
 from PySide6.QtWidgets import (
+    QApplication,
     QGridLayout,
     QHBoxLayout,
     QLabel,
@@ -114,6 +115,9 @@ class TutorialOverlay(QWidget):
     """
 
     skip_requested = Signal()
+    # The learner pressed ⏸ Pause (only offered while set_pausable(True)).
+    # The plugin saves its workflow and calls AcademyManager.pause().
+    pause_requested = Signal()
 
     def __init__(
         self,
@@ -294,8 +298,24 @@ class TutorialOverlay(QWidget):
         )
         self.btn_close.clicked.connect(self._prompt_close)
 
+        # Shown instead of "×" while the course is pausable (see
+        # set_pausable): leaving a pausable course happens from the plugin's
+        # lock card, never by losing your place from the bubble.
+        self.btn_pause = QPushButton("⏸ Pause")
+        self.btn_pause.setObjectName("AcademyPauseButton")
+        self.btn_pause.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_pause.setToolTip("Save your place and pause this course. Resume any time.")
+        theme_manager.apply_style(
+            self.btn_pause,
+            "color: {FG_SECONDARY}; background: transparent; border: 1px solid {BORDER};"
+            "border-radius: 4px; padding: 2px 8px; font-size: 12px;",
+        )
+        self.btn_pause.clicked.connect(self._on_pause_clicked)
+        self.btn_pause.hide()
+
         header.addWidget(self.lbl_progress)
         header.addStretch()
+        header.addWidget(self.btn_pause)
         header.addWidget(self.btn_close)
         self.body_layout.addLayout(header)
 
@@ -516,7 +536,23 @@ class TutorialOverlay(QWidget):
         ):
             self.skip_requested.emit()
 
+    def _on_pause_clicked(self) -> None:
+        """Asks the plugin to pause — unless a dialog is still open.
+
+        A course paused halfway through a dialog would resume without it,
+        on a step that expects it, so the learner finishes the dialog first.
+        """
+        if QApplication.activeModalWidget() is not None:
+            self.show_banner("Finish or close the open dialog first, then pause.", is_error=False)
+            return
+        self.pause_requested.emit()
+
     # ── Public API ────────────────────────────────────────────────────────────
+
+    def set_pausable(self, pausable: bool) -> None:
+        """Offers ⏸ Pause in place of the "×" exit while `pausable`."""
+        self.btn_pause.setVisible(pausable)
+        self.btn_close.setVisible(not pausable)
 
     def show_completion_screen(self, course_id: str, badge_reward: str) -> None:
         """Renders the sleek, professional completion overlay."""
@@ -1050,8 +1086,6 @@ class TutorialOverlay(QWidget):
         """
         step = getattr(self, "current_step", None)
         if not self._is_reviewing and step and getattr(step, "allow_scroll", False) and self._scroll_target is not None:
-            from PySide6.QtWidgets import QApplication
-
             QApplication.sendEvent(self._scroll_target, event)
             return
         event.accept()

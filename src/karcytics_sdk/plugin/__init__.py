@@ -1,7 +1,8 @@
 """Plugin Tier — Core classes, UI components, and utilities for Karcytics plugins."""
 
 from .academy import AcademyManager
-from .academy_driver import AcademyStepDriver, build_academy_overlay, open_academy
+from .academy_driver import AcademyStepDriver, build_academy_overlay, open_academy, show_academy_overlay
+from .academy_lock_card import AcademyLockCard, LockCardContent
 from .academy_window import AcademyCatalogWindow
 from .analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
 from .base import PluginBase
@@ -145,8 +146,11 @@ __all__ = [
     "AcademyManager",
     "AcademyStepDriver",
     "AcademyCatalogWindow",
+    "AcademyLockCard",
+    "LockCardContent",
     "build_academy_overlay",
     "open_academy",
+    "show_academy_overlay",
     "tutorial_manager",
     "TutorialOverlay",
     "CytoWidget",

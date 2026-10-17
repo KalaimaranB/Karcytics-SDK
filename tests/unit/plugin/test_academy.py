@@ -788,3 +788,41 @@ class TestInProgressAttempts:
 
         assert manager.get_in_progress("c") is None
         assert manager.get_progress("c") == 100.0
+
+
+class TestCatalogAttempts:
+    @staticmethod
+    def _catalog(manager, resumes):
+        from karcytics_sdk.plugin.academy_window import AcademyCatalogWindow
+
+        return AcademyCatalogWindow(
+            manager, "mod", lambda _cid: None, on_resume_course=lambda cid, a: resumes.append((cid, a))
+        )
+
+    def test_an_attempt_shows_progress_and_resumes(self, manager):
+        from PySide6.QtWidgets import QLabel, QPushButton
+
+        manager.register_storyboard("mod", make_pausable_course())
+        manager.record_in_progress(
+            "pausable", {"workflow": "a.json", "workflow_name": "Academy", "step_number": 2, "step_total": 4}
+        )
+        resumes: list = []
+        dialog = self._catalog(manager, resumes)
+
+        labels = [w.text() for w in dialog.findChildren(QLabel, "AcademyAttemptLabel")]
+        assert labels == ["Step 2 of 4  ·  saved in “Academy”"]
+        resume = next(b for b in dialog.findChildren(QPushButton) if b.text() == "Resume Course")
+        resume.click()
+        assert resumes and resumes[0][0] == "pausable"
+        assert resumes[0][1]["workflow"] == "a.json"
+
+    def test_no_resume_without_a_resume_callback(self, manager):
+        from PySide6.QtWidgets import QPushButton
+
+        from karcytics_sdk.plugin.academy_window import AcademyCatalogWindow
+
+        manager.register_storyboard("mod", make_pausable_course())
+        manager.record_in_progress("pausable", {"step_number": 2, "step_total": 4})
+        dialog = AcademyCatalogWindow(manager, "mod", lambda _cid: None)
+
+        assert not any(b.text() == "Resume Course" for b in dialog.findChildren(QPushButton))

@@ -718,3 +718,28 @@ class TestSpotlightCompanions:
             assert overlay.target_rects == [QRect(30, 0, 100, 30)]
         finally:
             root.close()
+
+
+def test_pause_button_reaches_the_panels_pause_hook():
+    from PySide6.QtWidgets import QMainWindow
+
+    from karcytics_sdk.plugin.academy_driver import build_academy_overlay
+
+    class Panel(QWidget):
+        def __init__(self) -> None:
+            super().__init__()
+            self.pauses = 0
+
+        def on_academy_pause_requested(self) -> None:
+            self.pauses += 1
+
+    window = QMainWindow()
+    panel = Panel()
+    window.setCentralWidget(panel)
+    overlay = build_academy_overlay(window, panel)
+    overlay.set_pausable(True)
+
+    overlay.btn_pause.click()
+
+    assert panel.pauses == 1
+    window._academy_driver._timer.stop()

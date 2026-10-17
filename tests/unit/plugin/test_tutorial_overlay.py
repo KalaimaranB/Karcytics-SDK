@@ -159,3 +159,39 @@ def test_cyto_character_can_be_turned_off(tmp_path):
         assert overlay.rect().contains(bubble.geometry())
     finally:
         overlay._root.close()  # type: ignore[attr-defined]
+
+
+def test_pause_is_offered_in_place_of_exit_only_when_pausable(tmp_path):
+    overlay, _ = make_overlay(tmp_path, InfoStep(id="a", text="Hello"))
+
+    assert overlay.btn_pause.isHidden()
+    assert not overlay.btn_close.isHidden()
+
+    overlay.set_pausable(True)
+    assert not overlay.btn_pause.isHidden()
+    assert overlay.btn_close.isHidden()
+
+
+def test_pause_button_requests_a_pause(tmp_path):
+    overlay, _ = make_overlay(tmp_path, InfoStep(id="a", text="Hello"))
+    overlay.set_pausable(True)
+    requests: list[bool] = []
+    overlay.pause_requested.connect(lambda: requests.append(True))
+
+    overlay.btn_pause.click()
+
+    assert requests == [True]
+
+
+def test_pause_waits_for_an_open_dialog(tmp_path, monkeypatch):
+    from PySide6.QtWidgets import QApplication
+
+    overlay, _ = make_overlay(tmp_path, InfoStep(id="a", text="Hello"))
+    overlay.set_pausable(True)
+    requests: list[bool] = []
+    overlay.pause_requested.connect(lambda: requests.append(True))
+    monkeypatch.setattr(QApplication, "activeModalWidget", staticmethod(lambda: QWidget()))
+
+    overlay.btn_pause.click()
+
+    assert requests == []

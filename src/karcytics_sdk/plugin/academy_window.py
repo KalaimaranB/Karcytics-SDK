@@ -38,6 +38,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QProgressBar,
     QPushButton,
     QScrollArea,
     QVBoxLayout,
@@ -90,11 +91,15 @@ class AcademyCatalogWindow(QDialog):
         module_id: str,
         on_start_course: Callable[[str], None],
         parent: QWidget | None = None,
+        on_resume_course: Callable[[str, dict[str, Any]], None] | None = None,
     ) -> None:
         super().__init__(parent)
         self.tutorial_manager = tutorial_manager
         self.module_id = module_id
         self._on_start_course = on_start_course
+        # Called with (course_id, attempt) for a card's "Resume Course" — the
+        # latest unfinished attempt `AcademyManager.get_in_progress()` keeps.
+        self._on_resume_course = on_resume_course
 
         self.setWindowTitle(f"Karcytics Academy - {module_id.replace('_', ' ').title()} Courses")
         self.setMinimumSize(800, 500)
@@ -330,6 +335,7 @@ class AcademyCatalogWindow(QDialog):
             info_layout.addWidget(desc)
 
         progress = self.tutorial_manager.get_progress(course.id)
+        attempt_exists = self._resumable_attempt(course.id) is not None
         status_layout = QHBoxLayout()
         status_layout.setSpacing(12)
 
@@ -344,7 +350,7 @@ class AcademyCatalogWindow(QDialog):
                 f" padding: 4px 8px; font-size: {Fonts.SIZE_SMALL}px; font-weight: bold;",
             )
         else:
-            status_pill.setText(" IN PROGRESS " if progress > 0 else " NOT STARTED ")
+            status_pill.setText(" IN PROGRESS " if progress > 0 or attempt_exists else " NOT STARTED ")
             secondary_rgba = _hex_to_rgba(Colors.FG_SECONDARY, 0.1)
             theme_manager.apply_style(
                 status_pill,
@@ -367,6 +373,10 @@ class AcademyCatalogWindow(QDialog):
 
         status_layout.addStretch()
         info_layout.addLayout(status_layout)
+
+        attempt = self._resumable_attempt(course.id)
+        if attempt is not None:
+            info_layout.addWidget(self._attempt_progress(attempt))
         layout.addLayout(info_layout, stretch=1)
 
         action_layout = QVBoxLayout()
@@ -410,8 +420,26 @@ class AcademyCatalogWindow(QDialog):
                 """,
             )
 
-        action_btn.clicked.connect(lambda _, cid=course.id: self._start_course(cid))
-        action_layout.addWidget(action_btn)
+        if attempt_exists:
+            # The primary action continues the latest attempt; starting
+            # over stays one click away.
+            action_btn.setText("Resume Course")
+            action_btn.clicked.connect(lambda _, cid=course.id: self._resume_course(cid))
+            action_layout.addWidget(action_btn)
+            restart_btn = QPushButton("Start New Attempt")
+            restart_btn.setObjectName("AcademyStartNewAttemptButton")
+            restart_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            restart_btn.setFlat(True)
+            theme_manager.apply_style(
+                restart_btn,
+                f"QPushButton {{ background: transparent; color: {Colors.FG_SECONDARY}; border: none;"
+                f" font-size: {Fonts.SIZE_SMALL}px; text-decoration: underline; }}",
+            )
+            restart_btn.clicked.connect(lambda _, cid=course.id: self._start_course(cid))
+            action_layout.addWidget(restart_btn, alignment=Qt.AlignmentFlag.AlignRight)
+        else:
+            action_btn.clicked.connect(lambda _, cid=course.id: self._start_course(cid))
+            action_layout.addWidget(action_btn)
 
         if progress >= _COURSE_COMPLETE_PROGRESS:
             reset_btn = QPushButton("Reset Progress")
@@ -437,6 +465,56 @@ class AcademyCatalogWindow(QDialog):
         action_layout.addStretch()
         layout.addLayout(action_layout)
         return card
+
+    def _resumable_attempt(self, course_id: str) -> dict[str, Any] | None:
+        """The latest unfinished attempt, when this catalog can resume it."""
+        if self._on_resume_course is None:
+            return None
+        get_attempt = getattr(self.tutorial_manager, "get_in_progress", None)
+        return get_attempt(course_id) if callable(get_attempt) else None
+
+    def _attempt_progress(self, attempt: dict[str, Any]) -> QWidget:
+        """A progress bar, "Step N of M" and where the attempt is saved."""
+        box = QWidget()
+        box.setObjectName("AcademyAttemptProgress")
+        theme_manager.apply_style(box, "background: transparent;")
+        col = QVBoxLayout(box)
+        col.setContentsMargins(0, 4, 0, 0)
+        col.setSpacing(4)
+
+        number, total = attempt.get("step_number", 0), attempt.get("step_total", 0)
+        bar = QProgressBar()
+        bar.setTextVisible(False)
+        bar.setFixedHeight(6)
+        bar.setMaximum(max(total, 1))
+        bar.setValue(min(number, max(total, 1)))
+        theme_manager.apply_style(
+            bar,
+            f"QProgressBar {{ background: {Colors.BG_MEDIUM}; border: none; border-radius: 3px; }}"
+            f"QProgressBar::chunk {{ background: {Colors.ACCENT_PRIMARY}; border-radius: 3px; }}",
+        )
+        col.addWidget(bar)
+
+        where = attempt.get("workflow_name") or attempt.get("workflow")
+        text = f"Step {number} of {total}" if total else "Started"
+        if where:
+            text += f"  ·  saved in “{where}”"
+        label = QLabel(text)
+        label.setObjectName("AcademyAttemptLabel")
+        theme_manager.apply_style(
+            label,
+            f"color: {Colors.FG_SECONDARY}; font-size: {Fonts.SIZE_SMALL}px; background: transparent;",
+        )
+        col.addWidget(label)
+        return box
+
+    def _resume_course(self, course_id: str) -> None:
+        attempt = self._resumable_attempt(course_id)
+        if attempt is None or self._on_resume_course is None:
+            self._start_course(course_id)
+            return
+        self.accept()
+        self._on_resume_course(course_id, attempt)
 
     def _start_course(self, course_id: str) -> None:
         self._on_start_course(course_id)
