@@ -779,6 +779,13 @@ def run(  # noqa: C901, PLR0913, PLR0915
     plugin ships one); when omitted, or the given path doesn't exist, this
     falls back to the Hub's own default icon (see `_resolve_app_icon_path`).
     """
+    # numpy must be imported before the stdin-reader thread below starts: on
+    # Windows, `import numpy` while another thread is blocked in
+    # sys.stdin.buffer.read() deadlocks (numpy/numpy#24290 — numpy's console
+    # setup waits on the BufferedReader lock the reader holds). Every later
+    # import of it, from any plugin code, is then a sys.modules hit.
+    import numpy  # noqa: F401
+
     from .logging import configure_plugin_logging
 
     configure_plugin_logging(plugin_id)

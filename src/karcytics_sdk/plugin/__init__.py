@@ -115,6 +115,7 @@ from .validation import (
     validate_positive,
     validate_value_range,
 )
+from .version import read_plugin_version
 from .wizard import StepIndicator, WizardPanel, WizardStep
 from .worker_thread import OneShotWorkerThread
 from .workflow import WorkflowAttachment, WorkflowContext
@@ -244,6 +245,7 @@ __all__ = [
     "WorkflowAttachment",
     "WorkflowContext",
     "submit_task",
+    "read_plugin_version",
     "Citation",
     "MethodStep",
     "CitationLabel",
