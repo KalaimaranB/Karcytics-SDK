@@ -51,6 +51,7 @@ from .dialogs import (
 )
 from .events import CentralEventBus
 from .history import HistoryEntry, UndoHistory
+from .image_view import ImageView, array_to_pixmap
 from .interfaces import KarcyticsPlugin
 from .io import PluginConfig, PluginPreferenceManager, load_json, save_json
 from .logging import get_logger
@@ -241,6 +242,8 @@ __all__ = [
     "WorkflowAttachment",
     "WorkflowContext",
     "submit_task",
+    "ImageView",
+    "array_to_pixmap",
     "FunctionalTask",
     "TaskHandle",
 ]
