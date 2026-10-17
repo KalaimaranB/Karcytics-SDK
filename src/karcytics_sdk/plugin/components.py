@@ -757,8 +757,8 @@ class BioListWidget(QListWidget):
 class BioTableWidget(QTableWidget):
     """Standardized table widget."""
 
-    def __init__(self, parent=None):
-        super().__init__(parent)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         _connect_theme_signal(self._apply_theme_styles)
 

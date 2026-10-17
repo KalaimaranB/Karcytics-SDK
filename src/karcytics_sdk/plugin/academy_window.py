@@ -31,7 +31,7 @@ from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtCore import QPointF, Qt, QTimer
-from PySide6.QtGui import QBrush, QColor, QPainter, QPen
+from PySide6.QtGui import QBrush, QColor, QGuiApplication, QPainter, QPen
 from PySide6.QtWidgets import (
     QCheckBox,
     QDialog,
@@ -103,6 +103,15 @@ class AcademyCatalogWindow(QDialog):
 
         self.setWindowTitle(f"Karcytics Academy - {module_id.replace('_', ' ').title()} Courses")
         self.setMinimumSize(800, 500)
+
+        # Open at 75 % of the available screen area (capped at 1200 × 850)
+        # so course text and cards are never clipped on first show.
+        screen = QGuiApplication.primaryScreen()
+        if screen is not None:
+            avail = screen.availableGeometry()
+            init_w = min(max(900, int(avail.width() * 0.75)), 1200)
+            init_h = min(max(600, int(avail.height() * 0.75)), 850)
+            self.resize(init_w, init_h)
         # No stylesheet background — paintEvent below draws the particles.
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
 
