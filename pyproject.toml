@@ -31,6 +31,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Nikon .nd2 support for karcytics_sdk.contrib.imaging (nd2: BSD-3-Clause).
+imaging = [
+    "nd2>=0.10",
+]
 docs = [
     "mkdocs-material",
     "mkdocstrings[python]",
