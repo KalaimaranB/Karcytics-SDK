@@ -117,7 +117,19 @@ def test_workflow_without_tests(repo):
 def test_missing_pre_commit_hook_names_the_hook(repo):
     repo.write(".pre-commit-config.yaml", "repos:\n  - hooks:\n      - id: ruff\n      - id: pytest\n")
     messages = [f.message for f in evaluate_repo(repo.root).findings if f.rule_id == "KS133"]
-    assert messages == ["no mypy hook", "no plugin signing hook", "no security ledger verification hook"]
+    assert messages == [
+        "no mypy hook",
+        "no plugin signing hook",
+        "no security ledger verification hook",
+        "no license compliance hook",
+    ]
+
+
+@pytest.mark.parametrize("entry", ["uv run karcytics-sdk check-licenses", "python scripts/check_license_compliance.py"])
+def test_either_license_check_form_counts(repo, entry):
+    config = (repo.root / ".pre-commit-config.yaml").read_text().replace("      - id: license-compliance\n", "")
+    repo.write(".pre-commit-config.yaml", config + f"      - id: licenses\n        entry: {entry}\n")
+    assert "KS133" not in _ids(repo)
 
 
 def test_missing_tests_directory(repo):

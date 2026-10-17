@@ -43,6 +43,7 @@ repos:
       - id: pytest
       - id: karcytics-sign
       - id: verify-security-ledger
+      - id: license-compliance
 """
 
 FILES = {

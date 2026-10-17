@@ -28,6 +28,7 @@ _PRE_COMMIT_HOOKS = {
     "pytest": ("pytest",),
     "plugin signing": ("karcytics-sdk sign", "karcytics-sign"),
     "security ledger verification": ("verify_security_ledger", "verify-security-ledger"),
+    "license compliance": ("check-licenses", "check_license_compliance", "license-compliance"),
 }
 
 _MANIFEST_HEADER = r"^\s*\[tool\.karcytics\.plugin\]"

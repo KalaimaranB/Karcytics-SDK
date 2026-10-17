@@ -1,5 +1,11 @@
-"""Fail CI if an installed dependency carries a license incompatible with
-shipping Karcytics under the PolyForm Noncommercial License.
+"""`karcytics-sdk check-licenses`: fail if an installed dependency carries a
+license incompatible with shipping Karcytics under the PolyForm
+Noncommercial License.
+
+Run it inside the environment being checked (e.g. `uv run karcytics-sdk
+check-licenses` in a plugin repo): it inspects that interpreter's installed
+distributions. One copy for every repo, replacing per-repo
+`scripts/check_license_compliance.py` copies.
 
 Why this exists: PolyForm Noncommercial forbids commercial use without a
 paid license. Strong copyleft licenses (GPL, AGPL, SSPL, ...) forbid adding
@@ -71,7 +77,7 @@ def _dist_text(dist: m.Distribution) -> str:
     if license_expr.strip():
         return license_expr.lower()
 
-    classifiers = " ".join(v for k, v in dist.metadata.items() if k == "Classifier" and v.startswith("License ::"))
+    classifiers = " ".join(v for v in dist.metadata.get_all("Classifier") or [] if v.startswith("License ::"))
     if classifiers.strip():
         return classifiers.lower()
 
@@ -175,5 +181,14 @@ def main() -> int:
     return 1
 
 
-if __name__ == "__main__":
-    raise SystemExit(main())
+def check_licenses(args) -> bool:
+    """CLI entry: True when no disallowed license was found."""
+    return main() == 0
+
+
+def setup_compliance_parser(subparsers) -> None:
+    parser = subparsers.add_parser(
+        "check-licenses",
+        help="Fail if an installed dependency's license is incompatible with PolyForm Noncommercial.",
+    )
+    parser.set_defaults(func=check_licenses)

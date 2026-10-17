@@ -1,14 +1,8 @@
 """The license gate must accept a license *choice* that includes an allowed option."""
 
-import importlib.util
-from pathlib import Path
-
 import pytest
 
-_SCRIPT = Path(__file__).parents[2] / "scripts" / "check_license_compliance.py"
-_spec = importlib.util.spec_from_file_location("check_license_compliance", _SCRIPT)
-check = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(check)
+from karcytics_sdk.cli.commands import compliance as check
 
 
 @pytest.mark.parametrize(
