@@ -382,7 +382,7 @@ class ModuleStatusWidget(QWidget):
         self._daemon.shutdown()
         self._worker.stop()
 
-    def push_theme(self, colors: dict[str, str]) -> None:
+    def push_theme(self, colors: dict[str, str], theme_name: str | None = None) -> None:
         """Forward a color palette to the daemon's isolated window via its
         "theme_changed" request.
 
@@ -399,10 +399,16 @@ class ModuleStatusWidget(QWidget):
         reached the handler that actually applies the new colors. Blocking
         is fine: this already runs on `_worker`'s background thread, same as
         `bring_to_front()`'s call below.
+
+        `theme_name`, when given, travels along so the window can pick
+        theme-specific extras (Cyto's costume) that colors alone can't name.
         """
         if not shiboken6.isValid(self) or self._state != self.STATE_RUNNING:
             return
-        self._worker.submit(lambda: self._daemon.call("theme_changed", {"colors": colors}), ("theme", None))
+        payload: dict[str, Any] = {"colors": colors}
+        if theme_name:
+            payload["name"] = theme_name
+        self._worker.submit(lambda: self._daemon.call("theme_changed", payload), ("theme", None))
 
     def _on_async_finished(self, ok: bool, result: Any, context: Any) -> None:
         """Single bound-method landing spot for every call this widget's

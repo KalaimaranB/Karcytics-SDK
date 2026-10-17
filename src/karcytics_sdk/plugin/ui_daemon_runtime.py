@@ -642,9 +642,19 @@ def _confirm_hub_theme_or_exit(logger: Any, plugin_id: str) -> None:
         _fail_theme_gate(logger, plugin_id, "Hub returned no theme colors.")
         return
 
-    from .theme_fallback import DynamicColors
+    from .theme_fallback import DynamicColors, theme_manager
 
     DynamicColors.update_from(colors)
+    # The name picks theme extras like Cyto's costume. Optional: an older
+    # Hub without this call still themes correctly, just with the default
+    # costume.
+    try:
+        name = (client.call("theme.get_current_theme_name") or {}).get("name")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(f"Could not fetch the Hub's theme name: {exc}")
+        name = None
+    if name:
+        theme_manager.set_theme_name(name)
 
 
 def _fetch_project_manager(logger: Any) -> Any | None:
@@ -865,6 +875,13 @@ def run(  # noqa: C901, PLR0913, PLR0915
 
     def _handle_theme_changed(kwargs: dict[str, Any]) -> dict[str, Any]:
         colors = kwargs.get("colors")
+        name = kwargs.get("name")
+        if name:
+            from .theme_fallback import theme_manager
+
+            # Before theme_changed fires, so its listeners (Cyto's costume)
+            # see the new theme's name, not the old one.
+            theme_manager.set_theme_name(name)
         if colors:
             from .theme_fallback import DynamicColors, theme_manager
 

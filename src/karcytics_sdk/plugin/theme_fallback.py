@@ -222,6 +222,17 @@ class _ThemeManagerProxy(QObject):
         self._local_theme_name = theme_name
         self.theme_changed.emit()
 
+    def set_theme_name(self, theme_name: str) -> None:
+        """Records the Hub's active theme name without touching the palette.
+
+        An isolated plugin gets its colors pushed separately (see
+        `DynamicColors.update_from`); the name is what picks theme-specific
+        extras such as Cyto's costume (`CostumeFactory`). Without it,
+        `current_theme_name` stayed "Karcytics Default" in every plugin
+        process, whatever the Hub's theme.
+        """
+        self._local_theme_name = theme_name
+
     @property
     def current_theme_name(self) -> str:
         if "karcytics.ui.theme" in sys.modules:

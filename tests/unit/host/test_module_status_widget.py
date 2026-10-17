@@ -250,6 +250,23 @@ def test_push_theme_forwards_colors_once_running(qapp, fast_worker_script, make_
     PluginUIDaemon.stop_instance("status_widget_theme")
 
 
+def test_push_theme_carries_the_theme_name(qapp, fast_worker_script, make_widget):  # noqa: ARG001
+    daemon = _make_daemon("status_widget_theme_name", fast_worker_script)
+    widget = make_widget(daemon)
+    assert _pump_until(lambda: widget.state == ModuleStatusWidget.STATE_RUNNING)
+
+    with patch.object(daemon, "call", wraps=daemon.call) as spy:
+        widget.push_theme({"ACCENT_PRIMARY": "#2f81f7"}, "Galactic Dark Side")
+        _pump_until(lambda: spy.called)
+
+    assert spy.call_args[0] == (
+        "theme_changed",
+        {"colors": {"ACCENT_PRIMARY": "#2f81f7"}, "name": "Galactic Dark Side"},
+    )
+
+    PluginUIDaemon.stop_instance("status_widget_theme_name")
+
+
 def test_push_theme_is_a_noop_before_running(qapp, slow_worker_script, make_widget):  # noqa: ARG001
     daemon = _make_daemon("status_widget_theme_early", slow_worker_script)
     widget = make_widget(daemon)
