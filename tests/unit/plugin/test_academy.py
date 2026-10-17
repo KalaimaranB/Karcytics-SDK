@@ -779,6 +779,15 @@ class TestInProgressAttempts:
         second = AcademyManager(event_bus=bus, persistence_dir=tmp_path)
         assert second.get_in_progress("c")["workflow"] == "a.json"
 
+    def test_forgetting_an_attempt_only_matches_the_same_workflow(self, manager):
+        manager.record_in_progress("c", {"workflow": "b.json", "step_number": 1, "step_total": 2})
+
+        manager.forget_in_progress("c", workflow="a.json")
+        assert manager.get_in_progress("c") is not None
+
+        manager.forget_in_progress("c", workflow="b.json")
+        assert manager.get_in_progress("c") is None
+
     def test_completing_the_course_clears_its_attempt(self, manager):
         manager.register_storyboard("mod", make_two_step_course("c"))
         manager.record_in_progress("c", {"step_number": 1, "step_total": 2})

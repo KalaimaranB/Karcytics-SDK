@@ -550,6 +550,17 @@ class AcademyManager:
         self.in_progress[course_id] = {**entry, "updated_at": datetime.now(UTC).isoformat()}
         self._save_progress()
 
+    def forget_in_progress(self, course_id: str, **match: Any) -> None:
+        """Drops the attempt at `course_id` — only if every `match` key equals
+        the attempt's (e.g. `workflow="a.json"`), so leaving one attempt
+        never forgets a newer one saved elsewhere.
+        """
+        attempt = self.in_progress.get(course_id)
+        if attempt is None or any(attempt.get(key) != value for key, value in match.items()):
+            return
+        del self.in_progress[course_id]
+        self._save_progress()
+
     def get_in_progress(self, course_id: str) -> dict[str, Any] | None:
         """The latest unfinished attempt at `course_id`, if any."""
         return self.in_progress.get(course_id)
