@@ -6,6 +6,8 @@ from .academy_lock_card import AcademyLockCard, LockCardContent
 from .academy_window import AcademyCatalogWindow
 from .analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
 from .base import PluginBase
+from .citation_widgets import CitationLabel, CitationsPanel
+from .citations import Citation, MethodStep
 from .components import (
     AcademyButton,
     BioButton,
@@ -242,6 +244,10 @@ __all__ = [
     "WorkflowAttachment",
     "WorkflowContext",
     "submit_task",
+    "Citation",
+    "MethodStep",
+    "CitationLabel",
+    "CitationsPanel",
     "ImageView",
     "array_to_pixmap",
     "FunctionalTask",
