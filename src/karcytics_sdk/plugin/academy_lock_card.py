@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
     QLabel,
+    QLineEdit,
     QMainWindow,
     QProgressBar,
     QPushButton,
@@ -38,7 +39,10 @@ from .theme_fallback import Colors, Fonts, theme_manager
 
 @dataclass(frozen=True)
 class LockCardContent:
-    """What the lock card says. A progress bar shows when `step_total` is set."""
+    """What the lock card says. A progress bar shows when `step_total` is set;
+    a text field (read back with `AcademyLockCard.input_text()`) when
+    `input_label` is.
+    """
 
     eyebrow: str
     title: str
@@ -47,6 +51,8 @@ class LockCardContent:
     secondary_text: str
     step_number: int = 0
     step_total: int = 0
+    input_label: str = ""
+    input_default: str = ""
 
 
 class AcademyLockCard(QWidget):
@@ -94,6 +100,12 @@ class AcademyLockCard(QWidget):
             self.progress_bar.setValue(min(content.step_number, content.step_total))
             self.progress_label.setText(f"Step {content.step_number} of {content.step_total}")
         self.cyto.setVisible(self._show_character)
+        has_input = bool(content.input_label)
+        self.input_label.setVisible(has_input)
+        self.input_field.setVisible(has_input)
+        if has_input:
+            self.input_label.setText(content.input_label)
+            self.input_field.setText(content.input_default)
 
         if not self._locked:
             self._locked = True
@@ -101,7 +113,15 @@ class AcademyLockCard(QWidget):
         self.setGeometry(self._panel.rect())
         self.show()
         self.raise_()
-        self.primary_button.setFocus()
+        if has_input:
+            self.input_field.setFocus()
+            self.input_field.selectAll()
+        else:
+            self.primary_button.setFocus()
+
+    def input_text(self) -> str:
+        """The text field's stripped contents ("" when it isn't shown)."""
+        return self.input_field.text().strip() if self.input_field.isVisibleTo(self) else ""
 
     def unlock(self) -> None:
         """Hides the card and re-enables whatever it disabled."""
@@ -182,15 +202,35 @@ class AcademyLockCard(QWidget):
         self.progress_bar.setObjectName("AcademyLockProgress")
         self.progress_bar.setTextVisible(False)
         self.progress_bar.setFixedHeight(8)
+        # Optional (see LockCardContent.input_label) — asked here rather than
+        # in a separate dialog, which would open a native window over the card.
+        self.input_label = QLabel()
+        self.input_label.setObjectName("AcademyLockInputLabel")
+        self.input_field = QLineEdit()
+        self.input_field.setObjectName("AcademyLockInput")
+        self.input_field.returnPressed.connect(self.primary_clicked)
         for widget in (
             self.eyebrow_label,
             self.title_label,
             self.message_label,
             self.progress_label,
             self.progress_bar,
+            self.input_label,
+            self.input_field,
         ):
             text.addWidget(widget)
 
+        text.addSpacing(8)
+        text.addLayout(self._build_buttons())
+        text.addStretch()
+        row.addLayout(text, stretch=1)
+
+        # Aligned, so the card keeps its own size instead of filling the panel.
+        outer.addWidget(self.card, 0, Qt.AlignmentFlag.AlignCenter)
+        self._apply_styles()
+        theme_manager.theme_changed.connect(self._apply_styles)
+
+    def _build_buttons(self) -> QHBoxLayout:
         buttons = QHBoxLayout()
         buttons.setSpacing(16)
         self.primary_button = QPushButton()
@@ -205,15 +245,7 @@ class AcademyLockCard(QWidget):
         buttons.addWidget(self.primary_button)
         buttons.addWidget(self.secondary_button)
         buttons.addStretch()
-        text.addSpacing(8)
-        text.addLayout(buttons)
-        text.addStretch()
-        row.addLayout(text, stretch=1)
-
-        # Aligned, so the card keeps its own size instead of filling the panel.
-        outer.addWidget(self.card, 0, Qt.AlignmentFlag.AlignCenter)
-        self._apply_styles()
-        theme_manager.theme_changed.connect(self._apply_styles)
+        return buttons
 
     def _apply_styles(self) -> None:
         theme_manager.apply_style(
@@ -231,7 +263,14 @@ class AcademyLockCard(QWidget):
             f"color: {Colors.FG_PRIMARY}; font-size: {Fonts.SIZE_LARGE + 4}px;"
             " font-weight: bold; background: transparent;",
         )
-        for label in (self.message_label, self.progress_label):
+        theme_manager.apply_style(
+            self.input_field,
+            f"QLineEdit {{ background: {Colors.BG_MEDIUM}; color: {Colors.FG_PRIMARY};"
+            f" border: 1px solid {Colors.BORDER}; border-radius: 6px; padding: 8px 10px;"
+            f" font-size: {Fonts.SIZE_NORMAL}px; }}"
+            f"QLineEdit:focus {{ border: 1px solid {Colors.BORDER_FOCUS}; }}",
+        )
+        for label in (self.message_label, self.progress_label, self.input_label):
             theme_manager.apply_style(
                 label,
                 f"color: {Colors.FG_SECONDARY}; font-size: {Fonts.SIZE_NORMAL}px; background: transparent;",

@@ -113,3 +113,29 @@ def test_hidden_character_stays_hidden():
     card.show_lock(CONTENT)
 
     assert card.cyto.isHidden()
+
+
+def test_an_input_field_shows_only_when_asked_for():
+    _window, panel, _button, _field = make_window()
+    card = AcademyLockCard(panel)
+
+    card.show_lock(CONTENT)
+    assert card.input_field.isHidden()
+    assert card.input_text() == ""
+
+    card.show_lock(LockCardContent("E", "T", "M", "Go", "Leave", input_label="Name:", input_default="Flow"))
+    assert not card.input_field.isHidden()
+    card.input_field.setText("  My run  ")
+    assert card.input_text() == "My run"
+
+
+def test_enter_in_the_field_is_the_primary_choice():
+    _window, panel, _button, _field = make_window()
+    card = AcademyLockCard(panel)
+    card.show_lock(LockCardContent("E", "T", "M", "Go", "Leave", input_label="Name:"))
+    clicks: list[bool] = []
+    card.primary_clicked.connect(lambda: clicks.append(True))
+
+    card.input_field.returnPressed.emit()
+
+    assert clicks == [True]
