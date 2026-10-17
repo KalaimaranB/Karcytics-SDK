@@ -1034,7 +1034,7 @@ def run(  # noqa: C901, PLR0913, PLR0915
     reader = _RequestReader(bridge, logger)
     reader.start()
 
-    window.show()
+    window.showMaximized()
     # .show() alone doesn't reliably make this a genuinely activated,
     # frontmost app on macOS for a bare interpreter process spawned via
     # subprocess (no .app bundle/Info.plist) — and an app that never
