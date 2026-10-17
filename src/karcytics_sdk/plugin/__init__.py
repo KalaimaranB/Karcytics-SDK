@@ -54,6 +54,7 @@ from .history import HistoryEntry, UndoHistory
 from .interfaces import KarcyticsPlugin
 from .io import PluginConfig, PluginPreferenceManager, load_json, save_json
 from .logging import get_logger
+from .managed_task import FunctionalTask
 from .manifest import PluginManifest
 from .preferences import PreferenceManagerProtocol
 from .rendering import (
@@ -82,6 +83,7 @@ from .runtime_services import (
 )
 from .signals import PluginSignals, move_to_gui_thread, safe_disconnect
 from .state import PluginState
+from .tasks import TaskHandle, submit_task
 from .timing import Debouncer
 from .toast import (
     STYLE_ERROR,
@@ -238,6 +240,9 @@ __all__ = [
     # Workflows
     "WorkflowAttachment",
     "WorkflowContext",
+    "submit_task",
+    "FunctionalTask",
+    "TaskHandle",
 ]
 
 

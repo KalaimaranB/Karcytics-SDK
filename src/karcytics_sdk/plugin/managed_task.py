@@ -4,6 +4,7 @@ Enables developers to run arbitrary functions (downloads, I/O, networking)
 on the global TaskScheduler without needing to subclass AnalysisBase manually.
 """
 
+import inspect
 from collections.abc import Callable
 from typing import Any
 
@@ -14,14 +15,19 @@ from .state import PluginState
 class FunctionalTask(AnalysisBase):
     """A proxy that converts a callable into a Karcytics Analysis task.
 
+    A function that takes a ``progress_callback`` keyword is given one that
+    reports 0-100 through the task's ``analysis_progress`` signal (and so
+    ``task_scheduler.task_progress`` / ``submit_task(on_progress=...)``).
+
     Example:
-        >>> def my_download():
+        >>> def my_download(progress_callback):
+        ...     progress_callback(50)
         ...     return {"file": "data.fcs"}
         >>> task = FunctionalTask(my_download, "my_plugin")
         >>> task_scheduler.submit(task, None)
     """
 
-    def __init__(self, func: Callable[[], Any], plugin_id: str = "unknown", name: str = "Utility Task"):
+    def __init__(self, func: Callable[..., Any], plugin_id: str = "unknown", name: str = "Utility Task"):
         """Initialize the task.
 
         Args:
@@ -32,11 +38,18 @@ class FunctionalTask(AnalysisBase):
         super().__init__(plugin_id)
         self.func = func
         self.name = name
+        try:
+            self._accepts_progress = "progress_callback" in inspect.signature(func).parameters
+        except (TypeError, ValueError):  # builtins without an introspectable signature
+            self._accepts_progress = False
 
     def run(self, state: PluginState | None = None) -> dict:
         """Executes the wrapped function and returns standardized results."""
         try:
-            result = self.func()
+            if self._accepts_progress:
+                result = self.func(progress_callback=self.signals.analysis_progress.emit)
+            else:
+                result = self.func()
             if isinstance(result, dict):
                 return result
             return {"result": result, "status": "success"}
