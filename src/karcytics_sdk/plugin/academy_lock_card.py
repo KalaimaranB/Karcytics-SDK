@@ -146,8 +146,11 @@ class AcademyLockCard(QWidget):
         elif watched is self._panel and isinstance(event, QChildEvent) and event.added() and self._locked:
             # Something added to the panel while locked (a lazily built
             # tab, a re-rendered plot) must not slip in enabled — or on top.
+            # A window parented to the panel (a dialog such as the card's own
+            # "Leave the course?" confirmation) is not part of the panel:
+            # disabled, it would show but ignore every click.
             child = event.child()
-            if isinstance(child, QWidget) and child is not self and child.isEnabled():
+            if isinstance(child, QWidget) and child is not self and not child.isWindow() and child.isEnabled():
                 child.setEnabled(False)
                 self._disabled.append(child)
             self.raise_()
@@ -284,7 +287,7 @@ class AcademyLockCard(QWidget):
             self.primary_button,
             f"QPushButton {{ background: {Colors.ACCENT_SUCCESS}; color: white; border: none;"
             f" border-radius: 6px; padding: 10px 24px; font-size: {Fonts.SIZE_NORMAL}px;"
-            " font-weight: bold; }}",
+            " font-weight: bold; }",
         )
         theme_manager.apply_style(
             self.secondary_button,

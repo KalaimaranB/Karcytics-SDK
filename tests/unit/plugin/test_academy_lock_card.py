@@ -139,3 +139,15 @@ def test_enter_in_the_field_is_the_primary_choice():
     card.input_field.returnPressed.emit()
 
     assert clicks == [True]
+
+
+def test_a_dialog_opened_while_locked_still_works():
+    from PySide6.QtWidgets import QMessageBox
+
+    _window, panel, _button, _field = make_window()
+    card = AcademyLockCard(panel)
+    card.show_lock(CONTENT)
+
+    box = QMessageBox(QMessageBox.Icon.Question, "Leave?", "Sure?", QMessageBox.StandardButton.Yes, panel)
+
+    assert box.isEnabled()
