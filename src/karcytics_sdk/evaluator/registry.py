@@ -204,12 +204,103 @@ _FUNCTIONAL_RULES = [
 
 _DESIGN_RULES = [
     (
+        "KS300",
+        _W,
+        "Long file",
+        "Split it along a real responsibility (a widget, a service, a model), not just to get under the limit.",
+    ),
+    (
+        "KS301",
+        _W,
+        "Class with too many methods",
+        "It is doing several jobs: move each one into its own class and have this one delegate or compose.",
+    ),
+    (
+        "KS302",
+        _W,
+        "Long function",
+        "Extract the steps it runs through into named functions, or the widget it builds into its own class.",
+    ),
+    (
         "KS310",
         _W,
         "Suppression without a reason",
         "Say why after the codes (`# noqa: PLR0913 - mirrors the Qt signature`, "
         "`# type: ignore[arg-type]  # PySide6 stub omits Optional`, `# karcytics: allow KS302 - <why>`). "
         "Better still, fix what is being suppressed.",
+    ),
+    (
+        "KS320",
+        _W,
+        "Same helper defined in several modules",
+        "Keep one copy in a shared module (or the SDK, if it is not plugin-specific) and import it.",
+    ),
+    (
+        "KS321",
+        _W,
+        "Duplicated function body",
+        "Keep one copy and call it from both places.",
+    ),
+    (
+        "KS340",
+        _W,
+        "Pass-through class",
+        "Let callers use the collaborator directly, or move the logic it forwards to into this class.",
+    ),
+    (
+        "KS341",
+        _W,
+        "Class with only static methods",
+        "Make them module-level functions: a class that is never instantiated is just a namespace.",
+    ),
+    (
+        "KS342",
+        _W,
+        "Reads another object's private attribute",
+        "Give the owner a public method or property for what the caller needs, and use that.",
+    ),
+    (
+        "KS343",
+        _W,
+        "getattr/hasattr on self",
+        "Set the attribute in __init__ (to None if it has no value yet) and read it directly.",
+    ),
+    (
+        "KS344",
+        _W,
+        "Branches on a type's name",
+        "Use isinstance(), or better, a method or property the types implement differently.",
+    ),
+    (
+        "KS350",
+        _W,
+        "Event published but never subscribed",
+        "Stop publishing it, or subscribe where the event was meant to be handled.",
+    ),
+    (
+        "KS351",
+        _W,
+        "Event topic never used",
+        "Delete the constant.",
+    ),
+    (
+        "KS360",
+        _W,
+        "Import inside a function",
+        "Import at the top of the module. If it is deliberate (startup time, an optional dependency), "
+        "say so: `# karcytics: allow KS360 - <why>`. An import cycle is a design problem to fix, not hide.",
+    ),
+    (
+        "KS361",
+        _W,
+        "Debug trace logged as a warning",
+        "Log it with logger.debug(), and keep warnings for what a user or maintainer should act on.",
+    ),
+    (
+        "KS362",
+        _I,
+        "Comment refers to a plan item",
+        "Say what the code does and why; the history of how it got there belongs in the commit message.",
     ),
 ]
 

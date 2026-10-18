@@ -163,7 +163,24 @@ These catch what accumulates when no one looks at the whole codebase at once, wh
 
 | Rule | Severity | Checks for | Fix |
 | --- | --- | --- | --- |
+| `KS300` | warning | Long file | Split it along a real responsibility (a widget, a service, a model), not just to get under the limit. |
+| `KS301` | warning | Class with too many methods | It is doing several jobs: move each one into its own class and have this one delegate or compose. |
+| `KS302` | warning | Long function | Extract the steps it runs through into named functions, or the widget it builds into its own class. |
 | `KS310` | warning | Suppression without a reason | Say why after the codes (`# noqa: PLR0913 - mirrors the Qt signature`, `# type: ignore[arg-type]  # PySide6 stub omits Optional`, `# karcytics: allow KS302 - <why>`). Better still, fix what is being suppressed. |
+| `KS320` | warning | Same helper defined in several modules | Keep one copy in a shared module (or the SDK, if it is not plugin-specific) and import it. |
+| `KS321` | warning | Duplicated function body | Keep one copy and call it from both places. |
+| `KS340` | warning | Pass-through class | Let callers use the collaborator directly, or move the logic it forwards to into this class. |
+| `KS341` | warning | Class with only static methods | Make them module-level functions: a class that is never instantiated is just a namespace. |
+| `KS342` | warning | Reads another object's private attribute | Give the owner a public method or property for what the caller needs, and use that. |
+| `KS343` | warning | getattr/hasattr on self | Set the attribute in __init__ (to None if it has no value yet) and read it directly. |
+| `KS344` | warning | Branches on a type's name | Use isinstance(), or better, a method or property the types implement differently. |
+| `KS350` | warning | Event published but never subscribed | Stop publishing it, or subscribe where the event was meant to be handled. |
+| `KS351` | warning | Event topic never used | Delete the constant. |
+| `KS360` | warning | Import inside a function | Import at the top of the module. If it is deliberate (startup time, an optional dependency), say so: `# karcytics: allow KS360 - <why>`. An import cycle is a design problem to fix, not hide. |
+| `KS361` | warning | Debug trace logged as a warning | Log it with logger.debug(), and keep warnings for what a user or maintainer should act on. |
+| `KS362` | info | Comment refers to a plan item | Say what the code does and why; the history of how it got there belongs in the commit message. |
+
+The limits (600 lines per file, 30 methods per class, 80 lines per function) are deliberately generous: under a baseline they only stop growth, and a split should follow a real responsibility, not a number. `KS320` needs a similar body as well as the same name, and skips methods that override one from a base class in the repo and conventional hooks such as `_setup_ui` and `_apply_theme_styles`. `KS350`/`KS351` look only at the plugin's own topic constants (UPPER_CASE strings in a module whose name contains "event" or "topic"); a topic counts as handled when it is mentioned anywhere other than as a `publish()` argument, so subscribing through a helper or a list of topics is recognised.
 
 ## Adding a rule
 

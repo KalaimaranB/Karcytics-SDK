@@ -20,6 +20,7 @@ import io
 import re
 import tokenize
 from dataclasses import dataclass, field
+from functools import cached_property
 from pathlib import Path
 
 _ALLOW = re.compile(r"karcytics:\s*allow(?P<file>-file)?\s+(?P<rules>KS\d{3}(?:\s*,\s*KS\d{3})*)(?P<rest>.*)", re.S)
@@ -85,6 +86,23 @@ def parse_directives(text: str) -> list[Directive]:
     return directives
 
 
+def collect_imports(tree: ast.AST) -> dict[str, str]:
+    """Map each locally-bound import name to the dotted path it refers to."""
+    names: dict[str, str] = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.asname:
+                    names[alias.asname] = alias.name
+                else:
+                    top = alias.name.split(".")[0]
+                    names[top] = top
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            for alias in node.names:
+                names[alias.asname or alias.name] = f"{node.module}.{alias.name}"
+    return names
+
+
 @dataclass
 class SourceFile:
     """A parsed `.py` file: its text, AST, imports and suppressions."""
@@ -102,6 +120,10 @@ class SourceFile:
         text = path.read_text(encoding="utf-8")
         tree = ast.parse(text, filename=rel)
         return cls(path, rel, zone, text, tree, parse_directives(text))
+
+    @cached_property
+    def imports(self) -> dict[str, str]:
+        return collect_imports(self.tree)
 
     @property
     def lines(self) -> list[str]:

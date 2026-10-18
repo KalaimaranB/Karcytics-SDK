@@ -16,7 +16,7 @@ from . import catalog
 from .model import Finding, Severity
 from .registry import make_finding
 from .repo import RepoLayout
-from .source import SourceFile
+from .source import SourceFile, collect_imports
 
 # 6- or 8-digit hex colours only: 3-digit forms collide with "#123"-style
 # issue references in ordinary text.
@@ -25,23 +25,6 @@ _HEX_COLOUR = re.compile(r"(?<![\w&#])#(?:[0-9a-fA-F]{8}|[0-9a-fA-F]{6})(?![0-9a
 _SDK_BASES = ("PluginBase", "AnalysisBase")
 _QT_THREAD_BASES = ("QThread", "QRunnable")
 _JSON_FILE_CALLS = ("json.load", "json.dump")
-
-
-def _collect_imports(tree: ast.AST) -> dict[str, str]:
-    """Map each locally-bound import name to the dotted path it refers to."""
-    names: dict[str, str] = {}
-    for node in ast.walk(tree):
-        if isinstance(node, ast.Import):
-            for alias in node.names:
-                if alias.asname:
-                    names[alias.asname] = alias.name
-                else:
-                    top = alias.name.split(".")[0]
-                    names[top] = top
-        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
-            for alias in node.names:
-                names[alias.asname or alias.name] = f"{node.module}.{alias.name}"
-    return names
 
 
 def _docstring_nodes(tree: ast.AST) -> set[int]:
@@ -65,7 +48,7 @@ class _FileChecker(ast.NodeVisitor):
         self.findings: list[Finding] = []
         self.sdk_bases_seen: set[str] = set()
         self.panel_classes: set[str] = set()
-        self._names = _collect_imports(tree)
+        self._names = collect_imports(tree)
         self._docstrings = _docstring_nodes(tree)
         self._colour_lines: set[int] = set()
 
