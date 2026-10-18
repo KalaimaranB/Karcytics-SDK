@@ -743,3 +743,58 @@ def test_pause_button_reaches_the_panels_pause_hook():
 
     assert panel.pauses == 1
     window._academy_driver._timer.stop()
+
+
+class _ContextValidator(IValidator):
+    """Passes once the context says the right tab is open; explains itself otherwise."""
+
+    def __init__(self) -> None:
+        self.seen: list[tuple] = []
+
+    def validate(self, app_state):
+        return self.check(app_state, None)
+
+    def check(self, app_state, context=None):
+        self.seen.append((app_state, context))
+        return context is not None and context["tab"] == "Gating"
+
+    def describe(self, app_state, context=None):
+        return ValidationFailure(reason=f"Open Gating, not {context['tab']}")
+
+
+class TestAcademyContext:
+    def test_validators_receive_the_context_and_state_only_ones_still_work(self, bus, tmp_path):
+        validator = _ContextValidator()
+        course = Course(
+            id="ctx",
+            title="T",
+            steps=[
+                VerificationStep(id="check", text="...", validator=validator, on_success_step_id="done"),
+                InfoStep(id="done", text="Done"),
+            ],
+        )
+        driver, manager, banners = make_driver(course, bus, tmp_path)
+        context = {"tab": "Statistics"}
+        driver._context_provider = lambda: context
+
+        driver._poll_verification_step(manager.current_step)
+        assert manager.current_step.id == "check"
+        assert banners[0][0] == "Open Gating, not Statistics"
+
+        context["tab"] = "Gating"
+        driver._poll_verification_step(manager.current_step)
+        assert manager.current_step.id == "done"
+        assert [c for _, c in validator.seen] == [{"tab": "Gating"}, {"tab": "Gating"}]  # same dict, mutated
+
+    def test_a_state_only_validator_is_checked_through_validate(self):
+        class StateOnly(IValidator):
+            def validate(self, app_state):
+                return app_state == "ok"
+
+        assert StateOnly().check("ok", context={"ignored": True}) is True
+        assert StateOnly().describe("bad", context=None) is None
+
+    def test_plugin_base_has_no_context_by_default(self):
+        from karcytics_sdk.plugin import PluginBase
+
+        assert PluginBase.academy_context(object()) is None  # type: ignore[arg-type]  # the default ignores self

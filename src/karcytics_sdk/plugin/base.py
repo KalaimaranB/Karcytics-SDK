@@ -289,6 +289,18 @@ class PluginBase(QWidget):
         label = self.undo_history.redo_label()
         return f"Redo {label}" if label else "Redo"
 
+    # ── Academy ──────────────────────────────────────────────────────
+
+    def academy_context(self) -> Any:
+        """What this panel's Academy validators may inspect besides its state.
+
+        Passed as `context` to `IValidator.check()`/`describe()`. Return an
+        object of read-only queries (what a viewer is showing, which tab is
+        open) so validators never reach into widgets' private attributes or
+        need widgets stored on the state. Default: `None`.
+        """
+        return None
+
     # ── Resource Lifecycle (RAII) ────────────────────────────────────
 
     def cleanup(self) -> None:

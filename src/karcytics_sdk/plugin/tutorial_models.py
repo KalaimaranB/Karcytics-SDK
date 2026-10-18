@@ -29,12 +29,27 @@ class ValidationFailure:
 
 
 class IValidator(ABC):
-    """Interface for verifying application state."""
+    """Interface for verifying application state.
+
+    The Academy calls `check()` and `describe()`, which also receive the
+    panel's `academy_context()`. By default they defer to `validate()` and
+    `describe_failure()`, so a validator that only needs the state
+    implements just those; one that needs the context overrides `check()`
+    (and `describe()`) instead.
+    """
 
     @abstractmethod
     def validate(self, app_state: Any) -> bool:
         """Evaluate the current application state. Returns True if valid."""
         pass
+
+    def check(self, app_state: Any, context: Any = None) -> bool:  # noqa: ARG002 - used by overrides
+        """What the Academy calls: `validate()` unless overridden to read `context`."""
+        return self.validate(app_state)
+
+    def describe(self, app_state: Any, context: Any = None) -> ValidationFailure | None:  # noqa: ARG002 - used by overrides
+        """What the Academy calls on failure: `describe_failure()` unless overridden."""
+        return self.describe_failure(app_state)
 
     def describe_failure(self, app_state: Any) -> ValidationFailure | None:
         """Optional: called after `validate()` returns False to get a

@@ -602,10 +602,10 @@ class AcademyManager:
         logger.info(f"Restored checkpoint for {course_id}")
         return True
 
-    def verify_state(self, validator_obj: Any, app_state: Any) -> tuple[bool, str]:
-        """Runs an IValidator against the app state."""
+    def verify_state(self, validator_obj: Any, app_state: Any, context: Any = None) -> tuple[bool, str]:
+        """Runs an IValidator against the app state (and the panel's academy context)."""
         try:
-            is_valid = validator_obj.validate(app_state)
+            is_valid = validator_obj.check(app_state, context)
             return is_valid, "Validation passed" if is_valid else "Validation failed"
         except Exception as e:
             logger.error(f"Validator exception: {e}")

@@ -57,7 +57,9 @@ class AcademyStepDriver(QObject):
     own panel. `state_provider` is called on demand to get whatever object a
     course's `IValidator`s expect to `validate()` against (e.g. a plugin's
     own `state`) — a no-op default returns `None` for courses that don't use
-    `VerificationStep`/`ForcedInteractionStep` at all.
+    `VerificationStep`/`ForcedInteractionStep` at all. `context_provider`
+    likewise supplies the `context` passed to `IValidator.check()` (the
+    panel's `academy_context()`).
     """
 
     def __init__(
@@ -65,14 +67,16 @@ class AcademyStepDriver(QObject):
         academy_manager: AcademyManager,
         overlay: TutorialOverlay,
         search_root: QWidget,
+        *,
         state_provider: Callable[[], Any] | None = None,
-        parent: QObject | None = None,
+        context_provider: Callable[[], Any] | None = None,
     ) -> None:
-        super().__init__(parent)
+        super().__init__()
         self._academy_manager = academy_manager
         self._overlay = overlay
         self._search_root = search_root
         self._state_provider = state_provider or (lambda: None)
+        self._context_provider = context_provider or (lambda: None)
 
         self._connections: dict[str, Any] = {}
         self._last_step_id: str | None = None
@@ -354,9 +358,9 @@ class AcademyStepDriver(QObject):
                 logger.warning(f"Academy: failed to connect to {step.event_trigger}: {e}")
 
     def _poll_verification_step(self, step: VerificationStep) -> None:
-        app_state = self._state_provider()
+        app_state, context = self._state_provider(), self._context_provider()
         try:
-            is_valid = step.validator.validate(app_state)
+            is_valid = step.validator.check(app_state, context)
         except Exception as e:
             logger.exception(f"Academy: VerificationStep validation error: {e}")
             is_valid = False
@@ -366,7 +370,7 @@ class AcademyStepDriver(QObject):
             self._academy_manager.next_step(step.on_success_step_id)
             return
 
-        failure = self._describe_validator_failure(step.validator, app_state)
+        failure = self._describe_validator_failure(step.validator, app_state, context)
         if failure is not None:
             self._overlay.show_banner(failure.reason)
             if failure.corrective:
@@ -400,11 +404,13 @@ class AcademyStepDriver(QObject):
                 self._failure_hint_shown = True
                 self._overlay.show_banner(step.failure_hint or _DEFAULT_FAILURE_HINT, is_error=False)
 
-    def _describe_validator_failure(self, validator: IValidator | None, app_state: Any) -> ValidationFailure | None:
+    def _describe_validator_failure(
+        self, validator: IValidator | None, app_state: Any, context: Any = None
+    ) -> ValidationFailure | None:
         if validator is None:
             return None
         try:
-            return validator.describe_failure(app_state)
+            return validator.describe(app_state, context)
         except Exception as e:
             logger.exception(f"Academy: describe_failure error: {e}")
             return None
@@ -419,7 +425,7 @@ class AcademyStepDriver(QObject):
             return
         self._verification_wait = 0
 
-        app_state = self._state_provider()
+        app_state, context = self._state_provider(), self._context_provider()
         for task in step.sub_tasks:
             if self._academy_manager.active_subtask_progress.get(task.id, False):
                 continue
@@ -427,7 +433,7 @@ class AcademyStepDriver(QObject):
                 self._academy_manager.complete_subtask(task.id)
                 continue
             try:
-                task_valid = task.validator.validate(app_state)
+                task_valid = task.validator.check(app_state, context)
             except Exception as e:
                 if (step.id, task.id) not in self._reported_subtask_errors:
                     logger.exception(f"Academy: SubTask validation error for {task.id}: {e}")
@@ -650,6 +656,12 @@ def _scroll_into_view(widgets: list[QWidget]) -> None:
 # to `open_academy()` below.
 
 
+def _academy_context(panel: QWidget) -> Any:
+    """The panel's `academy_context()`, for a panel that is a PluginBase (others have none)."""
+    provider = getattr(panel, "academy_context", None)
+    return provider() if callable(provider) else None
+
+
 def academy_next_step(academy_manager: AcademyManager, panel: QWidget) -> None:
     """Handles the Academy overlay's "Next →" button for any isolated plugin.
 
@@ -673,7 +685,7 @@ def academy_next_step(academy_manager: AcademyManager, panel: QWidget) -> None:
 
     if step and isinstance(step, VerificationStep) and step.allow_interaction:
         app_state = getattr(panel, "state", None)
-        if step.validator and step.validator.validate(app_state):
+        if step.validator and step.validator.check(app_state, _academy_context(panel)):
             academy_manager.next_step(step.on_success_step_id)
         elif step.on_fail_step_id:
             academy_manager.next_step(step.on_fail_step_id)
@@ -715,7 +727,11 @@ def build_academy_overlay(window: QWidget, panel: QWidget) -> TutorialOverlay:
         overlay.pause_requested.connect(on_pause)
     window._academy_overlay = overlay  # type: ignore[attr-defined]
     window._academy_driver = AcademyStepDriver(  # type: ignore[attr-defined]
-        tutorial_manager, overlay, panel, state_provider=lambda: getattr(panel, "state", None)
+        tutorial_manager,
+        overlay,
+        panel,
+        state_provider=lambda: getattr(panel, "state", None),
+        context_provider=lambda: _academy_context(panel),
     )
     return overlay
 
