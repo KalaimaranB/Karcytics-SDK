@@ -28,6 +28,7 @@ dependencies = [
     "requests>=2.28.0",
     "scikit-image>=0.26.0",
     "scipy",
+    "tifffile>=2023.1",  # contrib.imaging.read_image (BSD-3-Clause)
 ]
 
 [project.optional-dependencies]
