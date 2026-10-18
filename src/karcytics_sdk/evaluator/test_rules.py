@@ -19,9 +19,8 @@ from collections.abc import Iterator
 
 from .model import Finding
 from .registry import make_finding
-from .repo import RepoLayout
+from .source import SourceFile
 
-TESTS_DIR = "tests"
 _PANEL_FACTORY = "create_panel"
 # A call to any of these inside the function counts as destroying the panel.
 _DESTROYERS = ("deleteLater", "addWidget", "add_widget")
@@ -77,18 +76,9 @@ def _check_function(function: _Function, panel_classes: set[str], path: str) -> 
         )
 
 
-def run_test_rules(layout: RepoLayout, panel_classes: set[str]) -> Iterator[Finding]:
-    """Yield findings for the test files under `tests/`."""
-    tests = layout.root / TESTS_DIR
-    if not tests.is_dir():
-        return
-    for path in sorted(tests.rglob("*.py")):
-        if any(part.startswith(".") or part == "__pycache__" for part in path.relative_to(tests).parts):
-            continue
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, ValueError, SyntaxError):
-            continue
-        for node in ast.walk(tree):
+def run_test_rules(tests: list[SourceFile], panel_classes: set[str]) -> Iterator[Finding]:
+    """Yield findings for the repo's parsed test files."""
+    for source in tests:
+        for node in ast.walk(source.tree):
             if isinstance(node, _Function):
-                yield from _check_function(node, panel_classes, layout.rel(path))
+                yield from _check_function(node, panel_classes, source.rel)

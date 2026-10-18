@@ -11,13 +11,12 @@ from __future__ import annotations
 import ast
 import re
 from collections.abc import Iterator
-from pathlib import Path
 
 from . import catalog
 from .model import Finding, Severity
 from .registry import make_finding
 from .repo import RepoLayout
-from .test_rules import run_test_rules
+from .source import SourceFile
 
 # 6- or 8-digit hex colours only: 3-digit forms collide with "#123"-style
 # issue references in ordinary text.
@@ -208,38 +207,38 @@ class _FileChecker(ast.NodeVisitor):
                 )
 
 
-def _check_file(layout: RepoLayout, path: Path) -> _FileChecker | Finding:
-    rel = layout.rel(path)
-    try:
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=rel)
-    except SyntaxError as exc:
-        return make_finding("KS200", rel, f"syntax error: {exc.msg}", line=exc.lineno)
-    except (OSError, UnicodeDecodeError, ValueError) as exc:
-        return make_finding("KS200", rel, f"could not read file: {exc}")
-    checker = _FileChecker(rel, layout.zone(path), tree)
-    checker.visit(tree)
+def check_source(source: SourceFile) -> _FileChecker:
+    checker = _FileChecker(source.rel, source.zone, source.tree)
+    checker.visit(source.tree)
     return checker
 
 
-def run_functional_rules(layout: RepoLayout) -> Iterator[Finding]:
-    """Yield every functional finding for the repo's source files."""
+def run_functional_rules(
+    layout: RepoLayout, sources: list[SourceFile], *, whole_repo: bool = True
+) -> Iterator[Finding]:
+    """Yield every functional finding for `sources`.
+
+    Repo-level expectations (KS260/KS261) need every file, so they are only
+    checked when `whole_repo` is set.
+    """
     sdk_bases_seen: set[str] = set()
-    panel_classes: set[str] = set()
-    for path in layout.source_files:
-        result = _check_file(layout, path)
-        if isinstance(result, Finding):
-            yield result
-            continue
+    for source in sources:
+        result = check_source(source)
         sdk_bases_seen |= result.sdk_bases_seen
-        panel_classes |= result.panel_classes
         yield from result.findings
 
-    yield from run_test_rules(layout, panel_classes)
-
     # Repo-level expectations only make sense for an actual plugin package.
-    if layout.package_dir and layout.source_files:
+    if whole_repo and layout.package_dir and layout.source_files:
         package = layout.rel(layout.package_dir)
         if "PluginBase" not in sdk_bases_seen:
             yield make_finding("KS260", package, "no class subclasses `karcytics_sdk` PluginBase")
         if "AnalysisBase" not in sdk_bases_seen:
             yield make_finding("KS261", package, "no class subclasses `karcytics_sdk` AnalysisBase")
+
+
+def panel_classes(sources: list[SourceFile]) -> set[str]:
+    """Names of the classes that subclass the SDK's PluginBase."""
+    found: set[str] = set()
+    for source in sources:
+        found |= check_source(source).panel_classes
+    return found

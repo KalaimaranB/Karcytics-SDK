@@ -18,7 +18,8 @@ def _parse(*argv: str) -> argparse.Namespace:
 
 def test_rule_ids_are_namespaced_by_mode():
     for rule_id, rule in RULES.items():
-        assert rule_id.startswith("KS1" if rule.mode is Mode.ORG else "KS2")
+        prefix = {Mode.ORG: "KS1", Mode.FUNCTIONAL: "KS2", Mode.DESIGN: "KS3"}[rule.mode]
+        assert rule_id.startswith(prefix)
         assert rule.title and rule.remedy
 
 
@@ -91,6 +92,8 @@ def test_json_report_contains_every_finding(repo):
         "remedy": RULES["KS201"].remedy,
         "line": 2,
         "col": 1,
+        "subject": "",
+        "metric": None,
     }
 
 

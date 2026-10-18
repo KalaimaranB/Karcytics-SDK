@@ -202,14 +202,25 @@ _FUNCTIONAL_RULES = [
     ),
 ]
 
+_DESIGN_RULES = [
+    (
+        "KS310",
+        _W,
+        "Suppression without a reason",
+        "Say why after the codes (`# noqa: PLR0913 - mirrors the Qt signature`, "
+        "`# type: ignore[arg-type]  # PySide6 stub omits Optional`, `# karcytics: allow KS302 - <why>`). "
+        "Better still, fix what is being suppressed.",
+    ),
+]
+
 RULES: dict[str, Rule] = {
     rule_id: Rule(rule_id, mode, severity, title, remedy)
-    for mode, table in ((Mode.ORG, _ORG_RULES), (Mode.FUNCTIONAL, _FUNCTIONAL_RULES))
+    for mode, table in ((Mode.ORG, _ORG_RULES), (Mode.FUNCTIONAL, _FUNCTIONAL_RULES), (Mode.DESIGN, _DESIGN_RULES))
     for rule_id, severity, title, remedy in table
 }
 
 
-def make_finding(  # noqa: PLR0913
+def make_finding(  # noqa: PLR0913 - keyword-only fields of a Finding
     rule_id: str,
     path: str,
     message: str,
@@ -218,6 +229,8 @@ def make_finding(  # noqa: PLR0913
     col: int | None = None,
     remedy: str | None = None,
     severity: Severity | None = None,
+    subject: str = "",
+    metric: int | None = None,
 ) -> Finding:
     """Build a `Finding` from a rule id, defaulting severity and remedy to the rule's own."""
     rule = RULES[rule_id]
@@ -229,4 +242,6 @@ def make_finding(  # noqa: PLR0913
         remedy=remedy or rule.remedy,
         line=line,
         col=col,
+        subject=subject,
+        metric=metric,
     )

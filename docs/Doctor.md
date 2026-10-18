@@ -2,17 +2,21 @@
 
 `karcytics-sdk doctor` reads a repo and reports where it departs from the SDK's conventions. It is static analysis only: the repo is never imported or run, so it needs no virtualenv, no Qt display, and works on any checkout.
 
-It is advisory. Nothing requires a plugin to pass it today; run it when you want a list of what to tidy up.
+On its own it is advisory: only errors fail a run. Its real job is as a ratchet that runs on every edit and every commit (see [Baseline](#baseline) and [Running it on every edit](#running-it-on-every-edit)), so that what it finds stops growing even before it is fixed.
 
 ```bash
 karcytics-sdk doctor                      # check the current directory
 karcytics-sdk doctor ../Karcytics-western-blot
 karcytics-sdk doctor . --mode org         # structure, CI and tooling only
 karcytics-sdk doctor . --mode functional  # SDK usage in the source only
+karcytics-sdk doctor . --mode design      # structure, duplication and layering only
 karcytics-sdk doctor . --show-info        # include info-level findings
 karcytics-sdk doctor . --select KS23,KS201   # only these rule-id prefixes
 karcytics-sdk doctor . --ignore KS240        # everything except these
 karcytics-sdk doctor . --format json      # machine-readable, always includes info
+karcytics-sdk doctor . --files src/karcytics_plugins/demo/ui/panel.py   # just these files
+karcytics-sdk doctor . --baseline         # fail only on what is over .karcytics-baseline.json
+karcytics-sdk doctor . --update-baseline  # lower the baseline to what is found now
 ```
 
 ## Reading the output
@@ -32,6 +36,58 @@ src/karcytics_plugins/synthetic_biology/ui/views/simulate_view.py
 | info | Worth a look, often legitimate (cyan) | no, use `--show-info` | never |
 
 Colour is used when writing to a terminal and switched off when piped, with `--no-color`, or when `NO_COLOR` is set. The exit code is 1 when the run fails and 0 otherwise.
+
+## Baseline
+
+A repo with existing debt would drown in warnings that nobody acts on. A baseline turns them into a ratchet instead: `.karcytics-baseline.json`, committed to the repo, records how many findings of each rule every file has (for a measured rule, such as `KS300` "long file", the measurement itself). Run against it, the doctor fails when any of those goes up or a new one appears, and lists only those. Everything below the line is known debt and stays quiet.
+
+```bash
+karcytics-sdk doctor . --update-baseline   # first time: record today's state
+karcytics-sdk doctor . --baseline          # every commit: fail on anything new
+karcytics-sdk doctor . --update-baseline   # after a clean-up: lock the improvement in
+```
+
+`--update-baseline` only ever lowers entries (it creates the file when there is none). Accepting new debt takes `--reset-baseline`, which rewrites the file from the current state; with `--files` it rewrites only those files' entries. Either way the change shows up in review as a diff of the baseline file. Only errors and warnings are tracked, and errors fail the run whether or not they are in the baseline.
+
+## Suppressions
+
+A finding that is genuinely fine can be allowed in place, with a reason:
+
+```python
+def build_menu(self):  # karcytics: allow KS302 - one flat list of menu entries, splitting it hides the order
+    ...
+
+# karcytics: allow KS342 - the driver is the documented owner of this cache
+cache = driver._cache
+```
+
+The comment covers its own line, or the next line of code when it sits on a line of its own. `# karcytics: allow-file KS300 - <why>` covers a whole file. A `karcytics: allow` without a reason suppresses nothing.
+
+Every suppression needs a reason, including the linters' own: `# noqa: PLR0913 - mirrors the Qt signature`, and `# type: ignore[arg-type]  # PySide6 stub omits Optional` (mypy accepts only a second comment after `type: ignore`). One without a reason is reported as `KS310`. The point is to make "suppress instead of fix" a decision someone wrote down, not a reflex.
+
+## Running it on every edit
+
+The doctor is most useful where code is being written, not after the fact. Three places, each with the repo's baseline:
+
+- **The agent loop.** `--claude-hook` reads a Claude Code `PostToolUse` payload from stdin, checks just the file that was written, and exits 2 with the findings on stderr when the edit added something over the baseline (Claude Code shows those to the agent, which fixes them in the same turn). Without a baseline file it fails on any warning. In `.claude/settings.json`:
+
+    ```json
+    {
+      "hooks": {
+        "PostToolUse": [
+          {
+            "matcher": "Edit|Write|MultiEdit",
+            "hooks": [{"type": "command", "command": "uv run karcytics-sdk doctor --claude-hook"}]
+          }
+        ]
+      }
+    }
+    ```
+
+- **Pre-commit.** A `karcytics-doctor` hook running `karcytics-sdk doctor . --baseline`.
+- **CI.** The same command, so a commit made with `--no-verify` is still caught.
+
+`--files` skips what needs the whole repo at once: the organizational rules, `KS260`/`KS261`, and the cross-file design rules. Pre-commit and CI run those.
 
 ## What is analysed
 
@@ -101,8 +157,16 @@ Names are resolved through each file's imports, so aliased and module-qualified 
 
 A Qt widget is only flagged when the SDK has a real replacement. `QCheckBox`, for example, has none and is never reported. The full mapping lives in `karcytics_sdk/evaluator/catalog.py`; add a row there when the SDK gains a component.
 
+## Design rules
+
+These catch what accumulates when no one looks at the whole codebase at once, which is the normal situation of an agent editing one file at a time. Most are meant to run against a [baseline](#baseline).
+
+| Rule | Severity | Checks for | Fix |
+| --- | --- | --- | --- |
+| `KS310` | warning | Suppression without a reason | Say why after the codes (`# noqa: PLR0913 - mirrors the Qt signature`, `# type: ignore[arg-type]  # PySide6 stub omits Optional`, `# karcytics: allow KS302 - <why>`). Better still, fix what is being suppressed. |
+
 ## Adding a rule
 
-1. Declare it in `evaluator/registry.py` (id, severity, title, default fix).
-2. Emit it with `make_finding(...)` from a check in `org_rules.py` or from `_FileChecker` in `functional_rules.py` (`test_rules.py` for a check over the repo's tests).
+1. Declare it in `evaluator/registry.py` (id, severity, title, default fix). The id's hundreds digit is its family: 1 organizational, 2 functional, 3 design.
+2. Emit it with `make_finding(...)` from a check in `org_rules.py`, `_FileChecker` in `functional_rules.py`, or `design_rules.py` (`test_rules.py` for a check over the repo's tests).
 3. Add a test under `tests/unit/evaluator/` and a row to the table above (a test fails if a rule is missing from this page).

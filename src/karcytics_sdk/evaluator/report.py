@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import json
 from collections import Counter
+from dataclasses import asdict
 from itertools import groupby
+from typing import Any
 
 from .model import Finding, Mode, Severity
 from .registry import RULES
@@ -15,7 +17,7 @@ _BOLD = "1"
 _DIM = "2"
 _GREEN = "32"
 _SEVERITY_STYLE = {Severity.ERROR: "1;31", Severity.WARNING: "33", Severity.INFO: "36"}
-_MODE_TITLE = {Mode.ORG: "Organizational", Mode.FUNCTIONAL: "Functional"}
+_MODE_TITLE = {Mode.ORG: "Organizational", Mode.FUNCTIONAL: "Functional", Mode.DESIGN: "Design"}
 _RULE_WIDTH = 72
 
 
@@ -80,11 +82,40 @@ def _render_summary(shown: list[Finding], hidden_info: int, report: Report, pain
     return lines
 
 
+def _render_baseline(report: Report, paint: _Painter) -> list[str]:
+    comparison = report.comparison
+    if comparison is None:
+        return []
+    lines = [paint("── Baseline ".ljust(_RULE_WIDTH, "─"), _BOLD), ""]
+    if comparison.exceeded:
+        lines.append(paint(f"  {len(comparison.exceeded)} over the baseline:", _SEVERITY_STYLE[Severity.ERROR]))
+        for change in comparison.exceeded:
+            was = f"was {change.allowed}" if change.allowed else "new"
+            lines.append(f"    {change.path}  {change.key}: {change.current} ({was})")
+        lines.append(
+            paint("  Fix these rather than suppressing them; accept new debt only with --reset-baseline.", _DIM)
+        )
+    else:
+        lines.append(paint("  Nothing over the baseline.", _GREEN))
+    if comparison.improved:
+        lines.append(
+            paint(
+                f"  {len(comparison.improved)} below the baseline: run with --update-baseline to lock that in.", _GREEN
+            )
+        )
+    lines.append("")
+    return lines
+
+
 def render_text(report: Report, show_info: bool = False, color: bool = True) -> str:
-    """Human-readable report, grouped by mode then file. Info is hidden unless `show_info`."""
+    """Human-readable report, grouped by mode then file. Info is hidden unless `show_info`.
+
+    Against a baseline, only what is over it is listed: the rest is known debt.
+    """
     paint = _Painter(color)
-    shown = [f for f in report.findings if show_info or f.severity is not Severity.INFO]
-    hidden_info = len(report.findings) - len(shown)
+    candidates = report.blocking() if report.comparison is not None else report.findings
+    shown = [f for f in candidates if show_info or f.severity is not Severity.INFO]
+    hidden_info = len(candidates) - len(shown)
 
     plugin = f"plugin `{report.plugin_id}`" if report.plugin_id else "not a Karcytics plugin"
     lines = [paint("Karcytics SDK Doctor", _BOLD), f"  {report.root}  ({plugin})"]
@@ -95,13 +126,14 @@ def render_text(report: Report, show_info: bool = False, color: bool = True) -> 
     for mode in report.modes:
         section = [f for f in shown if RULES[f.rule_id].mode is mode]
         lines.extend(_render_section(_MODE_TITLE[mode], section, paint))
+    lines.extend(_render_baseline(report, paint))
     lines.extend(_render_summary(shown, hidden_info, report, paint))
     return "\n".join(lines)
 
 
 def render_json(report: Report) -> str:
     """Machine-readable report. Always contains every finding, info included."""
-    payload = {
+    payload: dict[str, Any] = {
         "repo": str(report.root),
         "plugin_id": report.plugin_id,
         "modes": [mode.value for mode in report.modes],
@@ -109,4 +141,10 @@ def render_json(report: Report) -> str:
         "summary": {severity.value: report.count(severity) for severity in Severity},
         "findings": [finding.to_dict() for finding in report.findings],
     }
+    if report.comparison is not None:
+        payload["baseline"] = {
+            "passed": report.passed(),
+            "exceeded": [asdict(change) for change in report.comparison.exceeded],
+            "improved": [asdict(change) for change in report.comparison.improved],
+        }
     return json.dumps(payload, indent=2)

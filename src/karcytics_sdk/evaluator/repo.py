@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 PLUGIN_NAMESPACE = "karcytics_plugins"
+TESTS_DIR = "tests"
 
 # Never descended into when collecting source files.
 _SKIP_DIRS = {
@@ -104,6 +105,21 @@ class RepoLayout:
         """
         base = self.package_dir or self.root
         return sorted(p for p in base.rglob("*.py") if not self._is_skipped(p.relative_to(base)))
+
+    @cached_property
+    def test_files(self) -> list[Path]:
+        """Python files under `tests/`, which only the test rules read."""
+        tests = self.root / TESTS_DIR
+        if not tests.is_dir():
+            return []
+        return sorted(
+            p
+            for p in tests.rglob("*.py")
+            if not any(part.startswith(".") or part == "__pycache__" for part in p.relative_to(tests).parts)
+        )
+
+    def is_test(self, path: Path) -> bool:
+        return (self.root / TESTS_DIR) in path.parents
 
     @staticmethod
     def _is_skipped(relative: Path) -> bool:

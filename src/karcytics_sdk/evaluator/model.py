@@ -26,6 +26,7 @@ class Mode(StrEnum):
 
     ORG = "org"
     FUNCTIONAL = "functional"
+    DESIGN = "design"
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,11 @@ class Finding:
 
     `path` is relative to the evaluated repo root. `line`/`col` are 1-based
     and `None` for repo-level findings (a missing file has no line).
+
+    A measured finding (a long file, a class with too many methods) carries
+    the measurement in `metric` and what was measured in `subject` (the class
+    or function name, "" for the file itself). The baseline ratchets the
+    measurement rather than counting the finding.
     """
 
     rule_id: str
@@ -54,6 +60,8 @@ class Finding:
     remedy: str
     line: int | None = None
     col: int | None = None
+    subject: str = ""
+    metric: int | None = None
 
     def to_dict(self) -> dict:
         data = asdict(self)
@@ -63,3 +71,8 @@ class Finding:
     @property
     def sort_key(self) -> tuple:
         return (self.path, self.line or 0, self.col or 0, self.rule_id)
+
+    @property
+    def baseline_key(self) -> str:
+        """What the baseline tracks this finding under, within its file."""
+        return f"{self.rule_id}:{self.subject}" if self.subject else self.rule_id
