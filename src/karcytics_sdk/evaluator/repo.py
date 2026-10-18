@@ -66,6 +66,14 @@ class RepoLayout:
         plugin_id = (self.manifest or {}).get("id")
         return plugin_id if isinstance(plugin_id, str) and plugin_id else None
 
+    @property
+    def analysis_only(self) -> tuple[str, ...]:
+        """`[tool.karcytics.evaluator] analysis_only`: calls only analysis/ may make (KS331)."""
+        table = ((self.pyproject or {}).get("tool") or {}).get("karcytics") or {}
+        evaluator = table.get("evaluator") if isinstance(table, dict) else None
+        entries = evaluator.get("analysis_only") if isinstance(evaluator, dict) else None
+        return tuple(e for e in entries if isinstance(e, str) and e) if isinstance(entries, list) else ()
+
     def pyproject_line(self, pattern: str) -> int | None:
         """1-based line of the first pyproject.toml line matching `pattern`."""
         regex = re.compile(pattern)

@@ -94,7 +94,7 @@ The doctor is most useful where code is being written, not after the fact. Three
 - **A plugin repo** (one with `[tool.karcytics.plugin]` in `pyproject.toml`): every `.py` file under `src/karcytics_plugins/<id>/`.
 - **Any other repo**: one `KS100`/`KS101` error says it is not a plugin, and the functional rules still run over every `.py` file outside `tests/`, virtualenvs, and build output.
 
-Files under `analysis/` and `ui/` are treated differently where it matters: Qt is an error in `analysis/`, hard-coded colours are only checked outside it, and plain Python threads are info in `analysis/` (which cannot use Qt's) but a warning elsewhere.
+Files under `analysis/` and `ui/` are treated differently where it matters: Qt is an error in `analysis/` (and an SDK object that is a Qt object, such as `Debouncer`, a warning), hard-coded colours are only checked outside it, and plain Python threads are info in `analysis/` (which cannot use Qt's) but a warning elsewhere.
 
 The files under `tests/` are read for one rule only, `KS270`. It reports a test or fixture that builds the plugin's panel (a `PluginBase` subclass, or `create_panel()`) without passing it to anything or calling `deleteLater()`, `qtbot.addWidget()` or `shiboken6.delete()`. It recognises that shape, not the leak itself: Python then garbage-collects the panel's wrappers while Qt still owns the widgets, and an unrelated test fails at random.
 
@@ -141,6 +141,7 @@ Names are resolved through each file's imports, so aliased and module-qualified 
 | `KS202` | error | Qt imported in analysis/ | Keep analysis/ free of Qt: move the widget or signal code to ui/ and run compute through AnalysisBase. |
 | `KS203` | error | Imports a Qt binding other than PySide6 | Karcytics is built on PySide6 (LGPL). Import from PySide6 instead: pyqtSignal/pyqtSlot/pyqtProperty become Signal/Slot/Property, and sip.isdeleted(x) becomes `not shiboken6.isValid(x)`. |
 | `KS204` | error | Signal or Slot declared with a dict argument | Declare the argument as `object`: PySide6 converts a `dict` signal argument to a QVariantMap and silently drops every non-string key. |
+| `KS205` | warning | Qt-backed SDK object in analysis/ | Keep analysis/ to pure computation: move the scheduling, debouncing or signalling that needs this into ui/ (or a controller there) and pass analysis/ plain data. |
 | `KS210` | warning | Raw Qt widget where the SDK provides one | Use the SDK component instead. |
 | `KS211` | warning | Subclasses a raw Qt widget the SDK wraps | Subclass the SDK component instead. |
 | `KS220` | warning | Raw Qt dialog | Use the helper from karcytics_sdk.plugin.dialogs instead. |
@@ -169,6 +170,9 @@ These catch what accumulates when no one looks at the whole codebase at once, wh
 | `KS310` | warning | Suppression without a reason | Say why after the codes (`# noqa: PLR0913 - mirrors the Qt signature`, `# type: ignore[arg-type]  # PySide6 stub omits Optional`, `# karcytics: allow KS302 - <why>`). Better still, fix what is being suppressed. |
 | `KS320` | warning | Same helper defined in several modules | Keep one copy in a shared module (or the SDK, if it is not plugin-specific) and import it. |
 | `KS321` | warning | Duplicated function body | Keep one copy and call it from both places. |
+| `KS330` | info | ui/ module with no UI code | If it is computation or data handling, move it to analysis/ where it can be tested headless. |
+| `KS331` | warning | Call reserved to analysis/ | Go through the analysis-layer API instead; the plugin lists this call under [tool.karcytics.evaluator] analysis_only in pyproject.toml. |
+| `KS332` | warning | UI object stored on state | Keep widgets out of state: state is data the analysis layer reads. Give whatever needs the widget a reference to it, or a query object, instead. |
 | `KS340` | warning | Pass-through class | Let callers use the collaborator directly, or move the logic it forwards to into this class. |
 | `KS341` | warning | Class with only static methods | Make them module-level functions: a class that is never instantiated is just a namespace. |
 | `KS342` | warning | Reads another object's private attribute | Give the owner a public method or property for what the caller needs, and use that. |
@@ -180,7 +184,14 @@ These catch what accumulates when no one looks at the whole codebase at once, wh
 | `KS361` | warning | Debug trace logged as a warning | Log it with logger.debug(), and keep warnings for what a user or maintainer should act on. |
 | `KS362` | info | Comment refers to a plan item | Say what the code does and why; the history of how it got there belongs in the commit message. |
 
-The limits (600 lines per file, 30 methods per class, 80 lines per function) are deliberately generous: under a baseline they only stop growth, and a split should follow a real responsibility, not a number. `KS320` needs a similar body as well as the same name, and skips methods that override one from a base class in the repo and conventional hooks such as `_setup_ui` and `_apply_theme_styles`. `KS350`/`KS351` look only at the plugin's own topic constants (UPPER_CASE strings in a module whose name contains "event" or "topic"); a topic counts as handled when it is mentioned anywhere other than as a `publish()` argument, so subscribing through a helper or a list of topics is recognised.
+The limits (600 lines per file, 30 methods per class, 80 lines per function) are deliberately generous: under a baseline they only stop growth, and a split should follow a real responsibility, not a number. `KS320` needs a similar body as well as the same name, and skips methods that override one from a base class in the repo and conventional hooks such as `_setup_ui` and `_apply_theme_styles`. `KS331` reads the plugin's own list of calls that only analysis/ may make:
+
+```toml
+[tool.karcytics.evaluator]
+analysis_only = ["apply_hierarchy", "fcs_data.events"]   # a name, or the end of a dotted path
+```
+
+`KS332` looks at classes that subclass a `...State` class, or are dataclasses named `...State`. `KS350`/`KS351` look only at the plugin's own topic constants (UPPER_CASE strings in a module whose name contains "event" or "topic"); a topic counts as handled when it is mentioned anywhere other than as a `publish()` argument, so subscribing through a helper or a list of topics is recognised.
 
 ## Adding a rule
 

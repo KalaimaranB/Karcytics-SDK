@@ -88,6 +88,10 @@ class _FileChecker(ast.NodeVisitor):
     def visit_ImportFrom(self, node: ast.ImportFrom) -> None:
         if node.module and not node.level:
             self._check_import(node, node.module)
+            if self.zone == "analysis" and node.module.startswith(catalog.SDK_PACKAGE):
+                for alias in node.names:
+                    if alias.name in catalog.QT_BACKED_SDK_EXPORTS:
+                        self._add("KS205", node, f"imports `{alias.name}`, a Qt object, inside analysis/")
 
     def _check_import(self, node: ast.AST, module: str) -> None:
         top = module.split(".")[0]

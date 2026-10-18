@@ -6,6 +6,8 @@ from .conftest import PACKAGE
 
 
 def _design(repo, **kwargs):
+    # Most fixtures are deliberately Qt-free ui/ modules; KS330 has its own test.
+    kwargs.setdefault("ignore", ["KS330"])
     return evaluate_repo(repo.root, modes=[Mode.DESIGN], **kwargs).findings
 
 
@@ -240,3 +242,89 @@ def test_cross_file_rules_are_skipped_for_a_files_run(repo):
     a = _module(repo, "a", CLONE.format(name="mean_count", var="found"))
     _module(repo, "b", CLONE.format(name="average", var="matches"))
     assert [f for f in _design(repo, files=[repo.root / a]) if f.rule_id == "KS321"] == []
+
+
+# ── Layering ─────────────────────────────────────────────────────────
+
+
+def test_ui_module_without_ui_code_is_info(repo):
+    logic = repo.ui("import numpy as np\n\n\ndef stats(x):\n    return np.mean(x)\n")
+    widget = _module(repo, "widget", "from karcytics_sdk.plugin import BioButton\n")
+    themed = _module(repo, "themed", "from karcytics_sdk.plugin.theme_fallback import Colors\n")
+    plot = _module(repo, "plot", "import matplotlib.pyplot as plt\n")
+    found = [(f.rule_id, f.path, f.severity.value) for f in _design(repo, ignore=[]) if f.rule_id == "KS330"]
+    assert found == [("KS330", logic, "info")]
+    assert {widget, themed, plot}.isdisjoint(path for _, path, _ in found)
+
+
+def test_calls_reserved_to_analysis(repo):
+    repo.write(
+        "pyproject.toml",
+        (repo.root / "pyproject.toml").read_text()
+        + '\n[tool.karcytics.evaluator]\nanalysis_only = ["apply_hierarchy", "fcs_data.events"]\n',
+    )
+    source = """\
+        def refresh(sample, node):
+            df = sample.fcs_data.events
+            gated = node.apply_hierarchy(df)
+            n = len(sample.fcs_data.meta)
+            return apply_hierarchy(gated)
+        """
+    assert _ids(repo, source) == [("KS331", 2), ("KS331", 3), ("KS331", 5)]
+    assert _ids(repo, source, zone="analysis") == []
+
+
+def test_ui_objects_on_state(repo):
+    source = """\
+        from dataclasses import dataclass
+        from typing import Any
+
+        from karcytics_sdk.plugin import PluginState
+
+
+        @dataclass
+        class ViewState:
+            zoom: float = 1.0
+            _viewer: Any | None = None
+            panel: "SpectralPanel | None" = None
+
+
+        class FlowState(PluginState):
+            canvas: QWidget | None = None
+            note: str = ""
+
+
+        @dataclass
+        class Settings:
+            _viewer: Any = None
+        """
+    assert _ids(repo, source, zone="analysis") == [("KS332", 10), ("KS332", 11), ("KS332", 15)]
+
+
+def test_qt_backed_sdk_exports_in_analysis(repo):
+    path = repo.analysis("from karcytics_sdk.plugin import CentralEventBus, Debouncer, AnalysisBase\n")
+    report = evaluate_repo(repo.root, modes=[Mode.FUNCTIONAL])
+    assert [(f.rule_id, f.message) for f in report.findings if f.path == path] == [
+        ("KS205", "imports `Debouncer`, a Qt object, inside analysis/")
+    ]
+    repo.analysis("")
+    ui = repo.ui("from karcytics_sdk.plugin import Debouncer\n")
+    assert [f for f in evaluate_repo(repo.root, modes=[Mode.FUNCTIONAL]).findings if f.path == ui] == []
+
+
+def test_qt_backed_catalog_matches_the_sdk():
+    import inspect
+
+    from PySide6.QtCore import QObject
+    from PySide6.QtWidgets import QWidget
+
+    from karcytics_sdk import plugin
+    from karcytics_sdk.evaluator import catalog
+
+    def qt_backed(obj) -> bool:
+        if inspect.isclass(obj):
+            return issubclass(obj, QObject) and not issubclass(obj, QWidget)
+        return isinstance(obj, QObject) and not isinstance(obj, QWidget)
+
+    exported = {name for name in dir(plugin) if not name.startswith("_") and qt_backed(getattr(plugin, name))}
+    assert exported == catalog.QT_BACKED_SDK_EXPORTS

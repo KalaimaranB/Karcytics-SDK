@@ -20,7 +20,9 @@ def _parse(*argv: str) -> argparse.Namespace:
 
 
 def _ids(repo, path, **kwargs):
-    return [(f.rule_id, f.line) for f in evaluate_repo(repo.root, **kwargs).findings if f.path == path]
+    # The fixtures are Qt-free ui/ modules, which KS330 (info) would also note.
+    report = evaluate_repo(repo.root, ignore=["KS330"], **kwargs)
+    return [(f.rule_id, f.line) for f in report.findings if f.path == path]
 
 
 # ── Suppression comments ─────────────────────────────────────────────
@@ -121,7 +123,7 @@ def test_files_run_checks_only_those_files_and_skips_repo_level_rules(repo):
     repo.remove("LICENSE")
     edited = repo.write(f"{PACKAGE}/ui/edited.py", "print('x')\n")
     repo.write(f"{PACKAGE}/ui/other.py", "print('y')\n")
-    report = evaluate_repo(repo.root, files=[edited])
+    report = evaluate_repo(repo.root, files=[edited], ignore=["KS330"])
     assert [(f.rule_id, f.path) for f in report.findings] == [("KS252", f"{PACKAGE}/ui/edited.py")]
     assert report.files_scanned == 1
 

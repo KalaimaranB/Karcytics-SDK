@@ -143,6 +143,13 @@ _FUNCTIONAL_RULES = [
         "Signal or Slot declared with a dict argument",
         "Declare the argument as `object`: PySide6 converts a `dict` signal argument to a QVariantMap and silently drops every non-string key.",
     ),
+    (
+        "KS205",
+        _W,
+        "Qt-backed SDK object in analysis/",
+        "Keep analysis/ to pure computation: move the scheduling, debouncing or signalling that needs this "
+        "into ui/ (or a controller there) and pass analysis/ plain data.",
+    ),
     ("KS210", _W, "Raw Qt widget where the SDK provides one", "Use the SDK component instead."),
     ("KS211", _W, "Subclasses a raw Qt widget the SDK wraps", "Subclass the SDK component instead."),
     ("KS220", _W, "Raw Qt dialog", "Use the helper from karcytics_sdk.plugin.dialogs instead."),
@@ -240,6 +247,26 @@ _DESIGN_RULES = [
         _W,
         "Duplicated function body",
         "Keep one copy and call it from both places.",
+    ),
+    (
+        "KS330",
+        _I,
+        "ui/ module with no UI code",
+        "If it is computation or data handling, move it to analysis/ where it can be tested headless.",
+    ),
+    (
+        "KS331",
+        _W,
+        "Call reserved to analysis/",
+        "Go through the analysis-layer API instead; the plugin lists this call under "
+        "[tool.karcytics.evaluator] analysis_only in pyproject.toml.",
+    ),
+    (
+        "KS332",
+        _W,
+        "UI object stored on state",
+        "Keep widgets out of state: state is data the analysis layer reads. Give whatever needs the widget "
+        "a reference to it, or a query object, instead.",
     ),
     (
         "KS340",

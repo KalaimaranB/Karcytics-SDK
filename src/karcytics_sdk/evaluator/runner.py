@@ -132,7 +132,7 @@ def evaluate_repo(  # noqa: PLR0913 - one keyword per CLI option
             all_sources = sources if whole_repo else _parse_all(layout, layout.source_files)[0]
             findings.extend(run_test_rules(tests, panel_classes(all_sources)))
     if Mode.DESIGN in modes:
-        findings.extend(run_design_rules(sources, whole_repo=whole_repo))
+        findings.extend(run_design_rules(sources, whole_repo=whole_repo, analysis_only=layout.analysis_only))
 
     by_path = {source.rel: source for source in [*sources, *tests]}
     findings = [f for f in findings if not (f.path in by_path and by_path[f.path].allows(f.rule_id, f.line))]

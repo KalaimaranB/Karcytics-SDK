@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from itertools import combinations
 
+from . import catalog
 from .model import Finding
 from .registry import make_finding
 from .source import SourceFile
@@ -77,6 +78,8 @@ _CONVENTIONAL_HELPERS = {
 
 _LOG_METHODS = {"warning", "error", "critical", "exception"}
 _DEBUG_TAG = re.compile(r"^\[[A-Za-z0-9_. -]{1,40}\]")
+# KS332: a field annotation naming a widget-like type.
+_UI_ANNOTATION = re.compile(r"\bQ[A-Z]\w+|\w*(?:Widget|Panel|Viewer|Window|Dialog|Canvas)\b")
 _PLAN_REFERENCE = re.compile(r"\bPriority \d\b|\b(?:analysis|UI) #\d|\(Done\)|\b(?:per|from|in) the plan\b")
 
 _Function = ast.FunctionDef | ast.AsyncFunctionDef
@@ -89,9 +92,9 @@ def _body_without_docstring(body: list[ast.stmt]) -> list[ast.stmt]:
     return body
 
 
-def _decorator_names(function: _Function) -> set[str]:
+def _decorator_names(node: _Function | ast.ClassDef) -> set[str]:
     names = set()
-    for decorator in function.decorator_list:
+    for decorator in node.decorator_list:
         target = decorator.func if isinstance(decorator, ast.Call) else decorator
         if isinstance(target, ast.Name):
             names.add(target.id)
@@ -124,8 +127,9 @@ def _own_private_names(node: ast.ClassDef) -> set[str]:
 class _DesignChecker(ast.NodeVisitor):
     """Walks one file for the per-file design rules."""
 
-    def __init__(self, source: SourceFile) -> None:
+    def __init__(self, source: SourceFile, analysis_only: tuple[str, ...] = ()) -> None:
         self.source = source
+        self._analysis_only = analysis_only if source.zone != "analysis" else ()
         self.findings: list[Finding] = []
         self._scope: list[str] = []  # enclosing class/function names
         self._functions = 0  # how many functions enclose the current node
@@ -176,6 +180,8 @@ class _DesignChecker(ast.NodeVisitor):
             )
         self._check_static_only(node, methods)
         self._check_pass_through(node, methods)
+        if self._is_state_class(node):
+            self._check_state_fields(node)
         self._scope.append(node.name)
         self._class_privates.append(_own_private_names(node))
         self.generic_visit(node)
@@ -201,6 +207,23 @@ class _DesignChecker(ast.NodeVisitor):
             node,
             f"{len(targets)} of `{node.name}`'s {len(candidates)} methods only forward a call to {names}",
         )
+
+    def _is_state_class(self, node: ast.ClassDef) -> bool:
+        for base in node.bases:
+            name = base.id if isinstance(base, ast.Name) else getattr(base, "attr", "")
+            if name.endswith("State"):
+                return True
+        return node.name.endswith("State") and "dataclass" in _decorator_names(node)
+
+    def _check_state_fields(self, node: ast.ClassDef) -> None:
+        for field in node.body:
+            if not (isinstance(field, ast.AnnAssign) and isinstance(field.target, ast.Name)):
+                continue
+            name, annotation = field.target.id, ast.unparse(field.annotation)
+            if _UI_ANNOTATION.search(annotation):
+                self._add("KS332", field, f"`{node.name}.{name}: {annotation}` holds a UI object")
+            elif _is_private(name) and "Any" in annotation:
+                self._add("KS332", field, f"`{node.name}.{name}: {annotation}` is untyped and private: a UI object?")
 
     @staticmethod
     def _forwarded_to(method: _Function) -> str | None:
@@ -260,12 +283,19 @@ class _DesignChecker(ast.NodeVisitor):
     # ── Attribute access ──────────────────────────────────────────────
 
     def visit_Attribute(self, node: ast.Attribute) -> None:
+        self._check_analysis_only(node, node.attr, ast.unparse(node))
         if _is_private(node.attr) and node.attr not in _PUBLIC_PRIVATES and not self._dunder_method:
             owner = node.value
             same_class = bool(self._class_privates) and node.attr in self._class_privates[-1]
             if not same_class and not self._is_own(owner):
                 self._add("KS342", node, f"`{ast.unparse(node)}` reads another object's private attribute")
         self.generic_visit(node)
+
+    def _check_analysis_only(self, node: ast.AST, name: str, dotted: str) -> None:
+        for entry in self._analysis_only:
+            if ("." in entry and (dotted == entry or dotted.endswith("." + entry))) or entry == name:
+                self._add("KS331", node, f"`{dotted}` is reserved to analysis/ in this plugin")
+                return
 
     def _is_own(self, owner: ast.expr) -> bool:
         """Whether `owner._x` is access to one's own (or one's class's) internals."""
@@ -281,6 +311,8 @@ class _DesignChecker(ast.NodeVisitor):
 
     def visit_Call(self, node: ast.Call) -> None:
         func = node.func
+        if isinstance(func, ast.Name):
+            self._check_analysis_only(func, func.id, func.id)
         if isinstance(func, ast.Name) and func.id in ("getattr", "hasattr", "setattr") and len(node.args) >= 2:  # noqa: PLR2004 - object and name
             self._check_reflective(node, func.id)
         elif isinstance(func, ast.Attribute) and func.attr in _LOG_METHODS:
@@ -329,6 +361,32 @@ class _DesignChecker(ast.NodeVisitor):
         if isinstance(inner, ast.Call) and isinstance(inner.func, ast.Name):
             return inner.func.id == "type"
         return isinstance(inner, ast.Attribute) and inner.attr == "__class__"
+
+
+def _imports_ui(source: SourceFile) -> bool:
+    for node in ast.walk(source.tree):
+        if isinstance(node, ast.Import):
+            modules = [(a.name, a.name) for a in node.names]
+        elif isinstance(node, ast.ImportFrom) and node.module and not node.level:
+            modules = [(node.module, a.name) for a in node.names]
+        else:
+            continue
+        for module, name in modules:
+            if module.split(".")[0] in catalog.UI_LIBRARIES:
+                return True
+            if module.startswith(catalog.SDK_PACKAGE) and (
+                name in catalog.SDK_UI_NAMES
+                or name.startswith("Bio")
+                or any(part in segment for segment in module.split(".")[2:] for part in catalog.SDK_UI_MODULES)
+                or name in catalog.SDK_UI_MODULES
+            ):
+                return True
+    return False
+
+
+def _check_ui_without_ui(source: SourceFile) -> Iterator[Finding]:
+    if source.zone == "ui" and not source.rel.endswith("__init__.py") and not _imports_ui(source):
+        yield make_finding("KS330", source.rel, "no Qt, plotting or SDK UI import: does this belong in analysis/?")
 
 
 def _check_suppressions(source: SourceFile) -> Iterator[Finding]:
@@ -609,14 +667,18 @@ def _check_event_topics(sources: list[SourceFile]) -> Iterator[Finding]:
 # ── Entry point ──────────────────────────────────────────────────────
 
 
-def run_design_rules(sources: list[SourceFile], *, whole_repo: bool = True) -> Iterator[Finding]:
+def run_design_rules(
+    sources: list[SourceFile], *, whole_repo: bool = True, analysis_only: tuple[str, ...] = ()
+) -> Iterator[Finding]:
     """Yield every design finding for `sources`.
 
     The cross-file rules need every file at once, so they only run when
-    `whole_repo` is set.
+    `whole_repo` is set. `analysis_only` is the plugin's list of calls only
+    analysis/ may make (KS331).
     """
     for source in sources:
-        yield from _DesignChecker(source).run()
+        yield from _DesignChecker(source, analysis_only).run()
+        yield from _check_ui_without_ui(source)
         yield from _check_suppressions(source)
         yield from _check_plan_references(source)
     if whole_repo:

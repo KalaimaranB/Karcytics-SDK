@@ -79,3 +79,42 @@ SUPPORTED_QT_BINDING = "PySide6"
 QT_BINDINGS = (SUPPORTED_QT_BINDING, "PyQt6", "PyQt5", "PySide2")
 HUB_PACKAGE = "karcytics"
 SDK_PACKAGE = "karcytics_sdk"
+
+# SDK exports that are QObjects (classes or instances) without being widgets:
+# importing one into analysis/ brings Qt in by the back door, which KS202's
+# import check cannot see. Kept in step with the package by a unit test.
+QT_BACKED_SDK_EXPORTS = {
+    "AcademyStepDriver",
+    "AnalysisWorker",
+    "Debouncer",
+    "DirtyTrackingGraphicsScene",
+    "LocalTaskScheduler",
+    "OneShotWorkerThread",
+    "PluginDaemon",
+    "PluginSignals",
+    "PluginUIDaemon",
+    "RenderPipelineController",
+}
+
+# Imports that show a module is UI code (KS330): the Qt bindings, the plotting
+# libraries, and the SDK's UI-facing modules and names.
+UI_LIBRARIES = ("PySide6", "shiboken6", "matplotlib", "pyqtgraph", "vispy")
+SDK_UI_MODULES = (
+    "components",
+    "dialogs",
+    "theme",
+    "rendering",
+    "ribbon",
+    "toast",
+    "menu_builder",
+    "tutorial",
+    "academy",
+    "image_view",
+    "draggable",
+    "effects",
+    "citation_widgets",
+    "question_panel",
+    "wizard",
+    "base",
+)
+SDK_UI_NAMES = {"PluginBase", "Colors", "Fonts", "theme_manager", "apply_component_style", "ThemedToolbarContainer"}
