@@ -553,10 +553,16 @@ class BioStatusLabel(QLabel):
 
 
 class BioComboBox(QComboBox):
-    """Standardized combo box."""
+    """Standardized combo box.
 
-    def __init__(self, parent=None):
+    `fit_contents=True` never elides: the box grows to its widest item and
+    the popup widens to fit every item, for lists of long channel or
+    population names where a truncated label is ambiguous.
+    """
+
+    def __init__(self, parent=None, *, fit_contents: bool = False):
         super().__init__(parent)
+        self._fit_contents = fit_contents
         self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
         from PySide6.QtWidgets import QListView
 
@@ -567,12 +573,25 @@ class BioComboBox(QComboBox):
             Qt.WindowType.Popup | Qt.WindowType.FramelessWindowHint | Qt.WindowType.NoDropShadowWindowHint
         )
         view.window().setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
+        if fit_contents:
+            self.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+            view.setTextElideMode(Qt.TextElideMode.ElideNone)
+            view.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.setItemDelegate(QStyledItemDelegate(self))
         _connect_theme_signal(self._apply_theme_styles)
 
+    def popup_width(self) -> int:
+        """How wide the popup opens: the box, or its widest item with `fit_contents`."""
+        width = self.width()
+        if self._fit_contents:
+            metrics = self.fontMetrics()
+            widest = max((metrics.horizontalAdvance(self.itemText(i)) for i in range(self.count())), default=0)
+            width = max(width, widest + 30)  # room for the item padding and a scroll bar
+        return width
+
     def showPopup(self) -> None:
         super().showPopup()
-        self.view().window().setMinimumWidth(self.width())
+        self.view().window().setMinimumWidth(self.popup_width())
 
     def _apply_theme_styles(self) -> None:
         from karcytics_sdk.plugin.theme_fallback import get_contrast_text_color

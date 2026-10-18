@@ -4,6 +4,7 @@ Provides convenient wrappers for common PySide6 file dialogs and message boxes
 that work with the current theme.
 """
 
+from collections.abc import Sequence
 from datetime import datetime
 
 from PySide6.QtCore import Qt
@@ -189,6 +190,35 @@ def ask_yes_no(parent=None, title: str = "", message: str = "") -> bool:
         msg_box.setWindowFlags(msg_box.windowFlags() | Qt.WindowType.WindowStaysOnTopHint)
     reply = msg_box.exec()
     return reply == QMessageBox.StandardButton.Yes
+
+
+_MAX_LISTED = 6
+
+
+def confirm_destructive(parent, title: str, message: str, items: Sequence[str] = ()) -> bool:
+    """Ask before an action that also affects other things, listing them.
+
+    For "deleting X also deletes its 3 children" or "rename in 5 samples":
+    the message, then the affected items as a bulleted list (the first six
+    and a count of the rest), with No as the default answer.
+
+    Returns:
+        True if the user clicks Yes.
+    """
+    listed = [f"• {item}" for item in items[:_MAX_LISTED]]
+    if len(items) > _MAX_LISTED:
+        listed.append(f"... and {len(items) - _MAX_LISTED} more")
+    msg_box = QMessageBox(
+        QMessageBox.Icon.Warning,
+        title,
+        message,
+        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        parent,
+    )
+    if listed:
+        msg_box.setInformativeText("\n".join(listed))
+    msg_box.setDefaultButton(QMessageBox.StandardButton.No)
+    return msg_box.exec() == QMessageBox.StandardButton.Yes
 
 
 def ask_ok_cancel(parent=None, title: str = "", message: str = "") -> bool:

@@ -20,6 +20,8 @@ components:
   ``LockedFigureCanvas``, a plain ``FigureCanvasQTAgg`` for plugins that just
   need a standalone plot serialized behind the same ``RasterLock``, without
   the full async data-layer machinery.
+- ``axes``: ``style_axes``/``AxesColors``, the one theme-aware "colour the
+  ticks, spines and faces" helper for a matplotlib Axes.
 - ``graphics_scene``: ``DirtyTrackingGraphicsScene``/``DirtyTrackingGraphicsView``,
   a ``QGraphicsScene``/``QGraphicsView`` base defaulting to Qt's
   ``MinimalViewportUpdate`` instead of a plugin-authored full-viewport
@@ -30,6 +32,7 @@ for the ergonomic entry points most plugin code should use instead of
 constructing these classes directly.
 """
 
+from .axes import AxesColors, style_axes
 from .graphics_scene import DirtyTrackingGraphicsScene, DirtyTrackingGraphicsView
 from .lock import MPL_RASTER_LOCK, RasterLock
 
@@ -46,6 +49,7 @@ from .pipeline import (
 
 __all__ = [
     "MPL_RASTER_LOCK",
+    "AxesColors",
     "DirtyTrackingGraphicsScene",
     "DirtyTrackingGraphicsView",
     "LayeredMatplotlibCanvas",
@@ -56,6 +60,7 @@ __all__ = [
     "RenderComputeStage",
     "RenderData",
     "RenderPipelineController",
+    "style_axes",
 ]
 
 _MPL_LAZY_NAMES = frozenset({"LayeredMatplotlibCanvas", "LockedFigureCanvas"})

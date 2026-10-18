@@ -33,6 +33,7 @@ from .components import (
     SecondaryButton,
     SubtitleLabel,
     apply_component_style,
+    repopulate_combo,
 )
 from .context import PluginContext, UndeclaredCapabilityAccess
 from .course_complete_overlay import CourseCompleteOverlay
@@ -41,6 +42,7 @@ from .daemon import PluginDaemon, PluginUIDaemon
 from .dialogs import (
     ask_ok_cancel,
     ask_yes_no,
+    confirm_destructive,
     get_directory,
     get_double,
     get_image_path,
@@ -62,6 +64,7 @@ from .manifest import PluginManifest
 from .preferences import PreferenceManagerProtocol
 from .rendering import (
     MPL_RASTER_LOCK,
+    AxesColors,
     DirtyTrackingGraphicsScene,
     DirtyTrackingGraphicsView,
     RasterizeStage,
@@ -70,6 +73,7 @@ from .rendering import (
     RenderComputeStage,
     RenderData,
     RenderPipelineController,
+    style_axes,
 )
 
 # LayeredMatplotlibCanvas is lazily resolved via __getattr__ below.
@@ -119,6 +123,7 @@ from .version import read_plugin_version
 from .wizard import StepIndicator, WizardPanel, WizardStep
 from .worker_thread import OneShotWorkerThread
 from .workflow import WorkflowAttachment, WorkflowContext
+from .zoom_controls import ZoomControls
 
 __all__ = [
     # Base and Core
@@ -193,6 +198,7 @@ __all__ = [
     "BioButton",
     "BioCancelButton",
     "BioCaptionLabel",
+    "AxesColors",
     "BioComboBox",
     "BioDoubleSpinBox",
     "BioHeaderLabel",
@@ -220,6 +226,10 @@ __all__ = [
     # Dialogs
     "ask_ok_cancel",
     "ask_yes_no",
+    "confirm_destructive",
+    "repopulate_combo",
+    "style_axes",
+    "ZoomControls",
     "get_directory",
     "get_double",
     "get_image_path",

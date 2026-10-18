@@ -32,7 +32,7 @@ WIDGET_EQUIVALENTS: dict[str, str] = {
 # remedy for instantiating the class directly.
 DIALOG_EQUIVALENTS: dict[str, dict[str, str]] = {
     "QMessageBox": {
-        "": f"show_info / show_warning / show_error / ask_yes_no / ask_ok_cancel from {_DIALOGS}",
+        "": f"show_info / show_warning / show_error / ask_yes_no / ask_ok_cancel / confirm_destructive from {_DIALOGS}",
         "information": f"show_info() from {_DIALOGS}",
         "about": f"show_info() from {_DIALOGS}",
         "warning": f"show_warning() from {_DIALOGS}",
