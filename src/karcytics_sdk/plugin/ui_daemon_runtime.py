@@ -889,14 +889,24 @@ def run(  # noqa: C901, PLR0913, PLR0915
             # Before theme_changed fires, so its listeners (Cyto's costume)
             # see the new theme's name, not the old one.
             theme_manager.set_theme_name(name)
-        if colors:
-            from .theme_fallback import DynamicColors, theme_manager
 
-            DynamicColors.update_from(colors)
-            theme_manager._apply_dynamic_styles()
-            theme_manager.theme_changed.emit()
-        if hasattr(panel, "_apply_theme_styles"):
-            panel._apply_theme_styles()
+        def _restyle() -> None:
+            if colors:
+                from .theme_fallback import DynamicColors, theme_manager
+
+                DynamicColors.update_from(colors)
+                theme_manager._apply_dynamic_styles()
+                theme_manager.theme_changed.emit()
+            if hasattr(panel, "_apply_theme_styles"):
+                panel._apply_theme_styles()
+
+        if colors:
+            # The Hub's own "Changing theme…" cover can't reach this window.
+            from .theme_overlay import covered_while
+
+            covered_while(window, _restyle)
+        else:
+            _restyle()
         return {"status": "ok"}
 
     dispatcher.register("theme_changed", _handle_theme_changed)
