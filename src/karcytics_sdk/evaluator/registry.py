@@ -82,6 +82,13 @@ _ORG_RULES = [
         "Add .pre-commit-config.yaml with the standard local hooks (ruff, mypy, pytest, sign, ledger).",
     ),
     ("KS133", _W, "Pre-commit hook missing", "Add the hook to .pre-commit-config.yaml."),
+    (
+        "KS134",
+        _W,
+        "No agent hook for the doctor",
+        "Add a PostToolUse hook running `uv run karcytics-sdk doctor --claude-hook` to .claude/settings.json "
+        "(see docs/Doctor.md), so an agent sees what an edit broke before it moves on.",
+    ),
     ("KS140", _W, "No tests/ directory", "Add a tests/ directory with a tests/unit/ suite."),
     (
         "KS141",
@@ -91,7 +98,7 @@ _ORG_RULES = [
     ),
     (
         "KS142",
-        _W,
+        _E,
         "No SDK contract test",
         "Subclass karcytics_sdk.testing.ContractTestBase in a test file and set PLUGIN_DIR.",
     ),
@@ -179,6 +186,20 @@ _FUNCTIONAL_RULES = [
         "Direct setStyleSheet call",
         "Prefer a Bio* component, apply_component_style(), or theme_manager.apply_style() so the "
         "style is re-applied when the theme changes.",
+    ),
+    (
+        "KS242",
+        _W,
+        "Themed stylesheet built by hand",
+        'Use theme_manager.apply_style(widget, "QLabel {{ color: {FG_PRIMARY}; }}") (tokens in braces) so the '
+        "style follows theme changes, or a Bio* component that already does.",
+    ),
+    (
+        "KS243",
+        _W,
+        "Combo box rebuilt by hand",
+        "Use repopulate_combo(combo, items, restore_data=...) from karcytics_sdk.plugin: it keeps the "
+        "selection, blocks signals, and does nothing when nothing changed.",
     ),
     (
         "KS250",
@@ -322,6 +343,27 @@ _DESIGN_RULES = [
         _W,
         "Debug trace logged as a warning",
         "Log it with logger.debug(), and keep warnings for what a user or maintainer should act on.",
+    ),
+    (
+        "KS370",
+        _W,
+        "Test asserts nothing",
+        "Assert on the outcome the test is about. A test that only checks nothing crashed passes "
+        "when the behaviour is wrong.",
+    ),
+    (
+        "KS371",
+        _W,
+        "Test only checks that things exist",
+        "Assert on behaviour (values, emitted signals, state after an action), not that an attribute "
+        "exists or an object has a type.",
+    ),
+    (
+        "KS372",
+        _W,
+        "Test patches a Qt signal",
+        "Under PySide6 a signal is resolved on the instance, so patching it on the class intercepts nothing: "
+        "connect a real slot and assert on what it received.",
     ),
     (
         "KS362",

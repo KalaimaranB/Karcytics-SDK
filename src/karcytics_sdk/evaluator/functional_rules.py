@@ -39,6 +39,51 @@ def _docstring_nodes(tree: ast.AST) -> set[int]:
     return found
 
 
+def _interpolates_colors(node: ast.expr) -> bool:
+    """An f-string that formats a `Colors.<token>` into itself."""
+    if not isinstance(node, ast.JoinedStr):
+        return False
+    return any(
+        isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == "Colors"
+        for value in node.values
+        if isinstance(value, ast.FormattedValue)
+        for n in ast.walk(value.value)
+    )
+
+
+def combo_receivers(tree: ast.AST) -> set[str]:
+    """`self._x` / `x` names a file assigns a combo box to (`self._x = BioComboBox()`)."""
+    found: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call):
+            func = node.value.func
+            name = func.id if isinstance(func, ast.Name) else getattr(func, "attr", "")
+            if "Combo" in name:
+                found.update(ast.unparse(target) for target in node.targets)
+    return found
+
+
+def _combo_rebuilds(function: ast.FunctionDef | ast.AsyncFunctionDef, combos: set[str]) -> Iterator[ast.Call]:
+    """`x.clear()` calls in `function` followed by an `x.addItem()` loop on a combo box.
+
+    Only receivers known to be combos count (named so, or assigned a combo in
+    the file): QListWidget has the same two methods and repopulate_combo() is
+    for combo boxes.
+    """
+    calls = [(n, n.func) for n in ast.walk(function) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)]
+    cleared = {ast.unparse(func.value): call for call, func in calls if func.attr == "clear" and not call.args}
+    looped = {
+        ast.unparse(n.func.value)
+        for loop in ast.walk(function)
+        if isinstance(loop, ast.For)
+        for n in ast.walk(loop)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "addItem"
+    }
+    for receiver, call in cleared.items():
+        if receiver in looped and ("combo" in receiver.lower() or receiver in combos):
+            yield call
+
+
 class _FileChecker(ast.NodeVisitor):
     """Walks one file and records its findings."""
 
@@ -51,6 +96,8 @@ class _FileChecker(ast.NodeVisitor):
         self._names = collect_imports(tree)
         self._docstrings = _docstring_nodes(tree)
         self._colour_lines: set[int] = set()
+        self._combo_calls: set[int] = set()
+        self._combos = combo_receivers(tree)
 
     # ── Helpers ───────────────────────────────────────────────────────
 
@@ -138,12 +185,27 @@ class _FileChecker(ast.NodeVisitor):
             self._check_stdlib_call(node, dotted)
         self.generic_visit(node)
 
+    def visit_FunctionDef(self, node: ast.FunctionDef | ast.AsyncFunctionDef) -> None:
+        if self.zone != "analysis":
+            # A nested function is walked again on its own; report each call once.
+            for call in (c for c in _combo_rebuilds(node, self._combos) if id(c) not in self._combo_calls):
+                self._combo_calls.add(id(call))
+                self._add(
+                    "KS243", call, f"`{ast.unparse(call.func)}()` then an addItem() loop rebuilds a combo by hand"
+                )
+        self.generic_visit(node)
+
+    visit_AsyncFunctionDef = visit_FunctionDef
+
     def _check_unresolved_call(self, node: ast.Call) -> None:
         func = node.func
         if isinstance(func, ast.Name) and func.id == "print":
             self._add("KS252", node, "`print()` used for output")
         elif isinstance(func, ast.Attribute) and func.attr == "setStyleSheet":
-            self._add("KS241", node, "`setStyleSheet()` called directly")
+            if node.args and _interpolates_colors(node.args[0]):
+                self._add("KS242", node, "stylesheet built by interpolating `Colors` into an f-string")
+            else:
+                self._add("KS241", node, "`setStyleSheet()` called directly")
 
     def _check_qt_call(self, node: ast.Call, dotted: str) -> None:
         owner, _, name = dotted.rpartition(".")

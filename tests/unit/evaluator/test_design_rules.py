@@ -328,3 +328,130 @@ def test_qt_backed_catalog_matches_the_sdk():
 
     exported = {name for name in dir(plugin) if not name.startswith("_") and qt_backed(getattr(plugin, name))}
     assert exported == catalog.QT_BACKED_SDK_EXPORTS
+
+
+# ── SDK usage: theming and combos (functional) ───────────────────────
+
+
+def _functional(repo, source: str):
+    path = repo.ui(textwrap.dedent(source))
+    report = evaluate_repo(repo.root, modes=[Mode.FUNCTIONAL])
+    return [(f.rule_id, f.line) for f in report.findings if f.path == path]
+
+
+def test_themed_stylesheet_built_by_hand(repo):
+    source = """\
+        def style(label):
+            label.setStyleSheet(f"color: {Colors.FG_PRIMARY}; padding: {pad}px;")
+            label.setStyleSheet(f"padding: {pad}px;")
+            label.setStyleSheet("color: red;")
+        """
+    assert _functional(repo, source) == [("KS242", 2), ("KS241", 3), ("KS241", 4)]
+
+
+def test_combo_rebuilt_by_hand(repo):
+    source = """\
+        class Panel:
+            def __init__(self):
+                self._samples = BioComboBox()
+                self._channels = BioListWidget()
+
+            def refresh(self, names):
+                self.sample_combo.clear()
+                for name in names:
+                    self.sample_combo.addItem(name)
+                self._samples.clear()
+                for name in names:
+                    self._samples.addItem(name, name)
+                self._channels.clear()
+                for name in names:
+                    self._channels.addItem(name)
+                self.other_combo.clear()
+        """
+    assert _functional(repo, source) == [("KS243", 7), ("KS243", 10)]
+
+
+# ── Test quality ─────────────────────────────────────────────────────
+
+
+def _test_findings(repo, source: str):
+    path = repo.write("tests/unit/test_subject.py", textwrap.dedent(source))
+    rel = path.relative_to(repo.root).as_posix()
+    return [(f.rule_id, f.line) for f in _design(repo) if f.path == rel]
+
+
+def test_tests_that_assert_nothing_or_only_existence(repo):
+    source = """\
+        import pytest
+
+
+        def _check(x):
+            assert x == 1
+
+
+        def test_nothing():
+            run()
+
+
+        def test_existence_only(panel):
+            assert panel is not None
+            assert isinstance(panel.model, Model)
+
+
+        def test_real():
+            assert compute() == 3
+
+
+        def test_content_truthiness(step):
+            assert step.question_id, "every question needs an id"
+
+
+        def test_mock(handler):
+            run(handler)
+            handler.assert_called_once()
+
+
+        def test_raises():
+            with pytest.raises(ValueError):
+                run()
+
+
+        def test_helper():
+            _check(1)
+
+
+        def test_blank_image_does_not_raise():
+            run()
+
+
+        @pytest.mark.skip(reason="later")
+        def test_skipped():
+            pass
+        """
+    assert _test_findings(repo, source) == [("KS370", 8), ("KS371", 12)]
+
+
+def test_patching_a_qt_signal(repo):
+    repo.ui("from PySide6.QtCore import QObject, Signal\n\n\nclass Store(QObject):\n    changed = Signal(object)\n")
+    source = """\
+        from unittest.mock import patch
+
+
+        def test_signal(store):
+            with patch.object(Store, "changed"), patch("pkg.store.Store.changed"), patch.object(Store, "save"):
+                store.save()
+                assert store.saved
+        """
+    assert _test_findings(repo, source) == [("KS372", 5), ("KS372", 5)]
+
+
+def test_bootstrap_wires_the_agent_hook(tmp_path):
+    import argparse
+    import json
+
+    from karcytics_sdk.cli.commands.scaffold import bootstrap_plugin
+
+    bootstrap_plugin(argparse.Namespace(plugin_dir=str(tmp_path / "new")))
+    settings = json.loads((tmp_path / "new" / ".claude" / "settings.json").read_text())
+    command = settings["hooks"]["PostToolUse"][0]["hooks"][0]["command"]
+    assert command == "uv run karcytics-sdk doctor --claude-hook"

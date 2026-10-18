@@ -122,7 +122,14 @@ def test_missing_pre_commit_hook_names_the_hook(repo):
         "no plugin signing hook",
         "no security ledger verification hook",
         "no license compliance hook",
+        "no karcytics-doctor hook",
     ]
+
+
+def test_missing_agent_hook(repo):
+    repo.remove(".claude/settings.json")
+    found = [(f.rule_id, f.path) for f in evaluate_repo(repo.root).findings if f.rule_id == "KS134"]
+    assert found == [("KS134", ".claude/settings.json")]
 
 
 @pytest.mark.parametrize("entry", ["uv run karcytics-sdk check-licenses", "python scripts/check_license_compliance.py"])

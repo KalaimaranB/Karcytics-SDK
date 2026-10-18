@@ -14,7 +14,7 @@ from .org_rules import run_org_rules
 from .registry import RULES, make_finding
 from .repo import RepoLayout
 from .source import SourceFile
-from .test_rules import run_test_rules
+from .test_rules import run_test_quality_rules, run_test_rules, signal_attributes
 
 
 @dataclass
@@ -122,6 +122,9 @@ def evaluate_repo(  # noqa: PLR0913 - one keyword per CLI option
     sources, failures = _parse_all(layout, source_paths)
     tests, _ = _parse_all(layout, test_paths)
 
+    # The test rules need to know the repo's classes even when only a test file is checked.
+    all_sources = sources if whole_repo or not tests else _parse_all(layout, layout.source_files)[0]
+
     findings: list[Finding] = []
     if Mode.ORG in modes and whole_repo:
         findings.extend(run_org_rules(layout))
@@ -129,10 +132,11 @@ def evaluate_repo(  # noqa: PLR0913 - one keyword per CLI option
         findings.extend(failures)
         findings.extend(run_functional_rules(layout, sources, whole_repo=whole_repo))
         if tests:
-            all_sources = sources if whole_repo else _parse_all(layout, layout.source_files)[0]
             findings.extend(run_test_rules(tests, panel_classes(all_sources)))
     if Mode.DESIGN in modes:
         findings.extend(run_design_rules(sources, whole_repo=whole_repo, analysis_only=layout.analysis_only))
+        if tests:
+            findings.extend(run_test_quality_rules(tests, signal_attributes(all_sources)))
 
     by_path = {source.rel: source for source in [*sources, *tests]}
     findings = [f for f in findings if not (f.path in by_path and by_path[f.path].allows(f.rule_id, f.line))]

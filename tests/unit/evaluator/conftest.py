@@ -44,6 +44,7 @@ repos:
       - id: karcytics-sign
       - id: verify-security-ledger
       - id: license-compliance
+      - id: karcytics-doctor
 """
 
 FILES = {
@@ -57,6 +58,7 @@ FILES = {
     "README.md": "# Demo",
     "LICENSE": "MIT",
     "CLAUDE.md": "# Demo",
+    ".claude/settings.json": '{"hooks": {"PostToolUse": [{"hooks": [{"command": "uv run karcytics-sdk doctor --claude-hook"}]}]}}',
     "mkdocs.yml": "site_name: Demo",
     "tests/unit/test_contract.py": (
         "from karcytics_sdk.testing import ContractTestBase\n\n\nclass TestContract(ContractTestBase):\n    pass\n"

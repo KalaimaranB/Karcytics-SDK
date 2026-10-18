@@ -96,7 +96,7 @@ The doctor is most useful where code is being written, not after the fact. Three
 
 Files under `analysis/` and `ui/` are treated differently where it matters: Qt is an error in `analysis/` (and an SDK object that is a Qt object, such as `Debouncer`, a warning), hard-coded colours are only checked outside it, and plain Python threads are info in `analysis/` (which cannot use Qt's) but a warning elsewhere.
 
-The files under `tests/` are read for one rule only, `KS270`. It reports a test or fixture that builds the plugin's panel (a `PluginBase` subclass, or `create_panel()`) without passing it to anything or calling `deleteLater()`, `qtbot.addWidget()` or `shiboken6.delete()`. It recognises that shape, not the leak itself: Python then garbage-collects the panel's wrappers while Qt still owns the widgets, and an unrelated test fails at random.
+The files under `tests/` are read by the test rules only: `KS270` here, and `KS370`-`KS372` (test quality) among the design rules. `KS270` It reports a test or fixture that builds the plugin's panel (a `PluginBase` subclass, or `create_panel()`) without passing it to anything or calling `deleteLater()`, `qtbot.addWidget()` or `shiboken6.delete()`. It recognises that shape, not the leak itself: Python then garbage-collects the panel's wrappers while Qt still owns the widgets, and an unrelated test fails at random.
 
 Names are resolved through each file's imports, so aliased and module-qualified uses (`QtWidgets.QPushButton(...)`) are found, and a local class that merely shares a Qt name is not.
 
@@ -119,9 +119,10 @@ Names are resolved through each file's imports, so aliased and module-qualified 
 | `KS131` | warning | No workflow runs the tests | Run pytest from a GitHub Actions workflow so every push or PR is tested. |
 | `KS132` | warning | No pre-commit config | Add .pre-commit-config.yaml with the standard local hooks (ruff, mypy, pytest, sign, ledger). |
 | `KS133` | warning | Pre-commit hook missing | Add the hook to .pre-commit-config.yaml. |
+| `KS134` | warning | No agent hook for the doctor | Add a PostToolUse hook running `uv run karcytics-sdk doctor --claude-hook` to .claude/settings.json (see docs/Doctor.md), so an agent sees what an edit broke before it moves on. |
 | `KS140` | warning | No tests/ directory | Add a tests/ directory with a tests/unit/ suite. |
 | `KS141` | warning | No tests/unit/ suite | Put fast, headless tests under tests/unit/ - that is what pre-commit runs. |
-| `KS142` | warning | No SDK contract test | Subclass karcytics_sdk.testing.ContractTestBase in a test file and set PLUGIN_DIR. |
+| `KS142` | error | No SDK contract test | Subclass karcytics_sdk.testing.ContractTestBase in a test file and set PLUGIN_DIR. |
 | `KS150` | warning | No uv.lock | Run `uv lock` and commit uv.lock so installs are reproducible. |
 | `KS151` | error | karcytics-sdk is not a declared dependency | Add "karcytics-sdk>=<version>" to [project] dependencies. |
 | `KS152` | info | No local source for karcytics-sdk | Add `karcytics-sdk = { path = "../Karcytics-SDK", editable = true }` under [tool.uv.sources]. |
@@ -149,6 +150,8 @@ Names are resolved through each file's imports, so aliased and module-qualified 
 | `KS231` | warning | Hand-rolled Python threading | Wrap the work in karcytics_sdk.plugin.managed_task.FunctionalTask and submit it to karcytics_sdk.plugin.task_scheduler. |
 | `KS240` | warning | Hard-coded colour | Use a Colors token from karcytics_sdk.plugin.theme_fallback so the widget follows the active theme. |
 | `KS241` | info | Direct setStyleSheet call | Prefer a Bio* component, apply_component_style(), or theme_manager.apply_style() so the style is re-applied when the theme changes. |
+| `KS242` | warning | Themed stylesheet built by hand | Use theme_manager.apply_style(widget, "QLabel {{ color: {FG_PRIMARY}; }}") (tokens in braces) so the style follows theme changes, or a Bio* component that already does. |
+| `KS243` | warning | Combo box rebuilt by hand | Use repopulate_combo(combo, items, restore_data=...) from karcytics_sdk.plugin: it keeps the selection, blocks signals, and does nothing when nothing changed. |
 | `KS250` | warning | Standard-library logger | Use karcytics_sdk.plugin.get_logger(__name__) so records carry plugin metadata. |
 | `KS251` | info | Hand-rolled JSON file I/O | Use load_json()/save_json() from karcytics_sdk.plugin. |
 | `KS252` | warning | print() call | Use karcytics_sdk.plugin.get_logger(__name__) instead of print(). |
@@ -182,9 +185,14 @@ These catch what accumulates when no one looks at the whole codebase at once, wh
 | `KS351` | warning | Event topic never used | Delete the constant. |
 | `KS360` | warning | Import inside a function | Import at the top of the module. If it is deliberate (startup time, an optional dependency), say so: `# karcytics: allow KS360 - <why>`. An import cycle is a design problem to fix, not hide. |
 | `KS361` | warning | Debug trace logged as a warning | Log it with logger.debug(), and keep warnings for what a user or maintainer should act on. |
+| `KS370` | warning | Test asserts nothing | Assert on the outcome the test is about. A test that only checks nothing crashed passes when the behaviour is wrong. |
+| `KS371` | warning | Test only checks that things exist | Assert on behaviour (values, emitted signals, state after an action), not that an attribute exists or an object has a type. |
+| `KS372` | warning | Test patches a Qt signal | Under PySide6 a signal is resolved on the instance, so patching it on the class intercepts nothing: connect a real slot and assert on what it received. |
 | `KS362` | info | Comment refers to a plan item | Say what the code does and why; the history of how it got there belongs in the commit message. |
 
-The limits (600 lines per file, 30 methods per class, 80 lines per function) are deliberately generous: under a baseline they only stop growth, and a split should follow a real responsibility, not a number. `KS320` needs a similar body as well as the same name, and skips methods that override one from a base class in the repo and conventional hooks such as `_setup_ui` and `_apply_theme_styles`. `KS331` reads the plugin's own list of calls that only analysis/ may make:
+The limits (600 lines per file, 30 methods per class, 80 lines per function) are deliberately generous: under a baseline they only stop growth, and a split should follow a real responsibility, not a number. `KS320` needs a similar body as well as the same name, and skips methods that override one from a base class in the repo and conventional hooks such as `_setup_ui` and `_apply_theme_styles`. `KS370` accepts any `assert`, a call whose name contains assert/raises/warns/expect/verify/check/wait, or a call to a helper in the same file that asserts; a test named for surviving something (`..._does_not_raise`, `..._survives_...`) is exempt. `KS371` fires when every assert is `isinstance`/`hasattr`/`callable`/`is not None`.
+
+`KS331` reads the plugin's own list of calls that only analysis/ may make:
 
 ```toml
 [tool.karcytics.evaluator]

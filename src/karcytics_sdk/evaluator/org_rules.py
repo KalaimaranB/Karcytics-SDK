@@ -29,7 +29,11 @@ _PRE_COMMIT_HOOKS = {
     "plugin signing": ("karcytics-sdk sign", "karcytics-sign"),
     "security ledger verification": ("verify_security_ledger", "verify-security-ledger"),
     "license compliance": ("check-licenses", "check_license_compliance", "license-compliance"),
+    "karcytics-doctor": ("karcytics-sdk doctor", "karcytics-doctor"),
 }
+
+CLAUDE_SETTINGS = ".claude/settings.json"
+DOCTOR_HOOK = "doctor --claude-hook"
 
 _MANIFEST_HEADER = r"^\s*\[tool\.karcytics\.plugin\]"
 
@@ -161,6 +165,11 @@ def _check_pre_commit(layout: RepoLayout) -> Iterator[Finding]:
             yield make_finding("KS133", PRE_COMMIT, f"no {hook} hook", remedy=f"Add a {hook} hook to {PRE_COMMIT}.")
 
 
+def _check_agent_hook(layout: RepoLayout) -> Iterator[Finding]:
+    if DOCTOR_HOOK not in (layout.read(CLAUDE_SETTINGS) or ""):
+        yield make_finding("KS134", CLAUDE_SETTINGS, "no Claude Code hook runs `karcytics-sdk doctor --claude-hook`")
+
+
 def _check_tests(layout: RepoLayout) -> Iterator[Finding]:
     tests = layout.root / "tests"
     if not tests.is_dir():
@@ -207,6 +216,7 @@ ORG_CHECKS: list[Check] = [
     _check_signing_files,
     _check_workflows,
     _check_pre_commit,
+    _check_agent_hook,
     _check_tests,
     _check_tooling,
     _check_documents,

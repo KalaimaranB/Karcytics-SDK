@@ -146,6 +146,10 @@ def _load_baseline(root, baseline_arg: str | None, writing: bool):
         return path, baseline_mod.load(path)
     if writing:
         return path, None
+    if baseline_arg == BASELINE_FILE:
+        # No baseline file means no recorded debt: every warning counts. That
+        # lets a new plugin and an old one share the same hook command.
+        return path, {}
     raise FileNotFoundError(f"baseline '{path}' not found (create it with --update-baseline)")
 
 
@@ -177,12 +181,12 @@ def _fail_hook(report) -> None:
     sys.exit(2)
 
 
-def _baseline_arg(args, root, hook: bool) -> str | None:
+def _baseline_arg(args, hook: bool) -> str | None:
     """The baseline path to use: as given, implied by writing one, or the repo's own in a hook."""
     baseline_arg = getattr(args, "baseline", None)
     if baseline_arg is None and (getattr(args, "update_baseline", False) or getattr(args, "reset_baseline", False)):
         return BASELINE_FILE
-    if baseline_arg is None and hook and (root / BASELINE_FILE).is_file():
+    if baseline_arg is None and hook:
         return BASELINE_FILE
     return baseline_arg
 
@@ -210,7 +214,7 @@ def doctor_plugin(args) -> bool:
         print("ERROR: --update-baseline/--reset-baseline cover every rule; drop --select/--ignore.", file=sys.stderr)
         return False
     try:
-        baseline_path, recorded = _load_baseline(root, _baseline_arg(args, root, hook), writing=update or reset)
+        baseline_path, recorded = _load_baseline(root, _baseline_arg(args, hook), writing=update or reset)
     except FileNotFoundError as exc:
         print(f"ERROR: {exc}.", file=sys.stderr)
         return False

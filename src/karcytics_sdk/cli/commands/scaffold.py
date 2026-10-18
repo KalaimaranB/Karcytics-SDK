@@ -74,6 +74,19 @@ authors = [
     return True
 
 
+CLAUDE_SETTINGS_TEMPLATE = """{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [{"type": "command", "command": "uv run karcytics-sdk doctor --claude-hook"}]
+      }
+    ]
+  }
+}
+"""
+
+
 def bootstrap_plugin(args) -> bool:
     """Create a complete boilerplate plugin skeleton with documentation and source template."""
     p_dir = Path(args.plugin_dir)
@@ -90,6 +103,11 @@ def bootstrap_plugin(args) -> bool:
 
     create_args = argparse.Namespace(plugin_dir=args.plugin_dir, id=None, name=None, version=None, desc=None)
     create_manifest(create_args)
+
+    # Let an agent working in the repo see what each edit breaks (docs/Doctor.md).
+    claude_dir = p_dir / ".claude"
+    claude_dir.mkdir(parents=True, exist_ok=True)
+    (claude_dir / "settings.json").write_text(CLAUDE_SETTINGS_TEMPLATE, encoding="utf-8")
 
     # 3. Create a clean __init__.py boilerplate implementing AnalysisBase
     init_file = p_dir / "src" / "__init__.py"
