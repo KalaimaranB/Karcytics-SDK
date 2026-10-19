@@ -575,11 +575,13 @@ def _check_clones(sources: list[SourceFile]) -> Iterator[Finding]:
             )
 
 
-def _topic_key(node: ast.expr) -> str | None:
+def _topic_key(node: ast.expr, by_value: dict[str, str]) -> str | None:
     if isinstance(node, ast.Attribute):
         return node.attr
     if isinstance(node, ast.Name):
         return node.id
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return by_value.get(node.value)
     return None
 
 
@@ -611,8 +613,18 @@ class _BusUsage:
     publish_mentions: dict[str, int]
 
 
-def _bus_usage(sources: list[SourceFile]) -> _BusUsage:
-    """Where topics are published, and how often each name is mentioned at all."""
+def _bus_usage(sources: list[SourceFile], constants: dict[str, tuple[SourceFile, ast.Assign]]) -> _BusUsage:
+    """Where topics are published, and how often each one is mentioned at all.
+
+    A string literal equal to a topic's value is a mention of that topic, so a
+    subscription written as `subscribe("flow.gate.renamed", ...)` still counts.
+    """
+    by_value = {
+        assign.value.value: key
+        for key, (_, assign) in constants.items()
+        if isinstance(assign.value, ast.Constant) and isinstance(assign.value.value, str)
+    }
+    definitions = {id(assign.value) for _, assign in constants.values()}
     usage = _BusUsage(defaultdict(list), defaultdict(int), defaultdict(int))
     for source in sources:
         for node in ast.walk(source.tree):
@@ -620,18 +632,22 @@ def _bus_usage(sources: list[SourceFile]) -> _BusUsage:
                 usage.mentions[node.attr] += 1
             elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
                 usage.mentions[node.id] += 1
+            elif isinstance(node, ast.Constant) and id(node) not in definitions:
+                key = _topic_key(node, by_value)
+                if key is not None:
+                    usage.mentions[key] += 1
             elif isinstance(node, ast.Call):
-                _record_publish(node, source, usage)
+                _record_publish(node, source, usage, by_value)
     return usage
 
 
-def _record_publish(node: ast.Call, source: SourceFile, usage: _BusUsage) -> None:
+def _record_publish(node: ast.Call, source: SourceFile, usage: _BusUsage, by_value: dict[str, str]) -> None:
     func = node.func
     if not (isinstance(func, ast.Attribute) and func.attr == "publish" and node.args):
         return
     if "bus" not in ast.unparse(func.value).lower():
         return
-    key = _topic_key(node.args[0])
+    key = _topic_key(node.args[0], by_value)
     if key is not None:
         usage.published[key].append((source, node))
         usage.publish_mentions[key] += 1
@@ -648,7 +664,7 @@ def _check_event_topics(sources: list[SourceFile]) -> Iterator[Finding]:
     constants = _topic_constants(sources)
     if not constants:
         return
-    usage = _bus_usage(sources)
+    usage = _bus_usage(sources, constants)
     for key, sites in sorted(usage.published.items()):
         if key in constants and usage.mentions[key] <= usage.publish_mentions[key]:
             for source, call in sites:

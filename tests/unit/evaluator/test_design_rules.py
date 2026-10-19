@@ -238,6 +238,27 @@ def test_unhandled_and_unused_event_topics(repo):
     assert found == [("KS350", publisher, 6), ("KS351", f"{PACKAGE}/analysis/events.py", 4)]
 
 
+def test_topics_written_as_string_literals_resolve_to_their_constant(repo):
+    repo.write(
+        f"{PACKAGE}/analysis/events.py",
+        'STATS = "x.stats"\nSAVED = "x.saved"\nUNSEEN = "x.unseen"\n',
+    )
+    publisher = repo.analysis(
+        "from . import events\n\n"
+        "def emit(bus):\n"
+        "    CentralEventBus.publish(events.STATS, {})\n"
+        "    CentralEventBus.publish('x.saved', {})\n"
+        "    CentralEventBus.publish('x.unseen', {})\n"
+    )
+    _module(
+        repo,
+        "listener",
+        "CentralEventBus.subscribe('x.stats', print)\nCentralEventBus.subscribe('x.saved', print)\n",
+    )
+    found = sorted((f.rule_id, f.path, f.line) for f in _design(repo) if f.rule_id in ("KS350", "KS351"))
+    assert found == [("KS350", publisher, 6)]
+
+
 def test_cross_file_rules_are_skipped_for_a_files_run(repo):
     a = _module(repo, "a", CLONE.format(name="mean_count", var="found"))
     _module(repo, "b", CLONE.format(name="average", var="matches"))
