@@ -138,6 +138,29 @@ def write_frame(data: dict[str, Any]) -> None:
     sys.stdout.buffer.flush()
 
 
+def _hard_exit(code: int) -> None:
+    """End the process now, skipping interpreter finalization.
+
+    os._exit() is enough on macOS/Linux. On Windows it goes through
+    ExitProcess, which kills the other threads and then runs every DLL's
+    detach code: Qt's then touches a QThread that was killed mid-call (the
+    update check's requests.get was one) and the process dies with an access
+    violation (0xC0000005) instead of `code`. TerminateProcess skips the DLL
+    detach step.
+    """
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.flush()
+        except Exception:  # noqa: BLE001, S110 - exiting regardless
+            pass
+    if sys.platform == "win32":
+        import ctypes
+
+        kernel32 = ctypes.windll.kernel32
+        kernel32.TerminateProcess(kernel32.GetCurrentProcess(), code)
+    os._exit(code)  # noqa: SLF001
+
+
 def _read_exact_stdin(num_bytes: int) -> bytes | None:
     """Read exactly `num_bytes` from stdin's raw file descriptor, or `None` on EOF.
 
@@ -332,7 +355,7 @@ class _RequestReader:
             if frame is None:
                 # Hub process is gone; there is no one left to talk to.
                 self._logger.info("Hub stdin pipe closed; exiting.", extra={"log_event": "stdin_closed"})
-                os._exit(0)  # noqa: SLF001
+                _hard_exit(0)
             self._bridge.request_received.emit(frame)
 
 
@@ -604,7 +627,7 @@ def _fail_theme_gate(logger: Any, plugin_id: str, message: str) -> None:
                 extra={"log_event": "theme_gate_report_failed"},
             )
 
-    os._exit(1)
+    _hard_exit(1)
 
 
 def _confirm_hub_theme_or_exit(logger: Any, plugin_id: str) -> None:
@@ -1173,9 +1196,9 @@ def run(  # noqa: C901, PLR0913, PLR0915
     # itself regardless of which call the reader thread is actually blocked
     # in). A thread it can't join blocked on that fd is exactly the shape of
     # CPython's fatal abort at shutdown (`_enter_buffered_busy: could not
-    # acquire lock ... at interpreter shutdown`) — os._exit() terminates the
+    # acquire lock ... at interpreter shutdown`) — _hard_exit() terminates the
     # process immediately at the OS level, skipping that finalization
     # sequence entirely, rather than relying on this being safe in every
     # CPython version. The reader thread was always going to be abandoned
     # anyway once this process exits.
-    os._exit(exit_code)
+    _hard_exit(exit_code)
