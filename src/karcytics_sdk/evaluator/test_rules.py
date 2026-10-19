@@ -110,7 +110,8 @@ def _is_test(function: _Function) -> bool:
         return False
     for decorator in function.decorator_list:
         text = ast.unparse(decorator)
-        if any(f".{mark}" in text for mark in _SKIP_MARKS):
+        # A fixture named test_* (`def test_state()`) is not a test.
+        if any(f".{mark}" in text for mark in _SKIP_MARKS) or "fixture" in text:
             return False
     return True
 
@@ -141,9 +142,9 @@ def _only_checks_existence(function: _Function) -> bool:
     asserts = [n for n in _own_nodes(function) if isinstance(n, ast.Assert)]
     if not asserts or not all(_is_existence_check(a.test) for a in asserts):
         return False
-    # A mock assertion or pytest.raises alongside them is a real check.
+    # A mock assertion, pytest.raises or qtbot.waitSignal alongside them is a real check.
     calls = [n for n in _own_nodes(function) if isinstance(n, ast.Call)]
-    return not any("assert" in (_call_name(c) or "") or "raises" in (_call_name(c) or "") for c in calls)
+    return not any(word in (_call_name(c) or "").lower() for c in calls for word in _ASSERTING_CALLS)
 
 
 def signal_attributes(sources: list[SourceFile]) -> dict[str, set[str]]:

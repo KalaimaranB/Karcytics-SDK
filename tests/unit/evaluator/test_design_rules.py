@@ -448,6 +448,17 @@ def test_tests_that_assert_nothing_or_only_existence(repo):
         @pytest.mark.skip(reason="later")
         def test_skipped():
             pass
+
+
+        @pytest.fixture
+        def test_state():
+            return build()
+
+
+        def test_emits(qtbot, ribbon):
+            assert ribbon.button is not None
+            with qtbot.waitSignal(ribbon.requested):
+                ribbon.button.click()
         """
     assert _test_findings(repo, source) == [("KS370", 8), ("KS371", 12)]
 
