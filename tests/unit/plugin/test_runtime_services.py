@@ -96,7 +96,10 @@ class TestLocalTaskScheduler:
         del worker  # callers such as RenderPipelineController keep no reference
         connected.set()
 
-        qtbot.waitUntil(lambda: bool(received), timeout=5000)
+        # Generous: windows-latest has timed out at 5s here while passing
+        # elsewhere. This guards a dropped slot, which never arrives at all, so
+        # latency headroom doesn't weaken it.
+        qtbot.waitUntil(lambda: bool(received), timeout=20000)
         assert received[0]["value"] == 1
 
     def test_task_finished_emitted_for_task_submitted_off_the_gui_thread(self, qtbot):
@@ -118,7 +121,10 @@ class TestLocalTaskScheduler:
         submitter.start()
         submitter.join()
 
-        qtbot.waitUntil(lambda: bool(received), timeout=5000)
+        # Generous: windows-latest has timed out at 5s here while passing
+        # elsewhere. This guards a dropped slot, which never arrives at all, so
+        # latency headroom doesn't weaken it.
+        qtbot.waitUntil(lambda: bool(received), timeout=20000)
         assert received[0]["value"] == 2
 
     def test_cleanup_disconnect_resilience(self):
