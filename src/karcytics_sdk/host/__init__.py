@@ -2,7 +2,6 @@
 
 from .core_services import CoreServicesClient, CoreServicesServer, RemoteCapabilityProxy
 from .docs import PluginDocumentation, docs_registry
-from .qt_bridge import QtThreadBridge
 from .sign_plugin import sign_plugin
 from .trust_manager import KARCYTICS_ROOT_PUBLIC_KEY_HEX, TrustManager, VerificationResult
 from .trust_overrides import LocalTrustRegistry
@@ -32,7 +31,17 @@ __all__ = [
 
 
 def __getattr__(name: str):
-    """Lazy loader for AI symbols that depend on `requests`."""
+    """Lazy loader for symbols with heavy dependencies.
+
+    AI symbols need `requests`; `QtThreadBridge` needs PySide6 widgets, which
+    on a headless Linux runner fail without system GL libraries — keeping it
+    lazy lets the SDK CLI (signing, license checks) run there.
+    """
+    if name == "QtThreadBridge":
+        from .qt_bridge import QtThreadBridge  # noqa: PLC0415
+
+        globals()["QtThreadBridge"] = QtThreadBridge
+        return QtThreadBridge
     if name in _AI_SYMBOLS:
         from .ai import AIAssistant, AIServerManager, ai_manager  # noqa: PLC0415
 

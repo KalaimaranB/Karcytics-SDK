@@ -1,129 +1,273 @@
 """Plugin Tier — Core classes, UI components, and utilities for Karcytics plugins."""
 
-from .academy import AcademyManager
-from .academy_driver import AcademyStepDriver, build_academy_overlay, open_academy, show_academy_overlay
-from .academy_lock_card import AcademyLockCard, LockCardContent
-from .academy_window import AcademyCatalogWindow
-from .analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
-from .base import PluginBase
-from .citation_widgets import CitationLabel, CitationsPanel
-from .citations import Citation, MethodStep
-from .components import (
-    AcademyButton,
-    BioButton,
-    BioCancelButton,
-    BioCaptionLabel,
-    BioComboBox,
-    BioDoubleSpinBox,
-    BioHeaderLabel,
-    BioHelpButton,
-    BioLineEdit,
-    BioListWidget,
-    BioRunButton,
-    BioScrollArea,
-    BioSpinBox,
-    BioSplitter,
-    BioStatusLabel,
-    BioTableWidget,
-    BioToggleButton,
-    DangerButton,
-    HeaderLabel,
-    ModuleCard,
-    PrimaryButton,
-    SecondaryButton,
-    SubtitleLabel,
-    apply_component_style,
-    repopulate_combo,
-)
-from .context import PluginContext, UndeclaredCapabilityAccess
-from .course_complete_overlay import CourseCompleteOverlay
-from .cyto_character import CytoWidget
-from .daemon import PluginDaemon, PluginUIDaemon
-from .dialogs import (
-    ask_ok_cancel,
-    ask_yes_no,
-    confirm_destructive,
-    get_directory,
-    get_double,
-    get_image_path,
-    get_number,
-    get_save_path,
-    get_text,
-    show_error,
-    show_info,
-    show_warning,
-)
-from .events import CentralEventBus
-from .history import HistoryEntry, UndoHistory
-from .image_view import ImageView, array_to_pixmap
-from .interfaces import KarcyticsPlugin
-from .io import PluginConfig, PluginPreferenceManager, load_json, save_json
-from .logging import get_logger
-from .managed_task import FunctionalTask
-from .manifest import PluginManifest
-from .preferences import PreferenceManagerProtocol
-from .rendering import (
-    MPL_RASTER_LOCK,
-    AxesColors,
-    DirtyTrackingGraphicsScene,
-    DirtyTrackingGraphicsView,
-    RasterizeStage,
-    RasterizeToImageTask,
-    RasterLock,
-    RenderComputeStage,
-    RenderData,
-    RenderPipelineController,
-    style_axes,
-)
+import importlib
+from typing import TYPE_CHECKING
 
-# LayeredMatplotlibCanvas is lazily resolved via __getattr__ below.
-from .ribbon import BioRibbon
-from .runtime_services import (
-    DiagnosticsForwarder,
-    KarcyticsEvent,
-    LocalTaskScheduler,
-    RemoteEventBus,
-    diagnostics,
-    event_bus,
-    task_scheduler,
-    tutorial_manager,
-)
-from .signals import PluginSignals, move_to_gui_thread, safe_disconnect
-from .state import PluginState
-from .tasks import TaskHandle, submit_task
-from .timing import Debouncer
-from .toast import (
-    STYLE_ERROR,
-    STYLE_INFO,
-    STYLE_SUCCESS,
-    STYLE_UPDATE,
-    STYLE_WARNING,
-    ToastManager,
-    ToastNotification,
-    show_toast,
-    toast_manager,
-)
-from .tutorial_overlay import TutorialOverlay
-from .ui_daemon_runtime import (
-    ClosableMainWindow,
-    RequestDispatcher,
-    patch_macos_bundle_name,
-    set_windows_app_user_model_id,
-)
-from .ui_daemon_runtime import run as run_ui_daemon
-from .validation import (
-    validate_directory_exists,
-    validate_file_exists,
-    validate_non_negative,
-    validate_not_empty,
-    validate_positive,
-    validate_value_range,
-)
-from .version import read_plugin_version
-from .wizard import StepIndicator, WizardPanel, WizardStep
-from .worker_thread import OneShotWorkerThread
-from .workflow import WorkflowAttachment, WorkflowContext
-from .zoom_controls import ZoomControls
+if TYPE_CHECKING:
+    from .academy import AcademyManager
+    from .academy_driver import AcademyStepDriver, build_academy_overlay, open_academy, show_academy_overlay
+    from .academy_lock_card import AcademyLockCard, LockCardContent
+    from .academy_window import AcademyCatalogWindow
+    from .analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
+    from .base import PluginBase
+    from .citation_widgets import CitationLabel, CitationsPanel
+    from .citations import Citation, MethodStep
+    from .components import (
+        AcademyButton,
+        BioButton,
+        BioCancelButton,
+        BioCaptionLabel,
+        BioComboBox,
+        BioDoubleSpinBox,
+        BioHeaderLabel,
+        BioHelpButton,
+        BioLineEdit,
+        BioListWidget,
+        BioRunButton,
+        BioScrollArea,
+        BioSpinBox,
+        BioSplitter,
+        BioStatusLabel,
+        BioTableWidget,
+        BioToggleButton,
+        DangerButton,
+        HeaderLabel,
+        ModuleCard,
+        PrimaryButton,
+        SecondaryButton,
+        SubtitleLabel,
+        apply_component_style,
+        repopulate_combo,
+    )
+    from .context import PluginContext, UndeclaredCapabilityAccess
+    from .course_complete_overlay import CourseCompleteOverlay
+    from .cyto_character import CytoWidget
+    from .daemon import PluginDaemon, PluginUIDaemon
+    from .dialogs import (
+        ask_ok_cancel,
+        ask_yes_no,
+        confirm_destructive,
+        get_directory,
+        get_double,
+        get_image_path,
+        get_number,
+        get_save_path,
+        get_text,
+        show_error,
+        show_info,
+        show_warning,
+    )
+    from .events import CentralEventBus
+    from .history import HistoryEntry, UndoHistory
+    from .image_view import ImageView, array_to_pixmap
+    from .interfaces import KarcyticsPlugin
+    from .io import PluginConfig, PluginPreferenceManager, load_json, save_json
+    from .logging import get_logger
+    from .managed_task import FunctionalTask
+    from .manifest import PluginManifest
+    from .preferences import PreferenceManagerProtocol
+    from .rendering import (
+        MPL_RASTER_LOCK,
+        AxesColors,
+        DirtyTrackingGraphicsScene,
+        DirtyTrackingGraphicsView,
+        RasterizeStage,
+        RasterizeToImageTask,
+        RasterLock,
+        RenderComputeStage,
+        RenderData,
+        RenderPipelineController,
+        style_axes,
+    )
+    from .ribbon import BioRibbon
+    from .runtime_services import (
+        DiagnosticsForwarder,
+        KarcyticsEvent,
+        LocalTaskScheduler,
+        RemoteEventBus,
+        diagnostics,
+        event_bus,
+        task_scheduler,
+        tutorial_manager,
+    )
+    from .signals import PluginSignals, move_to_gui_thread, safe_disconnect
+    from .state import PluginState
+    from .tasks import TaskHandle, submit_task
+    from .timing import Debouncer
+    from .toast import (
+        STYLE_ERROR,
+        STYLE_INFO,
+        STYLE_SUCCESS,
+        STYLE_UPDATE,
+        STYLE_WARNING,
+        ToastManager,
+        ToastNotification,
+        show_toast,
+        toast_manager,
+    )
+    from .tutorial_overlay import TutorialOverlay
+    from .ui_daemon_runtime import (
+        ClosableMainWindow,
+        RequestDispatcher,
+        patch_macos_bundle_name,
+        set_windows_app_user_model_id,
+    )
+    from .ui_daemon_runtime import run as run_ui_daemon
+    from .validation import (
+        validate_directory_exists,
+        validate_file_exists,
+        validate_non_negative,
+        validate_not_empty,
+        validate_positive,
+        validate_value_range,
+    )
+    from .version import read_plugin_version
+    from .wizard import StepIndicator, WizardPanel, WizardStep
+    from .worker_thread import OneShotWorkerThread
+    from .workflow import WorkflowAttachment, WorkflowContext
+    from .zoom_controls import ZoomControls
+
+# Each public name maps to the submodule that defines it. They are imported on
+# first access (see ``__getattr__``) so that a light import such as
+# ``karcytics_sdk.plugin.manifest_parser`` -- used by the signing and
+# license-check CLI -- does not drag in PySide6 widgets, which fail to load on a
+# headless Linux runner without system GL libraries (libEGL).
+_EXPORTS: dict[str, tuple[str, ...]] = {
+    ".academy": ("AcademyManager",),
+    ".academy_driver": (
+        "AcademyStepDriver",
+        "build_academy_overlay",
+        "open_academy",
+        "show_academy_overlay",
+    ),
+    ".academy_lock_card": ("AcademyLockCard", "LockCardContent"),
+    ".academy_window": ("AcademyCatalogWindow",),
+    ".analysis": ("AnalysisBase", "AnalysisRunnable", "AnalysisWorker"),
+    ".base": ("PluginBase",),
+    ".citation_widgets": ("CitationLabel", "CitationsPanel"),
+    ".citations": ("Citation", "MethodStep"),
+    ".components": (
+        "AcademyButton",
+        "BioButton",
+        "BioCancelButton",
+        "BioCaptionLabel",
+        "BioComboBox",
+        "BioDoubleSpinBox",
+        "BioHeaderLabel",
+        "BioHelpButton",
+        "BioLineEdit",
+        "BioListWidget",
+        "BioRunButton",
+        "BioScrollArea",
+        "BioSpinBox",
+        "BioSplitter",
+        "BioStatusLabel",
+        "BioTableWidget",
+        "BioToggleButton",
+        "DangerButton",
+        "HeaderLabel",
+        "ModuleCard",
+        "PrimaryButton",
+        "SecondaryButton",
+        "SubtitleLabel",
+        "apply_component_style",
+        "repopulate_combo",
+    ),
+    ".context": ("PluginContext", "UndeclaredCapabilityAccess"),
+    ".course_complete_overlay": ("CourseCompleteOverlay",),
+    ".cyto_character": ("CytoWidget",),
+    ".daemon": ("PluginDaemon", "PluginUIDaemon"),
+    ".dialogs": (
+        "ask_ok_cancel",
+        "ask_yes_no",
+        "confirm_destructive",
+        "get_directory",
+        "get_double",
+        "get_image_path",
+        "get_number",
+        "get_save_path",
+        "get_text",
+        "show_error",
+        "show_info",
+        "show_warning",
+    ),
+    ".events": ("CentralEventBus",),
+    ".history": ("HistoryEntry", "UndoHistory"),
+    ".image_view": ("ImageView", "array_to_pixmap"),
+    ".interfaces": ("KarcyticsPlugin",),
+    ".io": ("PluginConfig", "PluginPreferenceManager", "load_json", "save_json"),
+    ".logging": ("get_logger",),
+    ".managed_task": ("FunctionalTask",),
+    ".manifest": ("PluginManifest",),
+    ".preferences": ("PreferenceManagerProtocol",),
+    ".rendering": (
+        "MPL_RASTER_LOCK",
+        "AxesColors",
+        "DirtyTrackingGraphicsScene",
+        "DirtyTrackingGraphicsView",
+        "RasterizeStage",
+        "RasterizeToImageTask",
+        "RasterLock",
+        "RenderComputeStage",
+        "RenderData",
+        "RenderPipelineController",
+        "style_axes",
+    ),
+    ".ribbon": ("BioRibbon",),
+    ".runtime_services": (
+        "DiagnosticsForwarder",
+        "KarcyticsEvent",
+        "LocalTaskScheduler",
+        "RemoteEventBus",
+        "diagnostics",
+        "event_bus",
+        "task_scheduler",
+        "tutorial_manager",
+    ),
+    ".signals": ("PluginSignals", "move_to_gui_thread", "safe_disconnect"),
+    ".state": ("PluginState",),
+    ".tasks": ("TaskHandle", "submit_task"),
+    ".timing": ("Debouncer",),
+    ".toast": (
+        "STYLE_ERROR",
+        "STYLE_INFO",
+        "STYLE_SUCCESS",
+        "STYLE_UPDATE",
+        "STYLE_WARNING",
+        "ToastManager",
+        "ToastNotification",
+        "show_toast",
+        "toast_manager",
+    ),
+    ".tutorial_overlay": ("TutorialOverlay",),
+    ".ui_daemon_runtime": (
+        "ClosableMainWindow",
+        "RequestDispatcher",
+        "patch_macos_bundle_name",
+        "set_windows_app_user_model_id",
+    ),
+    ".validation": (
+        "validate_directory_exists",
+        "validate_file_exists",
+        "validate_non_negative",
+        "validate_not_empty",
+        "validate_positive",
+        "validate_value_range",
+    ),
+    ".version": ("read_plugin_version",),
+    ".wizard": ("StepIndicator", "WizardPanel", "WizardStep"),
+    ".worker_thread": ("OneShotWorkerThread",),
+    ".workflow": ("WorkflowAttachment", "WorkflowContext"),
+    ".zoom_controls": ("ZoomControls",),
+}
+_ALIASES: dict[str, tuple[str, str]] = {
+    "run_ui_daemon": (".ui_daemon_runtime", "run"),
+}
+_LOCATIONS: dict[str, tuple[str, str]] = {
+    **{name: (module, name) for module, names in _EXPORTS.items() for name in names},
+    **_ALIASES,
+    "LayeredMatplotlibCanvas": (".rendering", "LayeredMatplotlibCanvas"),
+}
 
 __all__ = [
     # Base and Core
@@ -268,15 +412,19 @@ __all__ = [
 
 
 def __getattr__(name: str) -> object:
-    """Lazily import matplotlib-dependent names.
+    """Import a public name from its submodule on first access.
 
-    ``LayeredMatplotlibCanvas`` requires ``matplotlib`` and ``PySide6`` to be
-    installed in the calling environment.  Plugins that never use it (e.g.
-    text-only or headless plugins) should not be forced to vendor those heavy
-    dependencies just because they import ``karcytics_sdk.plugin``.
+    Keeps ``import karcytics_sdk.plugin`` cheap and free of hard GUI
+    dependencies; ``LayeredMatplotlibCanvas`` additionally needs matplotlib.
     """
-    if name == "LayeredMatplotlibCanvas":
-        from .rendering import LayeredMatplotlibCanvas  # noqa: PLC0415
+    location = _LOCATIONS.get(name)
+    if location is None:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+    module_name, attr = location
+    value = getattr(importlib.import_module(module_name, __name__), attr)
+    globals()[name] = value
+    return value
 
-        return LayeredMatplotlibCanvas
-    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+def __dir__() -> list[str]:
+    return sorted(set(globals()) | set(_LOCATIONS))
