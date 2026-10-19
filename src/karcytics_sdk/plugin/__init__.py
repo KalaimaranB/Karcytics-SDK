@@ -426,5 +426,18 @@ def __getattr__(name: str) -> object:
     return value
 
 
+def _preload_exports() -> None:
+    """Import every eagerly-exported name now, as the old barrel did.
+
+    The UI daemon calls this before its stdin-reader thread starts: on
+    Windows, importing native-extension-heavy modules on the main thread
+    while that thread is blocked reading stdin can deadlock (see
+    ``ui_daemon_runtime.run``). ``LayeredMatplotlibCanvas`` stays lazy, as it
+    always was.
+    """
+    for name in (*(n for names in _EXPORTS.values() for n in names), *_ALIASES):
+        __getattr__(name)
+
+
 def __dir__() -> list[str]:
     return sorted(set(globals()) | set(_LOCATIONS))

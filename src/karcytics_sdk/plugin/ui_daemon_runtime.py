@@ -786,6 +786,15 @@ def run(  # noqa: C901, PLR0913, PLR0915
     # import of it, from any plugin code, is then a sys.modules hit.
     import numpy  # noqa: F401
 
+    # Same hazard for the rest of the plugin API's Qt/matplotlib-backed
+    # modules: `karcytics_sdk.plugin` resolves its exports lazily (so the CLI
+    # runs without Qt), which would otherwise defer those imports into
+    # panel_factory() — after the reader thread is up. That hung CytoMetrics'
+    # Windows daemon test on 'focus'; load them all here instead.
+    from . import _preload_exports
+
+    _preload_exports()
+
     from .logging import configure_plugin_logging
 
     configure_plugin_logging(plugin_id)
