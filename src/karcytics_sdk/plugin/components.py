@@ -770,6 +770,24 @@ class BioListWidget(QListWidget):
                 background-color: {Colors.ACCENT_PRIMARY};
                 color: {Colors.BG_DARKEST};
             }}
+            QListWidget::indicator {{
+                width: 14px;
+                height: 14px;
+                border-radius: 3px;
+                border: 1px solid {Colors.BORDER};
+                background: {Colors.BG_MEDIUM};
+            }}
+            QListWidget::indicator:hover {{
+                border: 1px solid {Colors.ACCENT_PRIMARY};
+            }}
+            QListWidget::indicator:checked {{
+                background: {Colors.ACCENT_PRIMARY};
+                border: 1px solid {Colors.ACCENT_PRIMARY};
+            }}
+            QListWidget::indicator:disabled {{
+                border: 1px solid {Colors.FG_DISABLED};
+                background: {Colors.BG_DARKEST};
+            }}
         """)
 
 

@@ -14,6 +14,7 @@ from PySide6.QtWidgets import QMessageBox, QWidget  # noqa: E402 - grouped with 
 from karcytics_sdk.plugin import (  # noqa: E402 - see above
     AxesColors,
     BioComboBox,
+    BioListWidget,
     BioToggleButton,
     ZoomControls,
     confirm_destructive,
@@ -95,3 +96,14 @@ def test_fit_contents_combo_opens_wide_enough_for_its_longest_item(qtbot):
     needed = fitted.fontMetrics().horizontalAdvance(long_name)
     assert plain.popup_width() == 80
     assert fitted.popup_width() >= needed
+
+
+def test_list_widget_themes_its_item_checkboxes(qtbot):
+    from karcytics_sdk.plugin.theme_fallback import Colors
+
+    lst = BioListWidget()
+    qtbot.addWidget(lst)
+    lst._apply_theme_styles()
+    sheet = lst.styleSheet()
+    assert "QListWidget::indicator:checked" in sheet
+    assert Colors.ACCENT_PRIMARY in sheet.split("QListWidget::indicator:checked", 1)[1]
