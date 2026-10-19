@@ -1,4 +1,7 @@
-"""Image loading, format conversion, and preprocessing utilities.
+"""Image loading, format conversion, and preprocessing utilities (deprecated).
+
+Deprecated: this is western-blot band-image logic, which moved into that
+plugin. It will be removed in karcytics-sdk 4.0.
 
 This module provides low-level image I/O and transformation functions
 used throughout the Karcytics analysis pipeline. All functions operate on
@@ -13,6 +16,7 @@ Design Notes:
 
 from __future__ import annotations
 
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -29,6 +33,13 @@ from skimage.filters import threshold_otsu
 from skimage.measure import label, regionprops
 from skimage.transform import rotate
 from skimage.util import img_as_float64
+
+warnings.warn(
+    "karcytics_sdk.contrib.image_utils is deprecated and will be removed in karcytics-sdk 4.0: it is "
+    "western-blot band-image logic, which now lives in that plugin. Copy what you need into your plugin.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
 
 def adjust_contrast(image: NDArray[np.float64], alpha: float = 1.0, beta: float = 0.0) -> NDArray[np.float64]:
