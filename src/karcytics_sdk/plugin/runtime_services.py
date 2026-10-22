@@ -45,6 +45,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+_WORKER_STACK_BYTES = 16 * 1024 * 1024
+
 
 class LocalTaskScheduler(QObject):
     """A plugin process's own task scheduler.
@@ -69,6 +71,12 @@ class LocalTaskScheduler(QObject):
         super().__init__()
         self._pool: Any = QThreadPool.globalInstance()
         assert self._pool is not None
+        if self._pool.stackSize() == 0:
+            # 0 is the platform default: 512 KB for a secondary thread on
+            # macOS, too small for LAPACK (numpy.linalg.inv, reached through
+            # matplotlib's transforms) — a render task died with SIGBUS. Give
+            # pool threads the stack CPython gives its own threads.
+            self._pool.setStackSize(_WORKER_STACK_BYTES)
         self._active_workers: dict[str, AnalysisWorker] = {}
         self._retired_workers: list[AnalysisWorker] = []
 

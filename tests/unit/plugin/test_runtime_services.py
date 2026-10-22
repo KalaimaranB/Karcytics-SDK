@@ -59,6 +59,25 @@ class TestLocalTaskScheduler:
         assert blocker.args == [task_id, {"value": 42}]
         assert task_id not in scheduler._active_workers
 
+    def test_pool_threads_get_a_full_size_stack(self, qapp):
+        """The platform default (512 KB on macOS) is too small for LAPACK:
+        numpy.linalg.inv in a render task crashed the process with SIGBUS.
+        """
+        from PySide6.QtCore import QThreadPool
+
+        pool = QThreadPool.globalInstance()
+        before = pool.stackSize()
+        try:
+            pool.setStackSize(0)
+            LocalTaskScheduler()
+            assert pool.stackSize() >= 16 * 1024 * 1024
+
+            pool.setStackSize(32 * 1024 * 1024)  # an explicit choice is kept
+            LocalTaskScheduler()
+            assert pool.stackSize() == 32 * 1024 * 1024
+        finally:
+            pool.setStackSize(before)
+
     def test_submit_emits_task_error_on_failure(self, qtbot):
         scheduler = LocalTaskScheduler()
 
