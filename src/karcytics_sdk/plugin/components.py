@@ -540,6 +540,17 @@ class BioCaptionLabel(QLabel):
         self.setStyleSheet(f"font-size: {size}px; color: {Colors.FG_SECONDARY};")
 
 
+class BioSectionLabel(QLabel):
+    """A small bold heading over a group of controls, e.g. in a tab's sidebar."""
+
+    def __init__(self, text: str, parent=None):
+        super().__init__(text, parent)
+        _connect_theme_signal(self._apply_theme_styles)
+
+    def _apply_theme_styles(self) -> None:
+        self.setStyleSheet(f"color: {Colors.FG_SECONDARY}; font-weight: bold; font-size: 11px;")
+
+
 class BioStatusLabel(QLabel):
     """Standardized italicized status text."""
 

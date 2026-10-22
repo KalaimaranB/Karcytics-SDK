@@ -123,3 +123,15 @@ def test_handles_empty_items(combo):
     repopulate_combo(combo, [])
 
     assert combo.count() == 0
+
+
+def test_a_section_label_is_a_bold_secondary_heading(qtbot):
+    from karcytics_sdk.plugin import BioSectionLabel
+    from karcytics_sdk.plugin.theme_fallback import Colors
+
+    label = BioSectionLabel("Samples")
+    qtbot.addWidget(label)
+
+    assert label.text() == "Samples"
+    assert "font-weight: bold" in label.styleSheet()
+    assert Colors.FG_SECONDARY in label.styleSheet()
