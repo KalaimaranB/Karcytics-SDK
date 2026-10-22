@@ -19,6 +19,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+import shiboken6
 from PySide6.QtCore import QTimer, Signal
 
 from .lock import MPL_RASTER_LOCK, RasterLock
@@ -142,13 +143,15 @@ class LayeredMatplotlibCanvas(_mpl_canvas_base()):
         worker.error.connect(lambda message, g=generation: self._on_compute_failed(g, message))
 
     def _on_compute_finished(self, generation: int, results: dict[str, Any]) -> None:
-        if generation != self._generation:
-            return  # Superseded by a newer request; this result is stale.
+        # The lambda slots above outlive the canvas: a worker finishing after
+        # the canvas is deleted (a plot closed mid-render) still calls here.
+        if not shiboken6.isValid(self) or generation != self._generation:
+            return  # Deleted, or superseded by a newer request.
         self._apply_data_layer(results["render_data"])
         self.data_layer_finished.emit()
 
     def _on_compute_failed(self, generation: int, message: str) -> None:
-        if generation != self._generation:
+        if not shiboken6.isValid(self) or generation != self._generation:
             return
         logger.error("Data layer compute failed: %s", message)
         if self._crash_reporter is not None:
@@ -164,6 +167,8 @@ class LayeredMatplotlibCanvas(_mpl_canvas_base()):
         _base_draw = super().draw  # captured here where super() has __class__ context
 
         def _draw() -> None:
+            if not shiboken6.isValid(self):
+                return  # Deleted while this draw waited for the raster lock.
             ax = self.figure.gca()
             ax.clear()
             self._rasterize_stage.rasterize(ax, render_data)

@@ -112,6 +112,27 @@ class TestDataLayer:
         assert rasterize_stage.calls[0][1] == _FakeRenderData(value=1)
         assert canvas.bitmap_cache is not None
 
+    def test_a_result_arriving_after_the_canvas_is_deleted_is_dropped(self, qapp, qtbot):
+        import shiboken6
+
+        scheduler, workers = _fake_scheduler()
+        c = LayeredMatplotlibCanvas(Figure(), raster_lock=RasterLock("test-canvas-deleted"))
+        c._task_scheduler = scheduler
+        rasterize_stage = _RecordingRasterizeStage()
+        c.set_compute_stage(_FakeComputeStage("test"))
+        c.set_rasterize_stage(rasterize_stage)
+        c.request_data_redraw(debounce_ms=10)
+        qtbot.waitUntil(lambda: len(workers) == 1, timeout=1000)
+
+        c.deleteLater()
+        qtbot.wait(10)
+        assert not shiboken6.isValid(c)
+
+        # Must not raise "Signal source has been deleted" or draw.
+        workers[0].emit_finished({"render_data": _FakeRenderData(value=1)})
+        workers[0].emit_error("late failure")
+        assert rasterize_stage.calls == []
+
     def test_a_stale_compute_result_from_a_superseded_request_is_dropped(self, canvas, qtbot):
         """Regression guard for the out-of-order-async-result hazard: a slow
         compute for an earlier request must not overwrite a newer request's
