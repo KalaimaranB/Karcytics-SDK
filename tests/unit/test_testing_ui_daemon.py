@@ -10,7 +10,7 @@ from karcytics_sdk.testing.ui_daemon import spawn_ui_daemon
 
 _FAKE_DAEMON = textwrap.dedent(
     """
-    import os, struct, sys
+    import faulthandler, os, struct, sys
     import msgpack
 
     def send(frame):
@@ -28,6 +28,7 @@ _FAKE_DAEMON = textwrap.dedent(
     send({"kind": "response", "request_id": request["request_id"], "payload": {"echo": request["method"]}})
     if request["method"] == "hang":
         sys.stdin.buffer.read()
+    sys.stderr.write("faulthandler=" + str(faulthandler.is_enabled()) + "\\n")
     """
 )
 
@@ -76,3 +77,15 @@ def test_daemon_is_killed_when_the_context_exits(fake_daemon, tmp_path):
         proc = daemon.process
 
     assert proc.poll() is not None
+
+
+def test_after_exit_stderr_is_complete_and_crashes_would_be_traced(fake_daemon, tmp_path):
+    with spawn_ui_daemon(fake_daemon, cwd=tmp_path) as daemon:
+        daemon.io.wait_for_event("ready", "no ready", timeout=10)
+        daemon.request(1, "exit")
+        daemon.io.wait_for_response(1, "no response", timeout=10)
+        assert daemon.process.wait(timeout=10) == 0
+        stderr = daemon.io.finished_stderr()
+
+    assert "port=" in stderr
+    assert "faulthandler=True" in stderr

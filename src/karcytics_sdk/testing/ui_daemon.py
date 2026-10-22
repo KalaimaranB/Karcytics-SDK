@@ -60,7 +60,8 @@ class DaemonIO:
         self._frames: queue.Queue[dict] = queue.Queue()
         self._stderr_chunks: list[bytes] = []
         threading.Thread(target=self._pump_stdout, daemon=True).start()
-        threading.Thread(target=self._pump_stderr, daemon=True).start()
+        self._stderr_thread = threading.Thread(target=self._pump_stderr, daemon=True)
+        self._stderr_thread.start()
 
     def _pump_stdout(self) -> None:
         stream = cast(io.BufferedReader, self._proc.stdout)
@@ -82,6 +83,11 @@ class DaemonIO:
     @property
     def stderr(self) -> str:
         return b"".join(self._stderr_chunks).decode(errors="replace")
+
+    def finished_stderr(self, timeout: float = 5.0) -> str:
+        """All of stderr, once the process has exited and the pipe is drained."""
+        self._stderr_thread.join(timeout)
+        return self.stderr
 
     def _fail(self, message: str, timeout: float) -> AssertionError:
         # A native crash (e.g. inside Qt) leaves no traceback; only the exit
@@ -156,6 +162,9 @@ def spawn_ui_daemon(
     # Unbuffered so a timeout's captured stderr shows the daemon's output
     # right up to the cutoff, not whatever was still in a pipe buffer.
     env["PYTHONUNBUFFERED"] = "1"
+    # A native crash (e.g. a Windows access violation) then prints every
+    # thread's Python stack to stderr instead of leaving only an exit code.
+    env["PYTHONFAULTHANDLER"] = "1"
     proc = subprocess.Popen(
         [python, str(script)],
         stdin=subprocess.PIPE,
