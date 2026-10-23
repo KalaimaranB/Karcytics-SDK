@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import threading
 import time
+from unittest.mock import MagicMock
 
 from PySide6.QtCore import QThread
 from PySide6.QtWidgets import QApplication
@@ -173,3 +174,27 @@ def test_detach_drops_callbacks_and_connections(qtbot):
     assert finished == []
     assert handle.done
     assert _receivers(scheduler) == baseline
+
+
+def test_the_runnable_lets_go_of_the_worker_before_saying_it_is_done():
+    from karcytics_sdk.plugin.analysis import AnalysisRunnable
+
+    seen = []
+    worker = MagicMock()
+    runnable = AnalysisRunnable(worker, on_done=lambda: seen.append(runnable.worker))
+    runnable.setAutoDelete(False)
+
+    runnable.run()
+
+    worker.run.assert_called_once()
+    assert seen == [None]  # the owner, not the pool thread, drops the last reference
+
+
+def test_finished_workers_are_released_on_the_scheduler_thread(qtbot):
+    scheduler = LocalTaskScheduler()
+    finished = []
+    submit_task(FunctionalTask(lambda: 1, "test"), scheduler=scheduler, on_finished=finished.append)
+
+    qtbot.waitUntil(lambda: bool(finished), timeout=5000)
+    qtbot.waitUntil(lambda: not scheduler._finished_workers, timeout=5000)
+    assert scheduler._active_workers == {}

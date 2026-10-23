@@ -7,6 +7,7 @@ the UI.
 
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from typing import Any
 
 from PySide6.QtCore import QObject, QRunnable, Signal
@@ -177,14 +178,17 @@ class AnalysisRunnable(QRunnable):
     standard QThreadPool management system.
     """
 
-    def __init__(self, worker: AnalysisWorker):
+    def __init__(self, worker: AnalysisWorker, on_done: Callable[[], None] | None = None):
         """Initialize the runnable wrapper with a target worker.
 
         Args:
             worker: The background AnalysisWorker controller containing the job.
+            on_done: Called on the pool thread once this runnable has let go of
+                the worker, so its owner can release it on its own thread.
         """
         super().__init__()
         self.worker: AnalysisWorker | None = worker
+        self._on_done = on_done
         # QThreadPool will take ownership and delete this runnable after run()
         self.setAutoDelete(True)
 
@@ -204,4 +208,10 @@ class AnalysisRunnable(QRunnable):
             # Fallback for truly catastrophic failures inside the worker itself
             logger.exception(f"Critical failure in background runnable: {e}")
         finally:
+            # Let go first: whoever releases the worker after on_done then
+            # holds the last reference, so it is never destroyed here, on the
+            # pool thread, while the GUI thread may still be delivering its
+            # signals.
             self.worker = None
+            if self._on_done is not None:
+                self._on_done()

@@ -32,7 +32,7 @@ from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from PySide6.QtCore import QMetaObject, QObject, Qt, QThreadPool, Signal, Slot
+from PySide6.QtCore import QObject, QThreadPool, Signal, Slot
 
 from .academy import AcademyManager
 from .analysis import AnalysisBase, AnalysisRunnable, AnalysisWorker
@@ -66,6 +66,7 @@ class LocalTaskScheduler(QObject):
     task_finished = Signal(str, object)
     task_error = Signal(str, str)
     task_progress = Signal(str, int)
+    _runnable_done = Signal(str)  # emitted on the pool thread, delivered on this one
 
     def __init__(self) -> None:
         super().__init__()
@@ -78,7 +79,8 @@ class LocalTaskScheduler(QObject):
             # pool threads the stack CPython gives its own threads.
             self._pool.setStackSize(_WORKER_STACK_BYTES)
         self._active_workers: dict[str, AnalysisWorker] = {}
-        self._retired_workers: list[AnalysisWorker] = []
+        self._finished_workers: dict[str, AnalysisWorker] = {}
+        self._runnable_done.connect(self._release)
 
     def submit(self, analyzer: AnalysisBase, state: PluginState | None = None) -> AnalysisWorker:
         task_id = str(uuid.uuid4())
@@ -105,7 +107,7 @@ class LocalTaskScheduler(QObject):
 
         self._active_workers[task_id] = worker
 
-        runnable = AnalysisRunnable(worker)
+        runnable = AnalysisRunnable(worker, on_done=partial(self._runnable_done.emit, task_id))
         self.task_started.emit(task_id)
         self._pool.start(runnable)
 
@@ -129,8 +131,9 @@ class LocalTaskScheduler(QObject):
         # callers such as the render pipeline connect to `worker.finished`)
         # is delivered through the sender, so letting the worker be destroyed
         # here silently drops every such slot still queued behind this one.
-        # Detach it as before, but hold a reference until `_release_retired`
-        # runs — a queued call, so it lands after those pending slots.
+        # Detach it (a scheduler that goes away must not take a running worker
+        # with it) but hold it until `_release`: that waits for the runnable to
+        # let go too, so the last reference always drops on this thread.
         worker = self._active_workers.pop(task_id, None)
         if worker is None:
             return
@@ -141,12 +144,13 @@ class LocalTaskScheduler(QObject):
                 worker.setParent(None)
         except (ImportError, AttributeError, RuntimeError):
             pass
-        self._retired_workers.append(worker)
-        QMetaObject.invokeMethod(self, "_release_retired", Qt.ConnectionType.QueuedConnection)
+        self._finished_workers[task_id] = worker
 
-    @Slot()
-    def _release_retired(self) -> None:
-        self._retired_workers.clear()
+    @Slot(str)
+    def _release(self, task_id: str) -> None:
+        """The runnable is done with the worker (queued behind its last signals)."""
+        self._finished_workers.pop(task_id, None)
+        self._active_workers.pop(task_id, None)  # cancelled: it never finished
 
 
 class _TaskSchedulerProxy:
