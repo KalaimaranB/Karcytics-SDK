@@ -1,7 +1,7 @@
 """Image loading, format conversion, and preprocessing utilities (deprecated).
 
-Deprecated: this is western-blot band-image logic, which moved into that
-plugin. It will be removed in karcytics-sdk 4.0.
+Deprecated: this is band-image logic from the Gel & Blot plugin (formerly western-blot),
+which now owns it. It will be removed in karcytics-sdk 4.0.
 
 This module provides low-level image I/O and transformation functions
 used throughout the Karcytics analysis pipeline. All functions operate on
@@ -36,7 +36,7 @@ from skimage.util import img_as_float64
 
 warnings.warn(
     "karcytics_sdk.contrib.image_utils is deprecated and will be removed in karcytics-sdk 4.0: it is "
-    "western-blot band-image logic, which now lives in that plugin. Copy what you need into your plugin.",
+    "band-image logic that now lives in the Gel & Blot plugin (formerly western-blot). Copy what you need into your plugin.",
     DeprecationWarning,
     stacklevel=2,
 )

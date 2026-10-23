@@ -3,7 +3,7 @@
 The scheduler broadcasts every task's lifecycle (`task_finished`,
 `task_error`, `task_progress`, keyed by task id) to every listener. Plugins
 used to wrap each submit in nested closures that filtered by id and
-disconnected themselves, a pattern copied across flow, western-blot and
+disconnected themselves, a pattern copied across flow, gel-blot (then western-blot) and
 cytometrics. Copies drifted: some never disconnected on error or
 cancellation, leaking a connected slot per failed task.
 

@@ -2,7 +2,7 @@
 
 ``[project].version`` is a plugin's single source of truth: it is also its
 release trigger. A hard-coded ``__version__`` copy drifts (cytometrics' read
-0.2.2 while pyproject said 0.3.2; western-blot hard-codes one too).
+0.2.2 while pyproject said 0.3.2; gel-blot, then western-blot, hard-coded one too).
 
     __version__ = read_plugin_version(__file__, "cytometrics")
 """

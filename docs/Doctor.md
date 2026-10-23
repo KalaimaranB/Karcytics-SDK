@@ -6,7 +6,7 @@ On its own it is advisory: only errors fail a run. Its real job is as a ratchet 
 
 ```bash
 karcytics-sdk doctor                      # check the current directory
-karcytics-sdk doctor ../Karcytics-western-blot
+karcytics-sdk doctor ../Karcytics-gel-blot
 karcytics-sdk doctor . --mode org         # structure, CI and tooling only
 karcytics-sdk doctor . --mode functional  # SDK usage in the source only
 karcytics-sdk doctor . --mode design      # structure, duplication and layering only

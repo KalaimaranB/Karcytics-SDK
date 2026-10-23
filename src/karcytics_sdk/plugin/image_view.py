@@ -1,7 +1,7 @@
 """A zoomable, pannable image viewer for image-analysis plugins.
 
 `ImageView` is the part every image plugin's canvas had re-implemented
-(western-blot's `ImageCanvas`, cytometrics' `MultiChannelCanvas`): showing
+(gel-blot's `ImageCanvas`, cytometrics' `MultiChannelCanvas`): showing
 an image, wheel zoom around the cursor with limits, panning, fit-to-view, an
 empty state with a load button and drag-and-drop, a calibration line, a
 scale bar, and named overlay layers. Plugins subclass it and add their own
