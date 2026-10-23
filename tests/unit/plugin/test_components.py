@@ -135,3 +135,13 @@ def test_a_section_label_is_a_bold_secondary_heading(qtbot):
     assert label.text() == "Samples"
     assert "font-weight: bold" in label.styleSheet()
     assert Colors.FG_SECONDARY in label.styleSheet()
+
+
+def test_none_is_restored_like_any_other_value(combo):
+    items = [("All Events", None), ("Lymphocytes", "g1")]
+    repopulate_combo(combo, items, restore_data="g1")
+    assert combo.currentData() == "g1"
+
+    repopulate_combo(combo, items, restore_data=None)
+
+    assert combo.currentIndex() == 0

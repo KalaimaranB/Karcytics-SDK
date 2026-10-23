@@ -648,11 +648,14 @@ class BioComboBox(QComboBox):
         """)
 
 
+_KEEP_SELECTION = object()
+
+
 def repopulate_combo(
     combo: QComboBox,
     items: Sequence[tuple[str, Any]],
     *,
-    restore_data: Any = None,
+    restore_data: Any = _KEEP_SELECTION,
 ) -> None:
     """Rebuild a combo box's items and restore a selection, without spurious signals.
 
@@ -669,8 +672,9 @@ def repopulate_combo(
         items: Ordered (label, data) pairs for every item to show.
         restore_data: The `data` value to reselect if still present in
             `items` after rebuilding — typically the combo's own
-            `currentData()` captured before calling this. `None` leaves
-            the current index wherever `clear()`/`addItem()` land it.
+            `currentData()` captured before calling this. `None` is a value
+            like any other (an "All events" item often carries it). Leave it
+            out to keep the index wherever `clear()`/`addItem()` land it.
 
     Returns:
         None.
@@ -678,7 +682,8 @@ def repopulate_combo(
     items = list(items)
     current = [(combo.itemText(i), combo.itemData(i)) for i in range(combo.count())]
     items_unchanged = current == items
-    selection_already_right = restore_data is None or combo.currentData() == restore_data
+    keep = restore_data is _KEEP_SELECTION
+    selection_already_right = keep or combo.currentData() == restore_data
 
     if items_unchanged and selection_already_right:
         return
@@ -688,7 +693,7 @@ def repopulate_combo(
         combo.clear()
         for label, data in items:
             combo.addItem(label, data)
-    if restore_data is not None:
+    if not keep:
         idx = combo.findData(restore_data)
         if idx >= 0:
             combo.setCurrentIndex(idx)
