@@ -68,6 +68,8 @@ nav:
           - UI Components: api/plugin/components.md
           - UI Dialogs: api/plugin/dialogs.md
           - UI Wizard: api/plugin/wizard.md
+          - Stage Rail: api/plugin/stage_rail.md
+          - Parameters and Forms: api/plugin/params.md
           - State & Config: api/plugin/state_and_config.md
           - Events & Logging: api/plugin/events_and_logging.md
           - Parsers (Manifest/Security): api/plugin/parsers.md

@@ -66,6 +66,8 @@ if TYPE_CHECKING:
     from .logging import get_logger
     from .managed_task import FunctionalTask
     from .manifest import PluginManifest
+    from .params import Param
+    from .params_form import ParamsForm
     from .preferences import PreferenceManagerProtocol
     from .rendering import (
         MPL_RASTER_LOCK,
@@ -92,6 +94,7 @@ if TYPE_CHECKING:
         tutorial_manager,
     )
     from .signals import PluginSignals, move_to_gui_thread, safe_disconnect
+    from .stage_rail import StageRail, StageStatus
     from .state import PluginState
     from .tasks import TaskHandle, submit_task
     from .timing import Debouncer
@@ -201,6 +204,8 @@ _EXPORTS: dict[str, tuple[str, ...]] = {
     ".logging": ("get_logger",),
     ".managed_task": ("FunctionalTask",),
     ".manifest": ("PluginManifest",),
+    ".params": ("Param",),
+    ".params_form": ("ParamsForm",),
     ".preferences": ("PreferenceManagerProtocol",),
     ".rendering": (
         "MPL_RASTER_LOCK",
@@ -226,6 +231,7 @@ _EXPORTS: dict[str, tuple[str, ...]] = {
         "task_scheduler",
         "tutorial_manager",
     ),
+    ".stage_rail": ("StageRail", "StageStatus"),
     ".signals": ("PluginSignals", "move_to_gui_thread", "safe_disconnect"),
     ".state": ("PluginState",),
     ".tasks": ("TaskHandle", "submit_task"),
@@ -411,6 +417,10 @@ __all__ = [
     "array_to_pixmap",
     "FunctionalTask",
     "TaskHandle",
+    "Param",
+    "ParamsForm",
+    "StageRail",
+    "StageStatus",
 ]
 
 
