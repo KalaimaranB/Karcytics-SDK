@@ -1,0 +1,2220 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Software Development Kit and CLI for Karcytics desktop plugins.">
+      
+      
+        <meta name="author" content="Kalaimaran Balasothy">
+      
+      
+        <link rel="canonical" href="https://KalaimaranB.github.io/Karcytics-SDK/Doctor/">
+      
+      
+        <link rel="prev" href="../CI_CD_Guide/">
+      
+      
+        <link rel="next" href="../api/interfaces/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.7">
+    
+    
+      
+        <title>SDK Doctor - Karcytics SDK</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.ec1eaa64.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#sdk-doctor" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="Karcytics SDK" class="md-header__button md-logo" aria-label="Karcytics SDK" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            Karcytics SDK
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              SDK Doctor
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="deep-purple" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Welcome
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../Getting_Started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="../Developer_Onboarding/" class="md-tabs__link">
+          
+  
+  
+  Developer Guides
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api/interfaces/" class="md-tabs__link">
+          
+  
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../Architectural_Design/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Architecture Deep-Dives
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="Karcytics SDK" class="md-nav__button md-logo" aria-label="Karcytics SDK" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    Karcytics SDK
+  </label>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Welcome
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Getting_Started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Developer Guides
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Developer Guides
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Developer_Onboarding/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Onboarding Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Dev_Handbook/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugin Development
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../CI_CD_Guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Cryptography & CI/CD
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDK Doctor
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDK Doctor
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#reading-the-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the output
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#baseline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Baseline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#suppressions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Suppressions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-it-on-every-edit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running it on every edit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-analysed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is analysed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#organizational-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Organizational rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#functional-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Functional rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#design-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Design rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-rule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a rule
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/interfaces/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Interfaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Plugin Core
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Plugin Core
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/plugin/base/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Base & Interfaces
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/plugin/analysis/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Analysis Engine
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/plugin/components/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UI Components
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/plugin/dialogs/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UI Dialogs
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/plugin/wizard/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    UI Wizard
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/plugin/stage_rail/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Stage Rail
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/plugin/params/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parameters and Forms
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/plugin/state_and_config/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    State & Config
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/plugin/events_and_logging/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Events & Logging
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/plugin/parsers/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Parsers (Manifest/Security)
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Host & Trust Engine
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Host & Trust Engine
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/host/trust/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trust Manager
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/host/ai/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    AI Server
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contrib Utilities
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Contrib Utilities
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/contrib/image_utils/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Image Utils
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/testing/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Testing & Contracts
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/sdk_cli/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    SDK CLI
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Architectural_Design/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture Deep-Dives
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#reading-the-output" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Reading the output
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#baseline" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Baseline
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#suppressions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Suppressions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#running-it-on-every-edit" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Running it on every edit
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#what-is-analysed" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        What is analysed
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#organizational-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Organizational rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#functional-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Functional rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#design-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Design rules
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#adding-a-rule" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Adding a rule
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+
+<h1 id="sdk-doctor">SDK Doctor</h1>
+<p><code>karcytics-sdk doctor</code> reads a repo and reports where it departs from the SDK's conventions. It is static analysis only: the repo is never imported or run, so it needs no virtualenv, no Qt display, and works on any checkout.</p>
+<p>On its own it is advisory: only errors fail a run. Its real job is as a ratchet that runs on every edit and every commit (see <a href="#baseline">Baseline</a> and <a href="#running-it-on-every-edit">Running it on every edit</a>), so that what it finds stops growing even before it is fixed.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>karcytics-sdk<span class="w"> </span>doctor<span class="w">                      </span><span class="c1"># check the current directory</span>
+</span><span id="__span-0-2"><a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a>karcytics-sdk<span class="w"> </span>doctor<span class="w"> </span>../Karcytics-gel-blot
+</span><span id="__span-0-3"><a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a>karcytics-sdk<span class="w"> </span>doctor<span class="w"> </span>.<span class="w"> </span>--mode<span class="w"> </span>org<span class="w">         </span><span class="c1"># structure, CI and tooling only</span>
+</span><span id="__span-0-4"><a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a>karcytics-sdk<span class="w"> </span>doctor<span class="w"> </span>.<span class="w"> </span>--mode<span class="w"> </span>functional<span class="w">  </span><span class="c1"># SDK usage in the source only</span>
+</span><span id="__span-0-5"><a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a>karcytics-sdk<span class="w"> </span>doctor<span class="w"> </span>.<span class="w"> </span>--mode<span class="w"> </span>design<span class="w">      </span><span class="c1"># structure, duplication and layering only</span>
+</span><span id="__span-0-6"><a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a>karcytics-sdk<span class="w"> </span>doctor<span class="w"> </span>.<span class="w"> </span>--show-info<span class="w">        </span><span class="c1"># include info-level findings</span>
+</span><span id="__span-0-7"><a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a>karcytics-sdk<span class="w"> </span>doctor<span class="w"> </span>.<span class="w"> </span>--select<span class="w"> </span>KS23,KS201<span class="w">   </span><span class="c1"># only these rule-id prefixes</span>
+</span><span id="__span-0-8"><a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>karcytics-sdk<span class="w"> </span>doctor<span class="w"> </span>.<span class="w"> </span>--ignore<span class="w"> </span>KS240<span class="w">        </span><span class="c1"># everything except these</span>
+</span><span id="__span-0-9"><a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a>karcytics-sdk<span class="w"> </span>doctor<span class="w"> </span>.<span class="w"> </span>--format<span class="w"> </span>json<span class="w">      </span><span class="c1"># machine-readable, always includes info</span>
+</span><span id="__span-0-10"><a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a>karcytics-sdk<span class="w"> </span>doctor<span class="w"> </span>.<span class="w"> </span>--files<span class="w"> </span>src/karcytics_plugins/demo/ui/panel.py<span class="w">   </span><span class="c1"># just these files</span>
+</span><span id="__span-0-11"><a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a>karcytics-sdk<span class="w"> </span>doctor<span class="w"> </span>.<span class="w"> </span>--baseline<span class="w">         </span><span class="c1"># fail only on what is over .karcytics-baseline.json</span>
+</span><span id="__span-0-12"><a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a>karcytics-sdk<span class="w"> </span>doctor<span class="w"> </span>.<span class="w"> </span>--update-baseline<span class="w">  </span><span class="c1"># lower the baseline to what is found now</span>
+</span></code></pre></div>
+<h2 id="reading-the-output">Reading the output</h2>
+<p>Findings are grouped by file. Each one gives the line and column, the severity, the rule id, what was found, and how to fix it:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>src/karcytics_plugins/synthetic_biology/ui/views/simulate_view.py
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>  28:1  warning  KS230  `SimulateWorker` subclasses `QThread` directly
+</span><span id="__span-1-3"><a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a>        fix: Subclass karcytics_sdk.plugin.OneShotWorkerThread, or submit an AnalysisBase/FunctionalTask to karcytics_sdk.plugin.task_scheduler.
+</span></code></pre></div>
+<table>
+<thead>
+<tr>
+<th>Severity</th>
+<th>Meaning</th>
+<th>Shown by default</th>
+<th>Fails the run</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>error</td>
+<td>Breaks the plugin contract (red)</td>
+<td>yes</td>
+<td>yes</td>
+</tr>
+<tr>
+<td>warning</td>
+<td>The SDK provides this and it was not used (yellow)</td>
+<td>yes</td>
+<td>only with <code>--strict</code></td>
+</tr>
+<tr>
+<td>info</td>
+<td>Worth a look, often legitimate (cyan)</td>
+<td>no, use <code>--show-info</code></td>
+<td>never</td>
+</tr>
+</tbody>
+</table>
+<p>Colour is used when writing to a terminal and switched off when piped, with <code>--no-color</code>, or when <code>NO_COLOR</code> is set. The exit code is 1 when the run fails and 0 otherwise.</p>
+<h2 id="baseline">Baseline</h2>
+<p>A repo with existing debt would drown in warnings that nobody acts on. A baseline turns them into a ratchet instead: <code>.karcytics-baseline.json</code>, committed to the repo, records how many findings of each rule every file has (for a measured rule, such as <code>KS300</code> "long file", the measurement itself). Run against it, the doctor fails when any of those goes up or a new one appears, and lists only those. Everything below the line is known debt and stays quiet.</p>
+<div class="language-bash highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>karcytics-sdk<span class="w"> </span>doctor<span class="w"> </span>.<span class="w"> </span>--update-baseline<span class="w">   </span><span class="c1"># first time: record today's state</span>
+</span><span id="__span-2-2"><a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>karcytics-sdk<span class="w"> </span>doctor<span class="w"> </span>.<span class="w"> </span>--baseline<span class="w">          </span><span class="c1"># every commit: fail on anything new</span>
+</span><span id="__span-2-3"><a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a>karcytics-sdk<span class="w"> </span>doctor<span class="w"> </span>.<span class="w"> </span>--update-baseline<span class="w">   </span><span class="c1"># after a clean-up: lock the improvement in</span>
+</span></code></pre></div>
+<p><code>--update-baseline</code> only ever lowers entries (it creates the file when there is none). Accepting new debt takes <code>--reset-baseline</code>, which rewrites the file from the current state; with <code>--files</code> it rewrites only those files' entries. Either way the change shows up in review as a diff of the baseline file. Only errors and warnings are tracked, and errors fail the run whether or not they are in the baseline.</p>
+<h2 id="suppressions">Suppressions</h2>
+<p>A finding that is genuinely fine can be allowed in place, with a reason:</p>
+<div class="language-python highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="k">def</span><span class="w"> </span><span class="nf">build_menu</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>  <span class="c1"># karcytics: allow KS302 - one flat list of menu entries, splitting it hides the order</span>
+</span><span id="__span-3-2"><a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a>    <span class="o">...</span>
+</span><span id="__span-3-3"><a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+</span><span id="__span-3-4"><a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="c1"># karcytics: allow KS342 - the driver is the documented owner of this cache</span>
+</span><span id="__span-3-5"><a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="n">cache</span> <span class="o">=</span> <span class="n">driver</span><span class="o">.</span><span class="n">_cache</span>
+</span></code></pre></div>
+<p>The comment covers its own line, or the next line of code when it sits on a line of its own. <code># karcytics: allow-file KS300 - &lt;why&gt;</code> covers a whole file. A <code>karcytics: allow</code> without a reason suppresses nothing.</p>
+<p>Every suppression needs a reason, including the linters' own: <code># noqa: PLR0913 - mirrors the Qt signature</code>, and <code># type: ignore[arg-type]  # PySide6 stub omits Optional</code> (mypy accepts only a second comment after <code>type: ignore</code>). One without a reason is reported as <code>KS310</code>. The point is to make "suppress instead of fix" a decision someone wrote down, not a reflex.</p>
+<h2 id="running-it-on-every-edit">Running it on every edit</h2>
+<p>The doctor is most useful where code is being written, not after the fact. Three places, each with the repo's baseline:</p>
+<ul>
+<li>
+<p><strong>The agent loop.</strong> <code>--claude-hook</code> reads a Claude Code <code>PostToolUse</code> payload from stdin, checks just the file that was written, and exits 2 with the findings on stderr when the edit added something over the baseline (Claude Code shows those to the agent, which fixes them in the same turn). Without a baseline file it fails on any warning. In <code>.claude/settings.json</code>:</p>
+<div class="language-json highlight"><pre><span></span><code><span id="__span-4-1"><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="p">{</span>
+</span><span id="__span-4-2"><a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">"hooks"</span><span class="p">:</span><span class="w"> </span><span class="p">{</span>
+</span><span id="__span-4-3"><a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a><span class="w">    </span><span class="nt">"PostToolUse"</span><span class="p">:</span><span class="w"> </span><span class="p">[</span>
+</span><span id="__span-4-4"><a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">      </span><span class="p">{</span>
+</span><span id="__span-4-5"><a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">        </span><span class="nt">"matcher"</span><span class="p">:</span><span class="w"> </span><span class="s2">"Edit|Write|MultiEdit"</span><span class="p">,</span>
+</span><span id="__span-4-6"><a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">        </span><span class="nt">"hooks"</span><span class="p">:</span><span class="w"> </span><span class="p">[{</span><span class="nt">"type"</span><span class="p">:</span><span class="w"> </span><span class="s2">"command"</span><span class="p">,</span><span class="w"> </span><span class="nt">"command"</span><span class="p">:</span><span class="w"> </span><span class="s2">"uv run karcytics-sdk doctor --claude-hook"</span><span class="p">}]</span>
+</span><span id="__span-4-7"><a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">      </span><span class="p">}</span>
+</span><span id="__span-4-8"><a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">    </span><span class="p">]</span>
+</span><span id="__span-4-9"><a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">  </span><span class="p">}</span>
+</span><span id="__span-4-10"><a id="__codelineno-4-10" name="__codelineno-4-10" href="#__codelineno-4-10"></a><span class="p">}</span>
+</span></code></pre></div>
+</li>
+<li>
+<p><strong>Pre-commit.</strong> A <code>karcytics-doctor</code> hook running <code>karcytics-sdk doctor . --baseline</code>.</p>
+</li>
+<li><strong>CI.</strong> The same command, so a commit made with <code>--no-verify</code> is still caught.</li>
+</ul>
+<p><code>--files</code> skips what needs the whole repo at once: the organizational rules, <code>KS260</code>/<code>KS261</code>, and the cross-file design rules. Pre-commit and CI run those.</p>
+<h2 id="what-is-analysed">What is analysed</h2>
+<ul>
+<li><strong>A plugin repo</strong> (one with <code>[tool.karcytics.plugin]</code> in <code>pyproject.toml</code>): every <code>.py</code> file under <code>src/karcytics_plugins/&lt;id&gt;/</code>.</li>
+<li><strong>Any other repo</strong>: one <code>KS100</code>/<code>KS101</code> error says it is not a plugin, and the functional rules still run over every <code>.py</code> file outside <code>tests/</code>, virtualenvs, and build output.</li>
+</ul>
+<p>Files under <code>analysis/</code> and <code>ui/</code> are treated differently where it matters: Qt is an error in <code>analysis/</code> (and an SDK object that is a Qt object, such as <code>Debouncer</code>, a warning), hard-coded colours are only checked outside it, and plain Python threads are info in <code>analysis/</code> (which cannot use Qt's) but a warning elsewhere.</p>
+<p>The files under <code>tests/</code> are read by the test rules only: <code>KS270</code> here, and <code>KS370</code>-<code>KS372</code> (test quality) among the design rules. <code>KS270</code> It reports a test or fixture that builds the plugin's panel (a <code>PluginBase</code> subclass, or <code>create_panel()</code>) without passing it to anything or calling <code>deleteLater()</code>, <code>qtbot.addWidget()</code> or <code>shiboken6.delete()</code>. It recognises that shape, not the leak itself: Python then garbage-collects the panel's wrappers while Qt still owns the widgets, and an unrelated test fails at random.</p>
+<p>Names are resolved through each file's imports, so aliased and module-qualified uses (<code>QtWidgets.QPushButton(...)</code>) are found, and a local class that merely shares a Qt name is not.</p>
+<h2 id="organizational-rules">Organizational rules</h2>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Severity</th>
+<th>Checks for</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>KS100</code></td>
+<td>error</td>
+<td>No pyproject.toml</td>
+<td>Add a pyproject.toml at the repo root (see <code>karcytics-sdk bootstrap</code>).</td>
+</tr>
+<tr>
+<td><code>KS101</code></td>
+<td>error</td>
+<td>No plugin manifest</td>
+<td>Declare the plugin under a [tool.karcytics.plugin] table in pyproject.toml.</td>
+</tr>
+<tr>
+<td><code>KS102</code></td>
+<td>error</td>
+<td>Manifest key missing</td>
+<td>Add the key to [tool.karcytics.plugin] in pyproject.toml.</td>
+</tr>
+<tr>
+<td><code>KS103</code></td>
+<td>error</td>
+<td>Invalid process_model</td>
+<td>Set process_model to "isolated" or "in_process".</td>
+</tr>
+<tr>
+<td><code>KS104</code></td>
+<td>error</td>
+<td>Project metadata missing</td>
+<td>Set name and version under [project] in pyproject.toml.</td>
+</tr>
+<tr>
+<td><code>KS110</code></td>
+<td>error</td>
+<td>Plugin package not at the standard path</td>
+<td>Put the plugin's code under src/karcytics_plugins/<id>/ where <id> is the manifest id.</td>
+</tr>
+<tr>
+<td><code>KS111</code></td>
+<td>error</td>
+<td>No analysis/ package</td>
+<td>Create src/karcytics_plugins/<id>/analysis/ for pure, Qt-free compute (AnalysisBase subclasses).</td>
+</tr>
+<tr>
+<td><code>KS112</code></td>
+<td>error</td>
+<td>No ui/ package</td>
+<td>Create src/karcytics_plugins/<id>/ui/ for PySide6 code (PluginBase subclass, widgets, dialogs).</td>
+</tr>
+<tr>
+<td><code>KS113</code></td>
+<td>error</td>
+<td>Entry point does not resolve</td>
+<td>Point entry_point at a real "module:function" that returns a PluginBase instance.</td>
+</tr>
+<tr>
+<td><code>KS120</code></td>
+<td>error</td>
+<td>Signing artefact missing</td>
+<td>Run <code>karcytics-sdk sign &lt;plugin_dir&gt;</code> and commit the generated file.</td>
+</tr>
+<tr>
+<td><code>KS121</code></td>
+<td>error</td>
+<td>No author signing key</td>
+<td>Run <code>karcytics-sdk init-identity</code> and set author_public_key under [tool.karcytics.plugin.signing].</td>
+</tr>
+<tr>
+<td><code>KS130</code></td>
+<td>error</td>
+<td>No release workflow</td>
+<td>Add .github/workflows/release.yml (copy it from an existing plugin repo).</td>
+</tr>
+<tr>
+<td><code>KS131</code></td>
+<td>warning</td>
+<td>No workflow runs the tests</td>
+<td>Run pytest from a GitHub Actions workflow so every push or PR is tested.</td>
+</tr>
+<tr>
+<td><code>KS132</code></td>
+<td>warning</td>
+<td>No pre-commit config</td>
+<td>Add .pre-commit-config.yaml with the standard local hooks (ruff, mypy, pytest, sign, ledger).</td>
+</tr>
+<tr>
+<td><code>KS133</code></td>
+<td>warning</td>
+<td>Pre-commit hook missing</td>
+<td>Add the hook to .pre-commit-config.yaml.</td>
+</tr>
+<tr>
+<td><code>KS134</code></td>
+<td>warning</td>
+<td>No agent hook for the doctor</td>
+<td>Add a PostToolUse hook running <code>uv run karcytics-sdk doctor --claude-hook</code> to .claude/settings.json (see docs/Doctor.md), so an agent sees what an edit broke before it moves on.</td>
+</tr>
+<tr>
+<td><code>KS140</code></td>
+<td>warning</td>
+<td>No tests/ directory</td>
+<td>Add a tests/ directory with a tests/unit/ suite.</td>
+</tr>
+<tr>
+<td><code>KS141</code></td>
+<td>warning</td>
+<td>No tests/unit/ suite</td>
+<td>Put fast, headless tests under tests/unit/ - that is what pre-commit runs.</td>
+</tr>
+<tr>
+<td><code>KS142</code></td>
+<td>error</td>
+<td>No SDK contract test</td>
+<td>Subclass karcytics_sdk.testing.ContractTestBase in a test file and set PLUGIN_DIR.</td>
+</tr>
+<tr>
+<td><code>KS150</code></td>
+<td>warning</td>
+<td>No uv.lock</td>
+<td>Run <code>uv lock</code> and commit uv.lock so installs are reproducible.</td>
+</tr>
+<tr>
+<td><code>KS151</code></td>
+<td>error</td>
+<td>karcytics-sdk is not a declared dependency</td>
+<td>Add "karcytics-sdk&gt;=<version>" to [project] dependencies.</td>
+</tr>
+<tr>
+<td><code>KS152</code></td>
+<td>info</td>
+<td>No local source for karcytics-sdk</td>
+<td>Add <code>karcytics-sdk = { path = "../Karcytics-SDK", editable = true }</code> under [tool.uv.sources].</td>
+</tr>
+<tr>
+<td><code>KS160</code></td>
+<td>warning</td>
+<td>No ruff configuration</td>
+<td>Add ruff.toml or a [tool.ruff] table.</td>
+</tr>
+<tr>
+<td><code>KS161</code></td>
+<td>warning</td>
+<td>No mypy configuration</td>
+<td>Add a [tool.mypy] table or mypy.ini.</td>
+</tr>
+<tr>
+<td><code>KS170</code></td>
+<td>warning</td>
+<td>No README.md</td>
+<td>Add a README.md describing the plugin and how to develop it.</td>
+</tr>
+<tr>
+<td><code>KS171</code></td>
+<td>warning</td>
+<td>No LICENSE file</td>
+<td>Add a LICENSE file at the repo root.</td>
+</tr>
+<tr>
+<td><code>KS172</code></td>
+<td>info</td>
+<td>No CLAUDE.md</td>
+<td>Add a CLAUDE.md that links back to the Hub's ECOSYSTEM.md.</td>
+</tr>
+<tr>
+<td><code>KS173</code></td>
+<td>info</td>
+<td>No docs site</td>
+<td>Add mkdocs.yml and a docs/ directory.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="functional-rules">Functional rules</h2>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Severity</th>
+<th>Checks for</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>KS200</code></td>
+<td>warning</td>
+<td>File could not be parsed</td>
+<td>Fix the syntax error so the file can be analysed.</td>
+</tr>
+<tr>
+<td><code>KS201</code></td>
+<td>error</td>
+<td>Imports the Hub package</td>
+<td>A plugin may only import karcytics_sdk. Use the SDK equivalent or request one.</td>
+</tr>
+<tr>
+<td><code>KS202</code></td>
+<td>error</td>
+<td>Qt imported in analysis/</td>
+<td>Keep analysis/ free of Qt: move the widget or signal code to ui/ and run compute through AnalysisBase.</td>
+</tr>
+<tr>
+<td><code>KS203</code></td>
+<td>error</td>
+<td>Imports a Qt binding other than PySide6</td>
+<td>Karcytics is built on PySide6 (LGPL). Import from PySide6 instead: pyqtSignal/pyqtSlot/pyqtProperty become Signal/Slot/Property, and sip.isdeleted(x) becomes <code>not shiboken6.isValid(x)</code>.</td>
+</tr>
+<tr>
+<td><code>KS204</code></td>
+<td>error</td>
+<td>Signal or Slot declared with a dict argument</td>
+<td>Declare the argument as <code>object</code>: PySide6 converts a <code>dict</code> signal argument to a QVariantMap and silently drops every non-string key.</td>
+</tr>
+<tr>
+<td><code>KS205</code></td>
+<td>warning</td>
+<td>Qt-backed SDK object in analysis/</td>
+<td>Keep analysis/ to pure computation: move the scheduling, debouncing or signalling that needs this into ui/ (or a controller there) and pass analysis/ plain data.</td>
+</tr>
+<tr>
+<td><code>KS210</code></td>
+<td>warning</td>
+<td>Raw Qt widget where the SDK provides one</td>
+<td>Use the SDK component instead.</td>
+</tr>
+<tr>
+<td><code>KS211</code></td>
+<td>warning</td>
+<td>Subclasses a raw Qt widget the SDK wraps</td>
+<td>Subclass the SDK component instead.</td>
+</tr>
+<tr>
+<td><code>KS220</code></td>
+<td>warning</td>
+<td>Raw Qt dialog</td>
+<td>Use the helper from karcytics_sdk.plugin.dialogs instead.</td>
+</tr>
+<tr>
+<td><code>KS230</code></td>
+<td>warning</td>
+<td>Hand-rolled Qt threading</td>
+<td>Subclass karcytics_sdk.plugin.OneShotWorkerThread, or submit an AnalysisBase/FunctionalTask to karcytics_sdk.plugin.task_scheduler.</td>
+</tr>
+<tr>
+<td><code>KS231</code></td>
+<td>warning</td>
+<td>Hand-rolled Python threading</td>
+<td>Wrap the work in karcytics_sdk.plugin.managed_task.FunctionalTask and submit it to karcytics_sdk.plugin.task_scheduler.</td>
+</tr>
+<tr>
+<td><code>KS240</code></td>
+<td>warning</td>
+<td>Hard-coded colour</td>
+<td>Use a Colors token from karcytics_sdk.plugin.theme_fallback so the widget follows the active theme.</td>
+</tr>
+<tr>
+<td><code>KS241</code></td>
+<td>info</td>
+<td>Direct setStyleSheet call</td>
+<td>Prefer a Bio* component, apply_component_style(), or theme_manager.apply_style() so the style is re-applied when the theme changes.</td>
+</tr>
+<tr>
+<td><code>KS242</code></td>
+<td>warning</td>
+<td>Themed stylesheet built by hand</td>
+<td>Use theme_manager.apply_style(widget, "QLabel {{ color: {FG_PRIMARY}; }}") (tokens in braces) so the style follows theme changes, or a Bio* component that already does.</td>
+</tr>
+<tr>
+<td><code>KS243</code></td>
+<td>warning</td>
+<td>Combo box rebuilt by hand</td>
+<td>Use repopulate_combo(combo, items, restore_data=...) from karcytics_sdk.plugin: it keeps the selection, blocks signals, and does nothing when nothing changed.</td>
+</tr>
+<tr>
+<td><code>KS250</code></td>
+<td>warning</td>
+<td>Standard-library logger</td>
+<td>Use karcytics_sdk.plugin.get_logger(<strong>name</strong>) so records carry plugin metadata.</td>
+</tr>
+<tr>
+<td><code>KS251</code></td>
+<td>info</td>
+<td>Hand-rolled JSON file I/O</td>
+<td>Use load_json()/save_json() from karcytics_sdk.plugin.</td>
+</tr>
+<tr>
+<td><code>KS252</code></td>
+<td>warning</td>
+<td>print() call</td>
+<td>Use karcytics_sdk.plugin.get_logger(<strong>name</strong>) instead of print().</td>
+</tr>
+<tr>
+<td><code>KS260</code></td>
+<td>warning</td>
+<td>No PluginBase subclass</td>
+<td>The plugin's main panel should subclass karcytics_sdk.plugin.PluginBase.</td>
+</tr>
+<tr>
+<td><code>KS261</code></td>
+<td>info</td>
+<td>No AnalysisBase subclass</td>
+<td>Put computation in a karcytics_sdk.plugin.AnalysisBase subclass under analysis/.</td>
+</tr>
+<tr>
+<td><code>KS270</code></td>
+<td>warning</td>
+<td>Test builds the plugin panel without destroying it</td>
+<td>Destroy it when the test ends: <code>qtbot.addWidget(panel)</code>, or <code>panel.deleteLater()</code> in a fixture's teardown. A panel left to the garbage collector makes unrelated tests fail intermittently.</td>
+</tr>
+</tbody>
+</table>
+<p>A Qt widget is only flagged when the SDK has a real replacement. <code>QCheckBox</code>, for example, has none and is never reported. The full mapping lives in <code>karcytics_sdk/evaluator/catalog.py</code>; add a row there when the SDK gains a component.</p>
+<h2 id="design-rules">Design rules</h2>
+<p>These catch what accumulates when no one looks at the whole codebase at once, which is the normal situation of an agent editing one file at a time. Most are meant to run against a <a href="#baseline">baseline</a>.</p>
+<table>
+<thead>
+<tr>
+<th>Rule</th>
+<th>Severity</th>
+<th>Checks for</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>KS300</code></td>
+<td>warning</td>
+<td>Long file</td>
+<td>Split it along a real responsibility (a widget, a service, a model), not just to get under the limit.</td>
+</tr>
+<tr>
+<td><code>KS301</code></td>
+<td>warning</td>
+<td>Class with too many methods</td>
+<td>It is doing several jobs: move each one into its own class and have this one delegate or compose.</td>
+</tr>
+<tr>
+<td><code>KS302</code></td>
+<td>warning</td>
+<td>Long function</td>
+<td>Extract the steps it runs through into named functions, or the widget it builds into its own class.</td>
+</tr>
+<tr>
+<td><code>KS310</code></td>
+<td>warning</td>
+<td>Suppression without a reason</td>
+<td>Say why after the codes (<code># noqa: PLR0913 - mirrors the Qt signature</code>, <code># type: ignore[arg-type]  # PySide6 stub omits Optional</code>, <code># karcytics: allow KS302 - &lt;why&gt;</code>). Better still, fix what is being suppressed.</td>
+</tr>
+<tr>
+<td><code>KS320</code></td>
+<td>warning</td>
+<td>Same helper defined in several modules</td>
+<td>Keep one copy in a shared module (or the SDK, if it is not plugin-specific) and import it.</td>
+</tr>
+<tr>
+<td><code>KS321</code></td>
+<td>warning</td>
+<td>Duplicated function body</td>
+<td>Keep one copy and call it from both places.</td>
+</tr>
+<tr>
+<td><code>KS330</code></td>
+<td>info</td>
+<td>ui/ module with no UI code</td>
+<td>If it is computation or data handling, move it to analysis/ where it can be tested headless.</td>
+</tr>
+<tr>
+<td><code>KS331</code></td>
+<td>warning</td>
+<td>Call reserved to analysis/</td>
+<td>Go through the analysis-layer API instead; the plugin lists this call under [tool.karcytics.evaluator] analysis_only in pyproject.toml.</td>
+</tr>
+<tr>
+<td><code>KS332</code></td>
+<td>warning</td>
+<td>UI object stored on state</td>
+<td>Keep widgets out of state: state is data the analysis layer reads. Give whatever needs the widget a reference to it, or a query object, instead.</td>
+</tr>
+<tr>
+<td><code>KS340</code></td>
+<td>warning</td>
+<td>Pass-through class</td>
+<td>Let callers use the collaborator directly, or move the logic it forwards to into this class.</td>
+</tr>
+<tr>
+<td><code>KS341</code></td>
+<td>warning</td>
+<td>Class with only static methods</td>
+<td>Make them module-level functions: a class that is never instantiated is just a namespace.</td>
+</tr>
+<tr>
+<td><code>KS342</code></td>
+<td>warning</td>
+<td>Reads another object's private attribute</td>
+<td>Give the owner a public method or property for what the caller needs, and use that.</td>
+</tr>
+<tr>
+<td><code>KS343</code></td>
+<td>warning</td>
+<td>getattr/hasattr on self</td>
+<td>Set the attribute in <strong>init</strong> (to None if it has no value yet) and read it directly.</td>
+</tr>
+<tr>
+<td><code>KS344</code></td>
+<td>warning</td>
+<td>Branches on a type's name</td>
+<td>Use isinstance(), or better, a method or property the types implement differently.</td>
+</tr>
+<tr>
+<td><code>KS350</code></td>
+<td>warning</td>
+<td>Event published but never subscribed</td>
+<td>Stop publishing it, or subscribe where the event was meant to be handled.</td>
+</tr>
+<tr>
+<td><code>KS351</code></td>
+<td>warning</td>
+<td>Event topic never used</td>
+<td>Delete the constant.</td>
+</tr>
+<tr>
+<td><code>KS360</code></td>
+<td>warning</td>
+<td>Import inside a function</td>
+<td>Import at the top of the module. If it is deliberate (startup time, an optional dependency), say so: <code># karcytics: allow KS360 - &lt;why&gt;</code>. An import cycle is a design problem to fix, not hide.</td>
+</tr>
+<tr>
+<td><code>KS361</code></td>
+<td>warning</td>
+<td>Debug trace logged as a warning</td>
+<td>Log it with logger.debug(), and keep warnings for what a user or maintainer should act on.</td>
+</tr>
+<tr>
+<td><code>KS370</code></td>
+<td>warning</td>
+<td>Test asserts nothing</td>
+<td>Assert on the outcome the test is about. A test that only checks nothing crashed passes when the behaviour is wrong.</td>
+</tr>
+<tr>
+<td><code>KS371</code></td>
+<td>warning</td>
+<td>Test only checks that things exist</td>
+<td>Assert on behaviour (values, emitted signals, state after an action), not that an attribute exists or an object has a type.</td>
+</tr>
+<tr>
+<td><code>KS372</code></td>
+<td>warning</td>
+<td>Test patches a Qt signal</td>
+<td>Under PySide6 a signal is resolved on the instance, so patching it on the class intercepts nothing: connect a real slot and assert on what it received.</td>
+</tr>
+<tr>
+<td><code>KS362</code></td>
+<td>info</td>
+<td>Comment refers to a plan item</td>
+<td>Say what the code does and why; the history of how it got there belongs in the commit message.</td>
+</tr>
+</tbody>
+</table>
+<p>The limits (600 lines per file, 30 methods per class, 80 lines per function) are deliberately generous: under a baseline they only stop growth, and a split should follow a real responsibility, not a number. <code>KS320</code> needs a similar body as well as the same name, and skips methods that override one from a base class in the repo and conventional hooks such as <code>_setup_ui</code> and <code>_apply_theme_styles</code>. <code>KS370</code> accepts any <code>assert</code>, a call whose name contains assert/raises/warns/expect/verify/check/wait, or a call to a helper in the same file that asserts; a test named for surviving something (<code>..._does_not_raise</code>, <code>..._survives_...</code>) is exempt. <code>KS371</code> fires when every assert is <code>isinstance</code>/<code>hasattr</code>/<code>callable</code>/<code>is not None</code>.</p>
+<p><code>KS331</code> reads the plugin's own list of calls that only analysis/ may make:</p>
+<div class="language-toml highlight"><pre><span></span><code><span id="__span-5-1"><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="k">[tool.karcytics.evaluator]</span>
+</span><span id="__span-5-2"><a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="n">analysis_only</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="p">[</span><span class="s2">"apply_hierarchy"</span><span class="p">,</span><span class="w"> </span><span class="s2">"fcs_data.events"</span><span class="p">]</span><span class="w">   </span><span class="c1"># a name, or the end of a dotted path</span>
+</span></code></pre></div>
+<p><code>KS332</code> looks at classes that subclass a <code>...State</code> class, or are dataclasses named <code>...State</code>. <code>KS350</code>/<code>KS351</code> look only at the plugin's own topic constants (UPPER_CASE strings in a module whose name contains "event" or "topic"); a topic counts as handled when it is mentioned anywhere other than as a <code>publish()</code> argument, so subscribing through a helper or a list of topics is recognised.</p>
+<h2 id="adding-a-rule">Adding a rule</h2>
+<ol>
+<li>Declare it in <code>evaluator/registry.py</code> (id, severity, title, default fix). The id's hundreds digit is its family: 1 organizational, 2 functional, 3 design.</li>
+<li>Emit it with <code>make_finding(...)</code> from a check in <code>org_rules.py</code>, <code>_FileChecker</code> in <code>functional_rules.py</code>, or <code>design_rules.py</code> (<code>test_rules.py</code> for a check over the repo's tests).</li>
+<li>Add a test under <code>tests/unit/evaluator/</code> and a row to the table above (a test fails if a rule is missing from this page).</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.top", "search.suggest", "search.highlight", "content.code.copy"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.d7400e89.min.js"></script>
+      
+    
+  </body>
+</html>
