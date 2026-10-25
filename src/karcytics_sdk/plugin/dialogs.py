@@ -37,6 +37,38 @@ def project_assets_dir(widget=None) -> str:
     return str(folder) if folder and Path(folder).is_dir() else ""
 
 
+def bring_into_project(parent, path: str) -> str | None:
+    """`path`, registered with the open project after offering to copy it into its assets.
+
+    A file chosen from outside the project would be left behind when the
+    project moves to another computer, so the user is asked whether to copy
+    it into the project's 'assets' folder. It is registered with the
+    project either way (copied, or referenced where it is).
+
+    Returns the path to use (the copy's when it was copied), `path` itself
+    when no project is open, or None when the project couldn't take it (a
+    warning says why), so the caller can stop.
+    """
+    window = parent.window() if parent is not None else None
+    pm = getattr(window, "project_manager", None)
+    if pm is None:
+        return path
+    try:
+        inside = Path(pm.assets_dir).resolve() in Path(path).resolve().parents
+        copy = not inside and ask_yes_no(
+            parent,
+            "Copy to Workspace?",
+            f"The image '{Path(path).name}' is outside the project folder.\n\n"
+            "Would you like to copy it into the project's 'assets' folder for safe keeping "
+            "and portability?",
+        )
+        resolved = pm.get_asset_path(pm.add_image(Path(path), copy))
+    except Exception as exc:  # the project manager reports any failure as an exception
+        show_warning(parent, "Asset Error", f"Failed to add asset to project:\n{exc}")
+        return None
+    return str(resolved) if resolved else path
+
+
 def get_image_path(parent=None, title: str = "Select Image", start_dir: str = "") -> str | None:
     """Show file dialog to select an image.
 

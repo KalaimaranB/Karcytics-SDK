@@ -51,6 +51,7 @@ if TYPE_CHECKING:
     from .dialogs import (
         ask_ok_cancel,
         ask_yes_no,
+        bring_into_project,
         confirm_destructive,
         get_directory,
         get_double,
@@ -193,6 +194,7 @@ _EXPORTS: dict[str, tuple[str, ...]] = {
     ".dialogs": (
         "ask_ok_cancel",
         "ask_yes_no",
+        "bring_into_project",
         "confirm_destructive",
         "get_directory",
         "get_double",
@@ -395,6 +397,7 @@ __all__ = [
     "repopulate_combo",
     "style_axes",
     "ZoomControls",
+    "bring_into_project",
     "get_directory",
     "get_double",
     "get_image_path",

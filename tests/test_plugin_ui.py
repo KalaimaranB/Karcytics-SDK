@@ -333,6 +333,72 @@ def test_image_pickers_open_in_the_project_assets_folder(mock_open_file, qtbot, 
     assert mock_open_file.call_args.args[2] == ""
 
 
+class _Project:
+    """A stand-in project manager: records what it was given."""
+
+    def __init__(self, assets, fail=False):
+        self.assets_dir, self.fail, self.added = assets, fail, []
+
+    def add_image(self, path, copy):
+        if self.fail:
+            raise OSError("disk full")
+        self.added.append((path, copy))
+        return "hash"
+
+    def get_asset_path(self, file_hash):
+        path, copy = self.added[-1]
+        return self.assets_dir / path.name if copy else path
+
+
+def _window_with(qtbot, project):
+    from PySide6.QtWidgets import QWidget
+
+    window = QWidget()
+    qtbot.addWidget(window)
+    window.project_manager = project
+    return window
+
+
+def test_a_file_from_outside_the_project_is_offered_a_copy(qtbot, tmp_path):
+    from karcytics_sdk.plugin.dialogs import bring_into_project
+
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    outside = tmp_path / "elsewhere" / "blot.tif"
+    project = _Project(assets)
+    window = _window_with(qtbot, project)
+    with patch("karcytics_sdk.plugin.dialogs.ask_yes_no", return_value=True) as asked:
+        assert bring_into_project(window, str(outside)) == str(assets / "blot.tif")
+    asked.assert_called_once()
+    with patch("karcytics_sdk.plugin.dialogs.ask_yes_no", return_value=False):
+        assert bring_into_project(window, str(outside)) == str(outside)  # referenced in place
+    assert [copy for _, copy in project.added] == [True, False]
+
+
+def test_a_file_already_in_the_assets_is_not_asked_about(qtbot, tmp_path):
+    from karcytics_sdk.plugin.dialogs import bring_into_project
+
+    inside = tmp_path / "assets" / "blot.tif"
+    inside.parent.mkdir()
+    window = _window_with(qtbot, _Project(tmp_path / "assets"))
+    with patch("karcytics_sdk.plugin.dialogs.ask_yes_no") as asked:
+        assert bring_into_project(window, str(inside)) == str(inside)
+    asked.assert_not_called()
+
+
+def test_without_a_project_the_path_is_kept_and_a_failure_says_so(qtbot, tmp_path):
+    from karcytics_sdk.plugin.dialogs import bring_into_project
+
+    assert bring_into_project(None, "/x/blot.tif") == "/x/blot.tif"
+    window = _window_with(qtbot, _Project(tmp_path, fail=True))
+    with (
+        patch("karcytics_sdk.plugin.dialogs.ask_yes_no", return_value=True),
+        patch("karcytics_sdk.plugin.dialogs.show_warning") as warned,
+    ):
+        assert bring_into_project(window, "/x/blot.tif") is None
+    warned.assert_called_once()
+
+
 @patch("PySide6.QtWidgets.QFileDialog.getOpenFileNames")
 def test_dialogs_multi_pickers(mock_open_files):
     """Test get_image_paths dialog bindings."""
