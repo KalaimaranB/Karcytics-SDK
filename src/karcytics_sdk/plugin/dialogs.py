@@ -6,6 +6,7 @@ that work with the current theme.
 
 from collections.abc import Sequence
 from datetime import datetime
+from pathlib import Path
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
@@ -25,19 +26,33 @@ from PySide6.QtWidgets import (
 # ──────────────────────────────────────────────────────────────────────────────
 
 
+def project_assets_dir(widget=None) -> str:
+    """The open project's assets folder, as `widget`'s window knows it ("" with no project).
+
+    The Hub (and an isolated plugin's runtime) sets `project_manager` on the
+    plugin's window; its `assets_dir` is where a project's images live.
+    """
+    window = widget.window() if widget is not None else None
+    folder = getattr(getattr(window, "project_manager", None), "assets_dir", None)
+    return str(folder) if folder and Path(folder).is_dir() else ""
+
+
 def get_image_path(parent=None, title: str = "Select Image", start_dir: str = "") -> str | None:
     """Show file dialog to select an image.
 
     Args:
         parent: Parent widget
         title: Dialog title
-        start_dir: Initial directory
+        start_dir: Initial directory (default: the open project's assets folder)
 
     Returns:
         Selected file path or None if cancelled
     """
     file_path, _ = QFileDialog.getOpenFileName(
-        parent, title, start_dir, "Images (*.png *.jpg *.jpeg *.tiff *.tif);;All Files (*)"
+        parent,
+        title,
+        start_dir or project_assets_dir(parent),
+        "Images (*.png *.jpg *.jpeg *.tiff *.tif);;All Files (*)",
     )
     return file_path if file_path else None
 
@@ -48,13 +63,16 @@ def get_image_paths(parent=None, title: str = "Select Images", start_dir: str = 
     Args:
         parent: Parent widget
         title: Dialog title
-        start_dir: Initial directory
+        start_dir: Initial directory (default: the open project's assets folder)
 
     Returns:
         List of selected file paths
     """
     file_paths, _ = QFileDialog.getOpenFileNames(
-        parent, title, start_dir, "Images (*.png *.jpg *.jpeg *.tiff *.tif);;All Files (*)"
+        parent,
+        title,
+        start_dir or project_assets_dir(parent),
+        "Images (*.png *.jpg *.jpeg *.tiff *.tif);;All Files (*)",
     )
     return file_paths if file_paths else []
 

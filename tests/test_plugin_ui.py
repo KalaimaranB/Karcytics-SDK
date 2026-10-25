@@ -314,6 +314,25 @@ def test_dialogs_file_pickers(mock_open_file):
     mock_open_file.assert_called_once()
 
 
+@patch("PySide6.QtWidgets.QFileDialog.getOpenFileName")
+def test_image_pickers_open_in_the_project_assets_folder(mock_open_file, qtbot, tmp_path):
+    """With a project open, the dialog starts in its assets folder; a given folder wins."""
+    from types import SimpleNamespace
+
+    from PySide6.QtWidgets import QWidget
+
+    window = QWidget()
+    qtbot.addWidget(window)
+    window.project_manager = SimpleNamespace(assets_dir=tmp_path)
+    mock_open_file.return_value = ("", "")
+    get_image_path(window, "Pick")
+    assert mock_open_file.call_args.args[2] == str(tmp_path)
+    get_image_path(window, "Pick", start_dir="/elsewhere")
+    assert mock_open_file.call_args.args[2] == "/elsewhere"
+    get_image_path(None, "Pick")
+    assert mock_open_file.call_args.args[2] == ""
+
+
 @patch("PySide6.QtWidgets.QFileDialog.getOpenFileNames")
 def test_dialogs_multi_pickers(mock_open_files):
     """Test get_image_paths dialog bindings."""
