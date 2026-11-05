@@ -15,9 +15,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import QEventLoop, QRectF, Qt
+from PySide6.QtCore import QRectF, Qt
 from PySide6.QtGui import QColor, QFont, QPainter
-from PySide6.QtWidgets import QApplication, QWidget
+from PySide6.QtWidgets import QWidget
 
 from .theme_fallback import Colors
 
@@ -66,8 +66,8 @@ class ThemeChangeOverlay(QWidget):
 def covered_while(window: QWidget, restyle: Callable[[], None]) -> None:
     """Run ``restyle`` with ``window`` covered by a "Changing theme…" overlay.
 
-    The cover is painted before ``restyle`` starts. A restyle requested while
-    one is already running (the event pump below can deliver it) just runs.
+    The cover is painted before ``restyle`` starts. A restyle requested from
+    inside a running one just runs.
     """
     if _covering or not window.isVisible():
         restyle()
@@ -77,8 +77,11 @@ def covered_while(window: QWidget, restyle: Callable[[], None]) -> None:
     try:
         overlay.show()
         overlay.raise_()
+        # repaint(), never a nested processEvents(): the Hub pushes its theme
+        # the moment a module opens, and on macOS a nested event loop at that
+        # point swallowed the window's activation, whatever its flags. The
+        # window then ignored every click for 10-20 seconds, or for good.
         overlay.repaint()
-        QApplication.processEvents(QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents)
         restyle()
     finally:
         _covering.remove(window)
