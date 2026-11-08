@@ -92,6 +92,29 @@ class TestLocalTaskScheduler:
     def test_cancel_all_does_not_raise(self):
         LocalTaskScheduler().cancel_all()
 
+    def test_runnable_survives_its_owner_being_deleted(self, qapp):
+        """A scheduler destroyed while a task is still in flight (a test that
+        returns as soon as `task_error` arrives) left the pool thread's
+        `on_done` emitting on a deleted QObject — "Signal source has been
+        deleted", caught by pytest-qt in whatever test ran next.
+        """
+        from karcytics_sdk.plugin import AnalysisRunnable, AnalysisWorker
+
+        def on_done():
+            raise RuntimeError("Signal source has been deleted")
+
+        runnable = AnalysisRunnable(AnalysisWorker(MockAnalyzer("p"), None), on_done=on_done)
+        runnable.setAutoDelete(False)
+        runnable.run()  # must not raise
+
+        def on_done_other():
+            raise RuntimeError("something else")
+
+        runnable = AnalysisRunnable(AnalysisWorker(MockAnalyzer("p"), None), on_done=on_done_other)
+        runnable.setAutoDelete(False)
+        with pytest.raises(RuntimeError, match="something else"):
+            runnable.run()
+
     def test_lambda_connected_to_worker_finished_is_delivered(self, qtbot):
         """The render pipeline connects a lambda to `worker.finished`. PySide6
         delivers a non-bound-method slot through the sender, so a scheduler

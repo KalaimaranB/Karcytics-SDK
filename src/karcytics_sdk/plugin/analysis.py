@@ -214,4 +214,13 @@ class AnalysisRunnable(QRunnable):
             # signals.
             self.worker = None
             if self._on_done is not None:
-                self._on_done()
+                try:
+                    self._on_done()
+                except RuntimeError as e:
+                    # The owner (e.g. a LocalTaskScheduler) was destroyed
+                    # while this task was still in flight — nothing is left
+                    # to release.
+                    if "deleted" in str(e):
+                        logger.debug("Background runnable: owner deleted before on_done.")
+                    else:
+                        raise
