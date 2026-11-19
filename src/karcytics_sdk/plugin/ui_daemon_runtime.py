@@ -147,6 +147,11 @@ def _hard_exit(code: int) -> None:
     update check's requests.get was one) and the process dies with an access
     violation (0xC0000005) instead of `code`. TerminateProcess skips the DLL
     detach step.
+
+    The kernel32 calls need their ctypes types declared: undeclared, ctypes
+    passes the pseudo-handle GetCurrentProcess returns (a 64-bit -1) as a
+    32-bit int, TerminateProcess rejects it, and the process falls through to
+    os._exit and the crash above.
     """
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -154,11 +159,27 @@ def _hard_exit(code: int) -> None:
         except Exception:  # noqa: BLE001, S110 - exiting regardless
             pass
     if sys.platform == "win32":
-        import ctypes
-
-        kernel32 = ctypes.windll.kernel32
-        kernel32.TerminateProcess(kernel32.GetCurrentProcess(), code)
+        _terminate_this_process_on_windows(code)
     os._exit(code)  # noqa: SLF001
+
+
+def _terminate_this_process_on_windows(code: int) -> None:
+    """TerminateProcess on this process; returns only if Windows refused it."""
+    import ctypes
+    from ctypes import wintypes
+
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
+    kernel32.GetCurrentProcess.argtypes = []
+    kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+    kernel32.TerminateProcess.argtypes = [wintypes.HANDLE, wintypes.UINT]
+    kernel32.TerminateProcess.restype = wintypes.BOOL
+    if not kernel32.TerminateProcess(kernel32.GetCurrentProcess(), code):
+        error = ctypes.get_last_error()  # type: ignore[attr-defined]
+        try:
+            sys.stderr.write(f"TerminateProcess failed (error {error}); exiting via os._exit\n")
+            sys.stderr.flush()
+        except Exception:  # noqa: BLE001, S110 - exiting regardless
+            pass
 
 
 def _read_exact_stdin(num_bytes: int) -> bytes | None:

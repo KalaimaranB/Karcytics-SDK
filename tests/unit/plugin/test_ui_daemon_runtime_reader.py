@@ -6,6 +6,7 @@ Covers the two failure modes a Hub<->worker frame stream can hit that
 exit the process, not hang forever).
 """
 
+from ctypes import wintypes
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -80,20 +81,63 @@ def test_hard_exit_flushes_and_calls_os_exit_off_windows():
     mock_exit.assert_called_once_with(3)
 
 
+def _fake_kernel32() -> MagicMock:
+    kernel32 = MagicMock()
+    kernel32.GetCurrentProcess.return_value = 0xFFFFFFFFFFFFFFFF  # the pseudo-handle, -1
+    return kernel32
+
+
 def test_hard_exit_terminates_the_process_on_windows():
     """ExitProcess (os._exit) would run Qt's DLL detach code and crash."""
-    kernel32 = MagicMock()
-    kernel32.GetCurrentProcess.return_value = "this-process"
+    kernel32 = _fake_kernel32()
     kernel32.TerminateProcess.side_effect = _ExitCalled
-    windll = MagicMock(kernel32=kernel32)
 
     with (
         patch("karcytics_sdk.plugin.ui_daemon_runtime.sys.platform", "win32"),
-        patch("ctypes.windll", windll, create=True),
+        patch("ctypes.WinDLL", return_value=kernel32, create=True),
+        patch("ctypes.get_last_error", return_value=0, create=True),
         patch("karcytics_sdk.plugin.ui_daemon_runtime.os._exit") as mock_exit,
         pytest.raises(_ExitCalled),
     ):
         _hard_exit(5)
 
-    kernel32.TerminateProcess.assert_called_once_with("this-process", 5)
+    kernel32.TerminateProcess.assert_called_once_with(0xFFFFFFFFFFFFFFFF, 5)
     mock_exit.assert_not_called()
+
+
+def test_hard_exit_declares_handle_types_for_terminate_process():
+    """Undeclared, ctypes sends the 64-bit pseudo-handle as a 32-bit int and
+    Windows rejects it, so the process fell through to the crashing os._exit.
+    """
+    kernel32 = _fake_kernel32()
+    kernel32.TerminateProcess.side_effect = _ExitCalled
+
+    with (
+        patch("karcytics_sdk.plugin.ui_daemon_runtime.sys.platform", "win32"),
+        patch("ctypes.WinDLL", return_value=kernel32, create=True),
+        patch("ctypes.get_last_error", return_value=0, create=True),
+        patch("karcytics_sdk.plugin.ui_daemon_runtime.os._exit"),
+        pytest.raises(_ExitCalled),
+    ):
+        _hard_exit(0)
+
+    assert kernel32.GetCurrentProcess.restype is wintypes.HANDLE
+    assert kernel32.TerminateProcess.argtypes == [wintypes.HANDLE, wintypes.UINT]
+
+
+def test_hard_exit_falls_back_to_os_exit_when_windows_refuses():
+    kernel32 = _fake_kernel32()
+    kernel32.TerminateProcess.return_value = 0
+
+    with (
+        patch("karcytics_sdk.plugin.ui_daemon_runtime.sys.platform", "win32"),
+        patch("ctypes.WinDLL", return_value=kernel32, create=True),
+        patch("ctypes.get_last_error", return_value=6, create=True),
+        patch("karcytics_sdk.plugin.ui_daemon_runtime.sys.stderr") as stderr,
+        patch("karcytics_sdk.plugin.ui_daemon_runtime.os._exit", side_effect=_ExitCalled) as mock_exit,
+        pytest.raises(_ExitCalled),
+    ):
+        _hard_exit(2)
+
+    mock_exit.assert_called_once_with(2)
+    assert "error 6" in stderr.write.call_args.args[0]
