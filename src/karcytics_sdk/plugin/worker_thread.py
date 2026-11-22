@@ -29,6 +29,12 @@ from PySide6.QtCore import QObject, QThread, Signal
 
 logger = logging.getLogger(__name__)
 
+# 0, Qt's default, is the platform's secondary-thread stack: 512 KB on macOS,
+# which LAPACK overflows (numpy.linalg.inv, reached through matplotlib's
+# transforms during a figure render, dies with SIGBUS). CPython gives its own
+# threads this much; the task scheduler's pool threads get it too.
+WORKER_STACK_BYTES = 16 * 1024 * 1024
+
 
 class OneShotWorkerThread(QThread):
     """Base class for a QThread that runs one job once and reports back.
@@ -59,6 +65,7 @@ class OneShotWorkerThread(QThread):
 
     def __init__(self, parent: QObject) -> None:
         super().__init__(parent)
+        self.setStackSize(WORKER_STACK_BYTES)
 
     @abstractmethod
     def _execute(self) -> Any:

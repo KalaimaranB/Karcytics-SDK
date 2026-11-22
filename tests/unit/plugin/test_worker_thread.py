@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QObject
 
-from karcytics_sdk.plugin.worker_thread import OneShotWorkerThread
+from karcytics_sdk.plugin.worker_thread import WORKER_STACK_BYTES, OneShotWorkerThread
 
 
 class _EchoWorker(OneShotWorkerThread):
@@ -35,6 +35,14 @@ class TestOneShotWorkerThread:
         worker = _EchoWorker(42, owner)
 
         assert worker.parent() is owner
+
+    def test_gets_a_stack_lapack_does_not_overflow(self, qapp):
+        # Qt's default is 512 KB on macOS: numpy.linalg.inv in a figure render
+        # died there with SIGBUS.
+        owner = QObject()
+        worker = _EchoWorker(1, owner)
+
+        assert worker.stackSize() == WORKER_STACK_BYTES >= 16 * 1024 * 1024
 
     def test_success_path_emits_finished_ok_with_the_result(self, qapp, qtbot):
         owner = QObject()
