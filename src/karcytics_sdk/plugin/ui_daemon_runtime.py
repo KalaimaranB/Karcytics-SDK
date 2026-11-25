@@ -464,21 +464,22 @@ def _dock_left_if_academy_active(window: QMainWindow, dialog: QWidget) -> None:
     dialog.move(x, y)
 
 
-LICENSE_LABEL_ENV = "KARCYTICS_LICENSE_LABEL"
+def _add_license_footer(window: QMainWindow, panel: QWidget | None = None) -> QLabel | None:
+    """Give a plugin without its own footer a slim one carrying the Hub's license line.
 
-
-def _add_license_footer(window: QMainWindow) -> QLabel | None:
-    """Show the Hub's license line (e.g. "Class license · UBC MICB 323") in the window footer.
-
-    The Hub puts the text in ``KARCYTICS_LICENSE_LABEL``; this process inherits it. Nothing is
-    shown when the variable is absent (older Hubs, standalone runs).
+    A panel that already has a ``BioFooter`` shows the line there (one footer, not two), so
+    nothing is added. Nothing is shown when the Hub sent no license line.
     """
-    text = os.environ.get(LICENSE_LABEL_ENV, "").strip()
+    from .components import BioFooter, license_label_text
+
+    text = license_label_text()
     if not text:
+        return None
+    if panel is not None and (isinstance(panel, BioFooter) or panel.findChild(BioFooter)):
         return None
     bar = QStatusBar(window)
     bar.setSizeGripEnabled(False)
-    label = QLabel(text[:120])
+    label = QLabel(text)
     label.setObjectName("LicenseLabel")
     label.setStyleSheet("color: palette(placeholder-text); font-size: 11px; padding-right: 12px;")
     label.setToolTip("Hub → Settings → License shows the details.")
@@ -911,7 +912,6 @@ def run(  # noqa: C901, PLR0913, PLR0915
     window.setWindowTitle(window_title)
     window.resize(*window_size)
     _build_menu_bar(window, logger)
-    _add_license_footer(window)
     # Set before panel_factory() below so the panel can read it from its own
     # __init__ or constructor path, not only from later user-triggered
     # handlers — same attribute name and shape as WorkspaceWindow's own
@@ -1197,6 +1197,7 @@ def run(  # noqa: C901, PLR0913, PLR0915
     # top of the real panel, not be silently deleted out from under it.
     loader.setParent(None)
     window.setCentralWidget(panel)
+    _add_license_footer(window, panel)
     # setCentralWidget() only *schedules* a layout pass — it doesn't run one
     # synchronously — so at this exact point panel.rect() is still whatever
     # size Qt gave it before it was ever laid out (a bare QWidget's default

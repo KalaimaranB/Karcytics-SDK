@@ -4,6 +4,7 @@ Provides pre-styled button and component classes that respect the active theme
 and maintain visual consistency across all plugins.
 """
 
+import os
 import sys
 from collections.abc import Sequence
 from typing import Any
@@ -912,8 +913,22 @@ class BioProgressDialog(QProgressDialog):
         """)
 
 
+LICENSE_LABEL_ENV = "KARCYTICS_LICENSE_LABEL"
+
+
+def license_label_text() -> str:
+    """The Hub's license line, e.g. "Class license · UBC MICB 323 – 2026W" ("" if none).
+
+    The Hub sets ``KARCYTICS_LICENSE_LABEL`` and plugin processes inherit it.
+    """
+    return os.environ.get(LICENSE_LABEL_ENV, "").strip()[:120]
+
+
 class BioFooter(QWidget):
-    """Standardized footer matching Karcytics core status bar."""
+    """Standardized footer matching Karcytics core status bar.
+
+    Shows the Hub's license line beside the copyright, so the license in use is always clear.
+    """
 
     def __init__(
         self,
@@ -928,10 +943,16 @@ class BioFooter(QWidget):
         layout.setContentsMargins(10, 0, 10, 0)
 
         self.message_label = QLabel(initial_text)
+        self.license_label = QLabel(license_label_text())
+        self.license_label.setObjectName("LicenseLabel")
+        self.license_label.setToolTip("Hub → Settings → License shows the details.")
+        self.license_label.setVisible(bool(self.license_label.text()))
         self.copyright_label = QLabel(copyright_text)
 
         layout.addWidget(self.message_label)
         layout.addStretch()
+        layout.addWidget(self.license_label)
+        layout.addSpacing(18)
         layout.addWidget(self.copyright_label)
 
         _connect_theme_signal(self._apply_theme_styles)
