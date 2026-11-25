@@ -397,11 +397,14 @@ class TrustManager:
                 dirs[:] = [d for d in dirs if d not in PRUNE_DIRS]
                 # Process every single file to run covert backdoor audit checks
                 for file in files:
-                    rel_path = os.path.relpath(os.path.join(root, file), plugin_path)
+                    # Ledger keys always use "/" (sign_plugin writes them that way). On
+                    # Windows os.path.relpath returns "\\" separators, so convert before
+                    # comparing, or every file looks unsigned there.
+                    rel_path = os.path.relpath(os.path.join(root, file), plugin_path).replace(os.sep, "/")
 
                     # Determine if this file falls within any active ignore directories or list
                     is_ignored = False
-                    path_parts = rel_path.split(os.sep)
+                    path_parts = rel_path.split("/")
                     for part in path_parts:
                         if part in active_ignore:
                             is_ignored = True

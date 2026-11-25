@@ -461,3 +461,37 @@ def test_local_trust_registry_tampering_and_save(tmp_path):
         # 6. Remove trust
         reg5.remove_trust("plugin_a")
         assert reg5.is_locally_trusted("plugin_a", hashes) is False
+
+
+def test_integrity_check_matches_ledger_paths_on_windows(tmp_path, monkeypatch):
+    """Ledger keys use "/"; on Windows os.path.relpath returns backslashes. Both must match."""
+    import posixpath
+
+    import karcytics_sdk.host.trust_manager as tm_module
+
+    plugin_dir = tmp_path / "nested_plugin"
+    (plugin_dir / "src" / "pkg").mkdir(parents=True)
+    (plugin_dir / "src" / "pkg" / "mod.py").write_text("VALUE = 1\n")
+    tm = TrustManager(root_public_key=ed25519.Ed25519PrivateKey.generate().public_key())
+    security_data = {
+        "security_version": 1,
+        "plugin_id": "nested_plugin",
+        "manifest_hash": "0" * 64,
+        "exclusions": [],
+        "hashes": {"src/pkg/mod.py": tm._hash_file(str(plugin_dir / "src" / "pkg" / "mod.py"))},
+    }
+    (plugin_dir / "security.json").write_text(json.dumps(security_data))
+
+    assert tm._check_integrity(plugin_dir).success  # native separators
+
+    real_relpath = posixpath.relpath
+    with monkeypatch.context() as m:  # simulate Windows path separators
+        m.setattr(tm_module.os, "sep", "\\")
+        m.setattr(
+            tm_module.os.path,
+            "relpath",
+            lambda path, start: real_relpath(path, start).replace("/", "\\"),
+        )
+        result = tm._check_integrity(plugin_dir)
+    assert result.success, result.error_message
+    assert set(result.calculated_hashes) == {"src/pkg/mod.py"}
