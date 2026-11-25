@@ -482,10 +482,15 @@ def test_integrity_check_matches_ledger_paths_on_windows(tmp_path, monkeypatch):
     }
     (plugin_dir / "security.json").write_text(json.dumps(security_data))
 
-    assert tm._check_integrity(plugin_dir).success  # native separators
+    native = tm._check_integrity(plugin_dir)  # on a Windows runner this is the real case
+    assert native.success, native.error_message
+    assert set(native.calculated_hashes) == {"src/pkg/mod.py"}
+    if os.name == "nt":
+        return
 
+    # On macOS/Linux, simulate Windows separators to cover the same path.
     real_relpath = posixpath.relpath
-    with monkeypatch.context() as m:  # simulate Windows path separators
+    with monkeypatch.context() as m:
         m.setattr(tm_module.os, "sep", "\\")
         m.setattr(
             tm_module.os.path,
