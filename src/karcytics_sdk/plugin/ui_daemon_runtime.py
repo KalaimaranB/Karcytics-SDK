@@ -31,7 +31,7 @@ from typing import Any, cast
 import msgpack
 from PySide6.QtCore import QMetaObject, QObject, QThread, QTimer, Signal
 from PySide6.QtGui import QAction, QIcon
-from PySide6.QtWidgets import QApplication, QMainWindow, QMessageBox, QWidget
+from PySide6.QtWidgets import QApplication, QLabel, QMainWindow, QMessageBox, QStatusBar, QWidget
 
 from .logging import get_logger
 
@@ -464,6 +464,29 @@ def _dock_left_if_academy_active(window: QMainWindow, dialog: QWidget) -> None:
     dialog.move(x, y)
 
 
+LICENSE_LABEL_ENV = "KARCYTICS_LICENSE_LABEL"
+
+
+def _add_license_footer(window: QMainWindow) -> QLabel | None:
+    """Show the Hub's license line (e.g. "Class license · UBC MICB 323") in the window footer.
+
+    The Hub puts the text in ``KARCYTICS_LICENSE_LABEL``; this process inherits it. Nothing is
+    shown when the variable is absent (older Hubs, standalone runs).
+    """
+    text = os.environ.get(LICENSE_LABEL_ENV, "").strip()
+    if not text:
+        return None
+    bar = QStatusBar(window)
+    bar.setSizeGripEnabled(False)
+    label = QLabel(text[:120])
+    label.setObjectName("LicenseLabel")
+    label.setStyleSheet("color: palette(placeholder-text); font-size: 11px; padding-right: 12px;")
+    label.setToolTip("Hub → Settings → License shows the details.")
+    bar.addPermanentWidget(label)
+    window.setStatusBar(bar)
+    return label
+
+
 def _build_menu_bar(window: QMainWindow, logger: Any) -> None:
     """Give the isolated window its own menu bar using StandardMenuBuilder."""
     from karcytics_sdk.plugin.menu_builder import StandardMenuBuilder
@@ -888,6 +911,7 @@ def run(  # noqa: C901, PLR0913, PLR0915
     window.setWindowTitle(window_title)
     window.resize(*window_size)
     _build_menu_bar(window, logger)
+    _add_license_footer(window)
     # Set before panel_factory() below so the panel can read it from its own
     # __init__ or constructor path, not only from later user-triggered
     # handlers — same attribute name and shape as WorkspaceWindow's own
