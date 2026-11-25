@@ -7,10 +7,12 @@ Commands:
     registry:      Export the JSON snippet for the central registry.
 """
 
+import datetime
 import hashlib
 import json
 import logging
 import os
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -99,6 +101,39 @@ IGNORE_LIST = {
 }
 
 
+_PLUGIN_TABLE_RE = re.compile(r"^\[tool\.karcytics\.plugin\]\s*(#.*)?$")
+_TABLE_RE = re.compile(r"^\s*\[")
+_RELEASED_RE = re.compile(r"^released_at\s*=")
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+
+def stamp_released_at(manifest_file: Path, released_at: str) -> None:
+    """Write ``released_at = "YYYY-MM-DD"`` into the ``[tool.karcytics.plugin]`` table.
+
+    The Hub compares this date with a license's update period. It lives in pyproject.toml, so the
+    signed ``manifest_hash`` covers it, and the Plugin Store (which reads each plugin's
+    pyproject.toml) sees the same date. An existing value in that table is replaced; nothing else
+    in the file changes.
+    """
+    if not _DATE_RE.match(released_at):
+        raise ValueError(f"released_at must be YYYY-MM-DD, got {released_at!r}")
+    datetime.date.fromisoformat(released_at)  # rejects impossible dates
+    raw = manifest_file.read_bytes().decode("utf-8")
+    newline = "\r\n" if "\r\n" in raw else "\n"
+    lines = raw.splitlines()
+    header = next((i for i, line in enumerate(lines) if _PLUGIN_TABLE_RE.match(line.strip())), None)
+    if header is None:
+        raise ValueError(f"{manifest_file} has no [tool.karcytics.plugin] table")
+    end = next((i for i in range(header + 1, len(lines)) if _TABLE_RE.match(lines[i])), len(lines))
+    entry = f'released_at = "{released_at}"'
+    existing = next((i for i in range(header + 1, end) if _RELEASED_RE.match(lines[i])), None)
+    if existing is not None:
+        lines[existing] = entry
+    else:
+        lines.insert(header + 1, entry)
+    manifest_file.write_bytes((newline.join(lines) + newline).encode("utf-8"))
+
+
 class PluginSigner:
     def __init__(self, custom_dev_dir: Path | None = None):
         self.dev_dir = custom_dev_dir if custom_dev_dir else (Path.home() / ".karcytics" / "dev_keys")
@@ -144,14 +179,19 @@ class PluginSigner:
                 raise TypeError("Key is not a valid Ed25519PrivateKey")
             return key
 
-    def sign_plugin(self, plugin_path: Path):  # noqa: C901, PLR0915
-        """Generates security.json with manifest binding hash and creates signature.bin."""
+    def sign_plugin(self, plugin_path: Path, released_at: str | None = None):  # noqa: C901, PLR0915
+        """Generates security.json with manifest binding hash and creates signature.bin.
+
+        Stamps ``released_at`` (default: today) into pyproject.toml first, so the signed manifest
+        carries the release date the Hub checks against a license's update period.
+        """
         private_key = self.load_private_key()
         public_key = private_key.public_key()
 
         manifest_file = plugin_path / "pyproject.toml"
         if not manifest_file.exists():
             raise FileNotFoundError(f"pyproject.toml not found in {plugin_path}")
+        stamp_released_at(manifest_file, released_at or datetime.date.today().isoformat())
 
         # Parse & Validate manifest using new Split-Manifest strict rules
         parser = ManifestParser()

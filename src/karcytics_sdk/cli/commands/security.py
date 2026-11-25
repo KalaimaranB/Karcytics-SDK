@@ -14,6 +14,10 @@ def setup_security_parser(subparsers):
     # Command: sign
     sign_parser = subparsers.add_parser("sign", help="Sign a plugin using the local developer identity.")
     sign_parser.add_argument("plugin_dir", type=str, help="Path to the plugin directory.")
+    sign_parser.add_argument(
+        "--released-at",
+        help="Release date (YYYY-MM-DD) to stamp into pyproject.toml; defaults to today.",
+    )
     sign_parser.set_defaults(func=sign_plugin)
 
     # Command: verify-ledger
@@ -70,7 +74,7 @@ def sign_plugin(args) -> bool:
     """Sign a plugin using the local developer identity."""
     signer = PluginSigner()
     try:
-        signer.sign_plugin(Path(args.plugin_dir))
+        signer.sign_plugin(Path(args.plugin_dir), released_at=getattr(args, "released_at", None))
         return True
     except Exception as e:
         print(f"ERROR: Failed to sign plugin: {e}")

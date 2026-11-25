@@ -23,7 +23,7 @@ def test_security_sign(mock_signer_class):
     mock_signer = mock_signer_class.return_value
     args = DummyArgs(plugin_dir="/test")
     assert security.sign_plugin(args) is True
-    mock_signer.sign_plugin.assert_called_once_with(Path("/test"))
+    mock_signer.sign_plugin.assert_called_once_with(Path("/test"), released_at=None)
 
 
 def test_verify_ledger_no_security_json(tmp_path):
