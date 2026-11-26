@@ -1,6 +1,6 @@
 # 🔌 Karcytics SDK
 
-[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blueviolet?style=flat-square)](https://KalaimaranB.github.io/Karcytics-SDK/)
+[![Documentation](https://img.shields.io/badge/docs-docs.karcytics.ca-blueviolet?style=flat-square)](https://docs.karcytics.ca/sdk/)
 [![CI Build Status](https://img.shields.io/github/actions/workflow/status/KalaimaranB/Karcytics-SDK/test_and_lint.yml?branch=main&style=flat-square&label=CI%20build)](https://github.com/KalaimaranB/Karcytics-SDK/actions)
 [![License](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue?style=flat-square)](https://github.com/KalaimaranB/Karcytics-SDK/blob/main/LICENSE)
 

@@ -1,7 +1,7 @@
 site_name: Karcytics SDK
 site_description: Software Development Kit and CLI for Karcytics desktop plugins.
 site_author: Kalaimaran Balasothy
-site_url: https://KalaimaranB.github.io/Karcytics-SDK/
+site_url: https://docs.karcytics.ca/sdk/
 
 theme:
   name: material
@@ -34,6 +34,7 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
+          paths: [src]
           options:
             show_source: true
             show_root_heading: true

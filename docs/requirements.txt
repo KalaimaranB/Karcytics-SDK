@@ -1,0 +1,6 @@
+# Tools for building this repo's docs (wrangler.toml [build]). Pinned so Cloudflare's build matches local.
+# Keep MkDocs on 1.x: MkDocs 2.0 drops the plugin system Material for MkDocs relies on.
+mkdocs==1.6.1
+mkdocs-material==9.7.6
+mkdocstrings==1.0.6
+mkdocstrings-python==2.0.8
