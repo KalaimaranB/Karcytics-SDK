@@ -6,7 +6,9 @@ and route to the central diagnostic engine.
 
 import logging
 import logging.handlers
+from collections.abc import MutableMapping
 from pathlib import Path
+from typing import Any
 
 # Third-party libraries whose own DEBUG-level logging is compiler/rendering
 # internals, not anything a plugin author would ever want to see. Since
@@ -32,7 +34,7 @@ class PluginLoggerAdapter(logging.LoggerAdapter):
         super().__init__(logger, {"plugin_id": plugin_id})
         self.plugin_id = plugin_id
 
-    def process(self, msg, kwargs):
+    def process(self, msg: object, kwargs: MutableMapping[str, Any]) -> tuple[object, MutableMapping[str, Any]]:
         """Process log messages to inject the plugin metadata context.
 
         Args:

@@ -37,7 +37,7 @@ class StepIndicator(QWidget):
 
     step_clicked = Signal(int)
 
-    def __init__(self, steps: list[str], parent=None) -> None:
+    def __init__(self, steps: list[str], parent: QWidget | None = None) -> None:
         """Create a step indicator.
 
         Args:
@@ -264,7 +264,7 @@ class WizardPanel(QWidget):
     analysis_complete = Signal()
     analysis_error = Signal(str)
 
-    def __init__(self, steps: list[WizardStep], title: str = "", parent=None) -> None:
+    def __init__(self, steps: list[WizardStep], title: str = "", parent: QWidget | None = None) -> None:
         """Create a wizard panel.
 
         Args:

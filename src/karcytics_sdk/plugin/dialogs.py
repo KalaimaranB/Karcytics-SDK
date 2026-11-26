@@ -19,6 +19,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QTextEdit,
     QVBoxLayout,
+    QWidget,
 )
 
 # ──────────────────────────────────────────────────────────────────────────────
@@ -26,7 +27,7 @@ from PySide6.QtWidgets import (
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def project_assets_dir(widget=None) -> str:
+def project_assets_dir(widget: QWidget | None = None) -> str:
     """The open project's assets folder, as `widget`'s window knows it ("" with no project).
 
     The Hub (and an isolated plugin's runtime) sets `project_manager` on the
@@ -37,7 +38,7 @@ def project_assets_dir(widget=None) -> str:
     return str(folder) if folder and Path(folder).is_dir() else ""
 
 
-def bring_into_project(parent, path: str) -> str | None:
+def bring_into_project(parent: QWidget | None, path: str) -> str | None:
     """`path`, registered with the open project after offering to copy it into its assets.
 
     A file chosen from outside the project would be left behind when the
@@ -69,7 +70,7 @@ def bring_into_project(parent, path: str) -> str | None:
     return str(resolved) if resolved else path
 
 
-def get_image_path(parent=None, title: str = "Select Image", start_dir: str = "") -> str | None:
+def get_image_path(parent: QWidget | None = None, title: str = "Select Image", start_dir: str = "") -> str | None:
     """Show file dialog to select an image.
 
     Args:
@@ -89,7 +90,7 @@ def get_image_path(parent=None, title: str = "Select Image", start_dir: str = ""
     return file_path if file_path else None
 
 
-def get_image_paths(parent=None, title: str = "Select Images", start_dir: str = "") -> list[str]:
+def get_image_paths(parent: QWidget | None = None, title: str = "Select Images", start_dir: str = "") -> list[str]:
     """Show file dialog to select multiple images.
 
     Args:
@@ -109,7 +110,7 @@ def get_image_paths(parent=None, title: str = "Select Images", start_dir: str = 
     return file_paths if file_paths else []
 
 
-def import_assets_workflow(parent, project_manager, file_paths: list[str]) -> list[str]:
+def import_assets_workflow(parent: QWidget | None, project_manager, file_paths: list[str]) -> list[str]:
     """Orchestrates the multi-file import workflow as requested by the user.
 
     1. If multiple files, asks if they should be grouped in a subdirectory.
@@ -146,7 +147,9 @@ def import_assets_workflow(parent, project_manager, file_paths: list[str]) -> li
     return project_manager.batch_add_images(path_objs, copy_to_workspace, subfolder)
 
 
-def get_save_path(parent=None, title: str = "Save As", start_dir: str = "", file_filter: str = "") -> str | None:
+def get_save_path(
+    parent: QWidget | None = None, title: str = "Save As", start_dir: str = "", file_filter: str = ""
+) -> str | None:
     """Show save file dialog.
 
     Args:
@@ -165,7 +168,7 @@ def get_save_path(parent=None, title: str = "Save As", start_dir: str = "", file
     return file_path if file_path else None
 
 
-def get_directory(parent=None, title: str = "Select Directory", start_dir: str = "") -> str | None:
+def get_directory(parent: QWidget | None = None, title: str = "Select Directory", start_dir: str = "") -> str | None:
     """Show directory selection dialog.
 
     Args:
@@ -185,7 +188,7 @@ def get_directory(parent=None, title: str = "Select Directory", start_dir: str =
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def show_info(parent=None, title: str = "Information", message: str = "") -> None:
+def show_info(parent: QWidget | None = None, title: str = "Information", message: str = "") -> None:
     """Show information dialog.
 
     Args:
@@ -196,7 +199,7 @@ def show_info(parent=None, title: str = "Information", message: str = "") -> Non
     QMessageBox.information(parent, title, message)
 
 
-def show_warning(parent=None, title: str = "Warning", message: str = "") -> None:
+def show_warning(parent: QWidget | None = None, title: str = "Warning", message: str = "") -> None:
     """Show warning dialog.
 
     Args:
@@ -207,7 +210,7 @@ def show_warning(parent=None, title: str = "Warning", message: str = "") -> None
     QMessageBox.warning(parent, title, message)
 
 
-def show_error(parent=None, title: str = "Error", message: str = "") -> None:
+def show_error(parent: QWidget | None = None, title: str = "Error", message: str = "") -> None:
     """Show error dialog.
 
     Args:
@@ -218,7 +221,7 @@ def show_error(parent=None, title: str = "Error", message: str = "") -> None:
     QMessageBox.critical(parent, title, message)
 
 
-def ask_yes_no(parent=None, title: str = "", message: str = "") -> bool:
+def ask_yes_no(parent: QWidget | None = None, title: str = "", message: str = "") -> bool:
     """Show yes/no question dialog.
 
     Args:
@@ -245,7 +248,7 @@ def ask_yes_no(parent=None, title: str = "", message: str = "") -> bool:
 _MAX_LISTED = 6
 
 
-def confirm_destructive(parent, title: str, message: str, items: Sequence[str] = ()) -> bool:
+def confirm_destructive(parent: QWidget | None, title: str, message: str, items: Sequence[str] = ()) -> bool:
     """Ask before an action that also affects other things, listing them.
 
     For "deleting X also deletes its 3 children" or "rename in 5 samples":
@@ -271,7 +274,7 @@ def confirm_destructive(parent, title: str, message: str, items: Sequence[str] =
     return msg_box.exec() == QMessageBox.StandardButton.Yes
 
 
-def ask_ok_cancel(parent=None, title: str = "", message: str = "") -> bool:
+def ask_ok_cancel(parent: QWidget | None = None, title: str = "", message: str = "") -> bool:
     """Show OK/Cancel dialog.
 
     Args:
@@ -293,7 +296,7 @@ def ask_ok_cancel(parent=None, title: str = "", message: str = "") -> bool:
 # ──────────────────────────────────────────────────────────────────────────────
 
 
-def get_text(parent=None, title: str = "", label: str = "", default: str = "") -> str | None:
+def get_text(parent: QWidget | None = None, title: str = "", label: str = "", default: str = "") -> str | None:
     """Show text input dialog.
 
     Args:
@@ -310,7 +313,7 @@ def get_text(parent=None, title: str = "", label: str = "", default: str = "") -
 
 
 def get_number(  # noqa: PLR0913, PLR0917
-    parent=None,
+    parent: QWidget | None = None,
     title: str = "",
     label: str = "",
     value: int = 0,
@@ -335,7 +338,7 @@ def get_number(  # noqa: PLR0913, PLR0917
 
 
 def get_double(  # noqa: PLR0913, PLR0917
-    parent=None,
+    parent: QWidget | None = None,
     title: str = "",
     label: str = "",
     value: float = 0.0,
@@ -369,11 +372,11 @@ def get_double(  # noqa: PLR0913, PLR0917
 class SaveWorkflowDialog(QDialog):
     """Dialog to capture metadata before saving a workflow."""
 
-    def __init__(self, parent=None):
+    def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
         self.setWindowTitle("Save Workflow")
         self.setMinimumWidth(400)
-        self.layout = QVBoxLayout(self)
+        layout = QVBoxLayout(self)
 
         form = QFormLayout()
 
@@ -391,7 +394,7 @@ class SaveWorkflowDialog(QDialog):
         form.addRow("Description:", self.desc_input)
         form.addRow("Tags (comma separated):", self.tags_input)
 
-        self.layout.addLayout(form)
+        layout.addLayout(form)
 
         # Standard Save/Cancel buttons
         self.buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Save | QDialogButtonBox.StandardButton.Cancel)
@@ -404,7 +407,7 @@ class SaveWorkflowDialog(QDialog):
             lambda text: self.buttons.button(QDialogButtonBox.StandardButton.Save).setEnabled(bool(text.strip()))
         )
 
-        self.layout.addWidget(self.buttons)
+        layout.addWidget(self.buttons)
 
     def get_metadata(self) -> dict:
         """Extracts and formats the user input."""

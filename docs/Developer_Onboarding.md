@@ -169,6 +169,6 @@ If you are an existing developer upgrading your plugins from Karcytics V1 to the
 Now that you understand the full lifecycle, you are ready to start building powerful bioinformatics plugins!
 - **Want to build complex UI layouts?** Check out the [Developer Handbook](Dev_Handbook.md).
 - **Need to understand the Cryptographic pipeline?** Read the [Security Guide](CI_CD_Guide.md).
-- **Looking for API specifics?** Browse the [API Reference](api/index.md).
+- **Looking for API specifics?** Browse the [API Reference](api/interfaces.md).
 
 Happy hacking! 🎉

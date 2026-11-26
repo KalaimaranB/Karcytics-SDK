@@ -97,7 +97,7 @@ class PluginBase(QWidget):
         ...         self.update_ui()
     """
 
-    def __init__(self, plugin_id: str, parent=None):
+    def __init__(self, plugin_id: str, parent: QWidget | None = None) -> None:
         """Initialize the plugin.
 
         Args:
