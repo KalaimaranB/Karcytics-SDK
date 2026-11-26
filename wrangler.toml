@@ -1,13 +1,15 @@
 # Cloudflare Worker serving the SDK docs at https://docs.karcytics.ca/sdk/.
 # The Hub repo's docs Worker owns docs.karcytics.ca/*; this more specific route takes precedence.
-# Workers Builds: leave the build command empty (the [build] below runs it); deploy command `npx wrangler deploy`.
+# Workers Builds: leave the build command empty (the [build] below runs it); deploy command `npx wrangler deploy`;
+# build variable SKIP_DEPENDENCY_INSTALL=1 (otherwise Cloudflare runs `uv sync` on the plugin's own dependencies).
 name = "karcytics-docs-sdk"
 compatibility_date = "2026-11-01"
 workers_dev = false
 routes = [{ pattern = "docs.karcytics.ca/sdk*", zone_name = "karcytics.ca" }]
 
 [build]
-command = "python3 -m pip install --quiet -r docs/requirements.txt && rm -rf site && mkdocs build --quiet -d site/sdk"
+# --no-project: build with only the docs tools, never this repo's own dependencies.
+command = "rm -rf site && uv run --no-project --with-requirements docs/requirements.txt mkdocs build --quiet -d site/sdk"
 
 [assets]
 directory = "./site"
