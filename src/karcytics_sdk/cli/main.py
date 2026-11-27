@@ -1,6 +1,7 @@
 import argparse
 import sys
 
+from karcytics_sdk.cli.commands.academy import setup_academy_parser
 from karcytics_sdk.cli.commands.compliance import setup_compliance_parser
 from karcytics_sdk.cli.commands.diagnostics import setup_diagnostics_parser
 from karcytics_sdk.cli.commands.migrate import setup_migrate_parser
@@ -30,6 +31,7 @@ def main():
     setup_diagnostics_parser(subparsers)
     setup_migrate_parser(subparsers)
     setup_compliance_parser(subparsers)
+    setup_academy_parser(subparsers)
 
     args = parser.parse_args(args_list)
 

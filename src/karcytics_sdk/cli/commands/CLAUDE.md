@@ -4,3 +4,4 @@ Each file wires one `karcytics-sdk <subcommand>` group via `argparse` subparsers
 - `security.py` — `init-identity`, `sign` (wraps `host/sign_plugin.py::PluginSigner`).
 - `migrate.py` — `migrate` (legacy plugin → current `pyproject.toml` + `src/` layout).
 - `diagnostics.py` — `sbom`, `evaluate` (manifest parse + dependency-pinning audit; called by every plugin's `release.yml`, so don't remove it), `doctor` (thin wrapper over `karcytics_sdk.evaluator`, the static conformance checker — rules and their docs are described in `docs/Doctor.md`).
+- `academy.py` — `academy-export` (every Academy course in a repo as JSON, read statically by `academy/export.py`; the admin portal's Academy review shows it).
