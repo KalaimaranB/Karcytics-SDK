@@ -107,6 +107,43 @@ _RELEASED_RE = re.compile(r"^released_at\s*=")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
+def _release_fields(text: str) -> tuple[str | None, str | None]:
+    """(``[project] version``, ``[tool.karcytics.plugin] released_at``) from pyproject.toml text."""
+    import tomllib
+
+    try:
+        data = tomllib.loads(text)
+    except tomllib.TOMLDecodeError:
+        return None, None
+    version = data.get("project", {}).get("version")
+    released = data.get("tool", {}).get("karcytics", {}).get("plugin", {}).get("released_at")
+    return (version if isinstance(version, str) else None, released if isinstance(released, str) else None)
+
+
+def default_released_at(manifest_file: Path, today: str | None = None) -> str:
+    """The date ``sign`` stamps when none is given.
+
+    Keeps the existing ``released_at`` while the version is the one already committed (git
+    ``HEAD``), so re-signing for a docs or config change doesn't move a release's date. A new
+    version, a first signing, or no git history gets today.
+    """
+    today = today or datetime.date.today().isoformat()
+    version, released = _release_fields(manifest_file.read_text(encoding="utf-8"))
+    if not version or not released or not _DATE_RE.match(released):
+        return today
+    repo = manifest_file.resolve().parent
+    try:
+        head = subprocess.run(
+            ["git", "show", "HEAD:./pyproject.toml"], cwd=repo, capture_output=True, text=True, timeout=10, check=False
+        )
+    except (OSError, subprocess.SubprocessError):
+        return today
+    if head.returncode != 0:
+        return today
+    head_version, _ = _release_fields(head.stdout)
+    return released if head_version == version else today
+
+
 def stamp_released_at(manifest_file: Path, released_at: str) -> None:
     """Write ``released_at = "YYYY-MM-DD"`` into the ``[tool.karcytics.plugin]`` table.
 
@@ -182,8 +219,9 @@ class PluginSigner:
     def sign_plugin(self, plugin_path: Path, released_at: str | None = None):  # noqa: C901, PLR0915
         """Generates security.json with manifest binding hash and creates signature.bin.
 
-        Stamps ``released_at`` (default: today) into pyproject.toml first, so the signed manifest
-        carries the release date the Hub checks against a license's update period.
+        Stamps ``released_at`` into pyproject.toml first, so the signed manifest carries the
+        release date the Hub checks against a license's update period. Default: today for a new
+        version, otherwise the date already there (see ``default_released_at``).
         """
         private_key = self.load_private_key()
         public_key = private_key.public_key()
@@ -191,7 +229,7 @@ class PluginSigner:
         manifest_file = plugin_path / "pyproject.toml"
         if not manifest_file.exists():
             raise FileNotFoundError(f"pyproject.toml not found in {plugin_path}")
-        stamp_released_at(manifest_file, released_at or datetime.date.today().isoformat())
+        stamp_released_at(manifest_file, released_at or default_released_at(manifest_file))
 
         # Parse & Validate manifest using new Split-Manifest strict rules
         parser = ManifestParser()

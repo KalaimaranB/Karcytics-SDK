@@ -16,7 +16,8 @@ def setup_security_parser(subparsers):
     sign_parser.add_argument("plugin_dir", type=str, help="Path to the plugin directory.")
     sign_parser.add_argument(
         "--released-at",
-        help="Release date (YYYY-MM-DD) to stamp into pyproject.toml; defaults to today.",
+        help="Release date (YYYY-MM-DD) to stamp into pyproject.toml. Default: today for a new version; "
+        "the existing date if the version is unchanged since the last commit.",
     )
     sign_parser.set_defaults(func=sign_plugin)
 

@@ -13,7 +13,7 @@ from argparse import Namespace
 import pytest
 
 from karcytics_sdk.cli.commands.security import sign_plugin as cli_sign
-from karcytics_sdk.host.sign_plugin import PluginSigner, stamp_released_at
+from karcytics_sdk.host.sign_plugin import PluginSigner, default_released_at, stamp_released_at
 from karcytics_sdk.plugin.manifest_parser import ManifestParser
 from karcytics_sdk.plugin.security_parser import ManifestHashMismatch, SecurityParser
 
@@ -122,3 +122,48 @@ def test_cli_passes_released_at(tmp_path, monkeypatch):
     monkeypatch.setattr(PluginSigner, "sign_plugin", fake_sign)
     assert cli_sign(Namespace(plugin_dir=str(tmp_path), released_at="2027-02-02"))
     assert seen["released_at"] == "2027-02-02"
+
+
+# ── the default date: keep it while the version is unchanged ────────────────
+
+
+def _repo(tmp_path, version="1.0.0", released="2026-11-25"):
+    repo = tmp_path / "plugin"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)
+    m = repo / "pyproject.toml"
+    m.write_text(MANIFEST.replace('version = "1.0.0"', f'version = "{version}"'))
+    stamp_released_at(m, released)
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)
+    subprocess.run(
+        ["git", "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-q", "-m", "x"], cwd=repo, check=True
+    )
+    return m
+
+
+def test_default_keeps_the_date_when_the_version_is_unchanged(tmp_path):
+    m = _repo(tmp_path)
+    (m.parent / "wrangler.toml").write_text("name = 'x'\n")  # a docs/config-only change
+    assert default_released_at(m, today="2026-11-26") == "2026-11-25"
+
+
+def test_default_is_today_for_a_new_version(tmp_path):
+    m = _repo(tmp_path)
+    m.write_text(m.read_text().replace('version = "1.0.0"', 'version = "1.0.1"'))
+    assert default_released_at(m, today="2026-11-26") == "2026-11-26"
+
+
+def test_default_is_today_without_a_date_or_git(tmp_path):
+    m = tmp_path / "pyproject.toml"
+    m.write_text(MANIFEST)
+    assert default_released_at(m, today="2026-11-26") == "2026-11-26"  # no released_at yet
+    stamp_released_at(m, "2026-11-25")
+    assert default_released_at(m, today="2026-11-26") == "2026-11-26"  # not a git repo
+
+
+def test_resign_keeps_the_date_through_a_symlink(tmp_path):
+    """The plugins' pre-commit hook signs through a ../<plugin_id> symlink."""
+    m = _repo(tmp_path)
+    link = tmp_path / "my_plugin"
+    link.symlink_to(m.parent)
+    assert default_released_at(link / "pyproject.toml", today="2026-11-26") == "2026-11-25"
