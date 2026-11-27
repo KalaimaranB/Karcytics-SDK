@@ -511,8 +511,9 @@ def main(argv: list[str] | None = None) -> int:
     text = json.dumps(data, ensure_ascii=False, indent=1) + "\n"
     if a.out:
         Path(a.out).write_text(text, encoding="utf-8")
-    else:
-        sys.stdout.write(text)
+    else:  # bytes, so a Windows console's code page can't reject the text
+        sys.stdout.buffer.write(text.encode("utf-8"))
+        sys.stdout.flush()
     n = sum(len(c["steps"]) for c in data["courses"])
     print(f"{len(data['courses'])} courses, {n} steps, {len(data['warnings'])} warnings", file=sys.stderr)
     return 0

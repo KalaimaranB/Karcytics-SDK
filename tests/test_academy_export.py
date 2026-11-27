@@ -62,13 +62,14 @@ COURSE = textwrap.dedent("""
 def _repo(tmp_path):
     pkg = tmp_path / "src" / "my_plugin" / "tutorials"
     pkg.mkdir(parents=True)
-    (pkg / "__init__.py").write_text("")
-    (pkg.parent / "__init__.py").write_text("")
-    (pkg / "parts.py").write_text(STEPS)
-    (pkg / "courses.py").write_text(COURSE)
+    (pkg / "__init__.py").write_text("", encoding="utf-8")
+    (pkg.parent / "__init__.py").write_text("", encoding="utf-8")
+    (pkg / "parts.py").write_text(STEPS, encoding="utf-8")
+    (pkg / "courses.py").write_text(COURSE, encoding="utf-8")
     (tmp_path / "tests").mkdir()
     (tmp_path / "tests" / "test_x.py").write_text(
-        "from x import Course\nfake = Course(id='nope', title='t', steps=[])\n"
+        "from x import Course\nfake = Course(id='nope', title='t', steps=[])\n",
+        encoding="utf-8",
     )
     return tmp_path
 
@@ -126,7 +127,10 @@ def test_hash_changes_only_with_text(tmp_path):
     by1 = {s["id"]: s["hash"] for s in d1["courses"][0]["steps"]}
     f = tmp_path / "src" / "my_plugin" / "tutorials" / "parts.py"
     f.write_text(
-        f.read_text().replace('"Third"', '"Third, reworded"').replace('next_step_id="x2"', 'next_step_id="x3"')
+        f.read_text(encoding="utf-8")
+        .replace('"Third"', '"Third, reworded"')
+        .replace('next_step_id="x2"', 'next_step_id="x3"'),
+        encoding="utf-8",
     )
     by2 = {s["id"]: s["hash"] for s in export(tmp_path / "src", "m", repo_root=tmp_path)["courses"][0]["steps"]}
     assert by1["x3"] != by2["x3"] and by1["x1"] == by2["x1"]
@@ -135,7 +139,10 @@ def test_hash_changes_only_with_text(tmp_path):
 def test_unreadable_entries_are_warnings(tmp_path):
     root = _repo(tmp_path)
     f = root / "src" / "my_plugin" / "tutorials" / "courses.py"
-    f.write_text(f.read_text().replace("_dyn,\n", "_dyn,\n            *make_steps(),\n            MISSING,\n"))
+    f.write_text(
+        f.read_text(encoding="utf-8").replace("_dyn,\n", "_dyn,\n            *make_steps(),\n            MISSING,\n"),
+        encoding="utf-8",
+    )
     d = export(root / "src", "m", repo_root=root)
     assert any("can't read" in w for w in d["warnings"]) and any("MISSING" in w for w in d["warnings"])
 
@@ -144,6 +151,6 @@ def test_cli_writes_json(tmp_path, capsys):
     root = _repo(tmp_path)
     out = tmp_path / "academy.json"
     assert main([str(root), "--module", "my_plugin", "--out", str(out), "--commit", "abc"]) == 0
-    d = json.loads(out.read_text())
+    d = json.loads(out.read_text(encoding="utf-8"))
     assert d["format"] == 1 and d["module"] == "my_plugin" and d["commit"] == "abc" and len(d["courses"]) == 2
     assert "2 courses, 8 steps" in capsys.readouterr().err
